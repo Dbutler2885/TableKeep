@@ -14,7 +14,7 @@ import { getStorage } from 'firebase-admin/storage'
 import { joinReply, noteReply, stopReply } from '../../src/discord/replies.ts'
 import { SessionRunner, type CommandCaller, type JoinReply } from '../../src/discord/runner.ts'
 import { OPENAI_RESPONSES_URL } from '../../src/rules/answer.ts'
-import { renderClassicFantasyCorpus } from '../../src/rules/classicFantasy.ts'
+import { renderClassicFantasyCorpus, renderClassicFantasySpellsAndItems } from '../../src/rules/classicFantasy.ts'
 import { JEV_URL } from '../../src/rules/jev.ts'
 import { rulesAnswering } from '../../src/rules/setup.ts'
 import type { TranscriptLine } from '../../src/rules/transcriptWindow.ts'
@@ -344,7 +344,7 @@ test('a rules question heard at the table is answered in the channel while the s
       windows.push(window)
       postedQuestions.push(posted.map((answer) => answer.question))
       if (windows.length === 1) throw new Error('TypeSafe answered 503')
-      return windows.length === 2 ? 0.95 : 0.05
+      return { rulesQuestion: windows.length === 2 ? 0.95 : 0.05, needs: {} }
     },
     byRuleSet: {
       lubec: {
@@ -405,16 +405,24 @@ test('a rules question heard at the table is answered in the channel while the s
 test("each session is answered from its campaign's rules: the Classic Fantasy corpus for OSE, the Lubec rules for Lubec, none for a rule set without rules", async () => {
   const root = new URL('../../..', import.meta.url).pathname
   const classicFantasy = renderClassicFantasyCorpus(readFileSync(`${root}/docs/rules/ose-classic/corpus.json`, 'utf8'))
+  const spellsAndItems = renderClassicFantasySpellsAndItems(readFileSync(`${root}/docs/rules/ose-classic/spells-and-items.json`, 'utf8'))
   const lubec = readFileSync(`${root}/docs/lubec/rules.md`, 'utf8').trim()
   // The real setup, reading the repository's rules, with both model services stood in for.
-  const jevAsked: unknown[] = []
+  const jevAsked: { questions: Record<string, unknown> }[] = []
   const instructions: string[] = []
   let answeredThisSession = false
   const request = (async (url: string, init: RequestInit) => {
-    const body = JSON.parse(String(init.body)) as { instructions: string }
+    const body = JSON.parse(String(init.body)) as { instructions: string; questions: Record<string, unknown> }
     if (url === JEV_URL) {
       jevAsked.push(body)
-      return Response.json({ answers: { rules_question: { noul: answeredThisSession ? 0.05 : 0.95 } } })
+      // The question needs a spell, not a monster.
+      return Response.json({
+        answers: {
+          rules_question: { noul: answeredThisSession ? 0.05 : 0.95 },
+          monster_question: { noul: 0.04 },
+          spell_or_item_question: { noul: 0.91 },
+        },
+      })
     }
     assert.equal(url, OPENAI_RESPONSES_URL)
     instructions.push(body.instructions)
@@ -452,14 +460,20 @@ test("each session is answered from its campaign's rules: the Classic Fantasy co
   // A campaign from before rule sets has no system, and is played with OSE, as the app reads it.
   await playSession(true)
   assert.equal(instructions.length, 1)
-  assert.ok(instructions[0]!.endsWith(`${classicFantasy.trim()}\n`), 'an OSE session is answered from the whole Classic Fantasy corpus')
+  assert.ok(
+    instructions[0]!.endsWith(`${classicFantasy.trim()}\n\n${spellsAndItems.trim()}\n`),
+    'an OSE session is answered from the whole Classic Fantasy corpus, with the spells, equipment and treasure the question needs after it',
+  )
+  assert.ok(!instructions[0]!.includes('# Classic Fantasy monsters'), 'and without the monsters it does not')
   assert.ok(!instructions[0]!.includes(lubec))
+  assert.deepEqual(Object.keys(jevAsked[0]!.questions), ['rules_question', 'monster_question', 'spell_or_item_question'])
 
   await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
   await playSession(true)
   assert.equal(instructions.length, 2)
   assert.ok(instructions[1]!.endsWith(`${lubec}\n`), 'a Lubec session is still answered from the Lubec rules')
   assert.ok(!instructions[1]!.includes('Classic Fantasy'))
+  assert.deepEqual(Object.keys(jevAsked.at(-1)!.questions), ['rules_question'], 'Jev is asked only the rules question of a Lubec session')
 
   assert.deepEqual(rulesAnswers(), [
     '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**.',
@@ -594,7 +608,7 @@ test("a session picked up after a restart is answered from its campaign's rules 
     answer: async () => ({ kind: 'answered' as const, question: 'who goes first?', askedBy: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }),
   })
   const rules: RulesAnswering = {
-    askJev: async () => 0.95,
+    askJev: async () => ({ rulesQuestion: 0.95, needs: {} }),
     byRuleSet: { lubec: rulesFor('the rules document'), ose: rulesFor(null) },
     log: (message) => logged.push(message),
   }
@@ -630,7 +644,7 @@ test("a session whose campaign's rule set cannot be read is recorded without rul
   runner = newRunner({
     askJev: async () => {
       jevAsked += 1
-      return 0.95
+      return { rulesQuestion: 0.95, needs: {} }
     },
     byRuleSet: { ose: { citedAs: null, answer: () => Promise.reject(new Error('not asked')) } },
     log: (message, detail) => logged.push({ message, detail }),

@@ -36,7 +36,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 ENV_FILE="$ROOT/bot/.env.live.local"
 # The rules the image carries, and the Classic Fantasy rules' license, which goes wherever they do.
-RULES_FILES=(docs/lubec/rules.md docs/rules/ose-classic/corpus.json docs/rules/ose-classic/OGL.txt)
+RULES_FILES=(docs/lubec/rules.md docs/rules/ose-classic/corpus.json docs/rules/ose-classic/monsters.json docs/rules/ose-classic/spells-and-items.json docs/rules/ose-classic/OGL.txt)
 gc() { gcloud --project "$PROJECT" --quiet "$@"; }
 
 # Stores a secret from bot/.env.live.local and lets the bot read it.

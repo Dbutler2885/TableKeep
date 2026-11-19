@@ -4,9 +4,12 @@
  * The whole document goes to the model with the stretch of transcript the
  * question was heard in. The document is the instructions' fixed tail, so
  * every request in a session starts with the same long prefix and the
- * service can reuse it. The answer comes back in a fixed shape, so the bot
+ * service can reuse it. Parts of the rules sent only when a question needs
+ * them follow the document, always in the same order, so that prefix holds
+ * whichever are sent. The answer comes back in a fixed shape, so the bot
  * decides how it reads in Discord and can tell when there was no question.
  */
+import { SUPPLEMENTS, type Supplement } from './books.ts'
 import { postJson } from './http.ts'
 import { postedAnswersText, transcriptText, type PostedAnswer, type TranscriptLine } from './transcriptWindow.ts'
 
@@ -134,22 +137,32 @@ export function readAnswer(body: unknown): RulesAnswer {
   }
 }
 
-export type AnswerRulesQuestion = (window: readonly TranscriptLine[], posted: readonly PostedAnswer[]) => Promise<RulesAnswer>
+/** Answers the question in a window, from the rules document and the parts of the rules in `needs`. */
+export type AnswerRulesQuestion = (window: readonly TranscriptLine[], posted: readonly PostedAnswer[], needs?: readonly Supplement[]) => Promise<RulesAnswer>
+
+/** The rules document with those of `supplements` that are in `needs` after it, in their fixed order. */
+export function withSupplements(rulesDocument: string, supplements: Partial<Record<Supplement, string>>, needs: readonly Supplement[]): string {
+  const parts = SUPPLEMENTS.filter((supplement) => needs.includes(supplement)).flatMap((supplement) => supplements[supplement] ?? [])
+  return [rulesDocument, ...parts].map((part) => part.trim()).join('\n\n')
+}
 
 /** Answers through OpenAI's Responses API. */
 export function openAiRulesAnswerer({
   apiKey,
   rulesDocument,
+  supplements = {},
   model = RULES_ANSWER_MODEL,
   fetch,
 }: {
   apiKey: string
   rulesDocument: string
+  /** Parts of the rules, by name, sent after the document when a question needs them. */
+  supplements?: Partial<Record<Supplement, string>>
   model?: string
   fetch?: typeof globalThis.fetch
 }): AnswerRulesQuestion {
-  return async (window, posted) => {
-    const body = answerRequest(rulesDocument, window, posted, model)
+  return async (window, posted, needs = []) => {
+    const body = answerRequest(withSupplements(rulesDocument, supplements, needs), window, posted, model)
     return readAnswer(await postJson({ service: 'OpenAI', url: OPENAI_RESPONSES_URL, apiKey, body, timeoutMs: ANSWER_TIMEOUT_MS, fetch }))
   }
 }

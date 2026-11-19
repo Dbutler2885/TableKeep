@@ -4,14 +4,18 @@ import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { generateRules, importRules, parseRulesPage } from './fetch-rules.mjs'
+import { fetchSourceTree, folderLister, generateRules, importRules, parseRulesPage } from './fetch-rules.mjs'
 
 const directory = new URL('../../docs/rules/ose-classic/', import.meta.url)
 const corpus = JSON.parse(readFileSync(new URL('corpus.json', directory), 'utf8'))
+const monsters = JSON.parse(readFileSync(new URL('monsters.json', directory), 'utf8'))
+const spellsAndItems = JSON.parse(readFileSync(new URL('spells-and-items.json', directory), 'utf8'))
+const BUNDLES = { 'corpus.json': corpus, 'monsters.json': monsters, 'spells-and-items.json': spellsAndItems }
 const license = readFileSync(new URL('OGL.txt', directory), 'utf8')
 const WEAPON_RULES_PATH = '3. Equipment & Services/3. Weapons and Armor.md'
 const ADVANCEMENT_PATH = '1. Characters/6. Advancement.md'
 const CHARACTER_CREATION_PATH = '1. Characters/2. Creating a Character.md'
+const REINCARNATION_PATH = '4. Magic/Magic-User Spells/6 - Reincarnate.md'
 const SOURCE_NOTICE = 'Old-School Essentials System Reference Document © 2019 Gavin Norman. Author Gavin Norman.'
 const SOURCE_LICENSE = [
   'All text and tables not declared as product identity are Open Game Content.',
@@ -65,30 +69,39 @@ describe('the published Classic Fantasy corpus', () => {
   })
 
   it('identifies the licensed content and pins each section to a unique source location', () => {
-    expect(corpus.generatedBy).toBe('scripts/ose/fetch-rules.mjs')
+    for (const bundle of Object.values(BUNDLES)) {
+      expect(bundle.generatedBy).toBe('scripts/ose/fetch-rules.mjs')
+      expect(bundle.source).toMatchObject({ ...corpus.source, corrections: bundle.source.corrections })
+      expect(bundle.license).toEqual(corpus.license)
+    }
     expect(corpus.source.edition).toBe('2019 Classic Fantasy SRD')
     expect(corpus.source.revision).toMatch(/^[a-f0-9]{40}$/)
     expect(corpus.source.revisionDate).toBe('2024-08-13')
     expect(corpus.source.licenseUrl).toContain(`/blob/${corpus.source.revision}/License.md`)
     expect(corpus.license.file).toBe('OGL.txt')
-    expect(license).toContain(corpus.license.notice)
+    expect(license).toContain(
+      'All rules text and tables in the pages arrays of corpus.json, monsters.json and spells-and-items.json are Open Game Content. ' +
+      'Use is permitted only under the Open Game License Version 1.0a.',
+    )
     expect(license).toContain('OPEN GAME LICENSE Version 1.0a')
     const clauses = [...license.matchAll(/^(\d+)[. ]/gm)].map(([, number]) => Number(number))
     expect(clauses).toEqual(Array.from({ length: 15 }, (_, index) => index + 1))
     expect(license).toContain('Old-School Essentials System Reference Document © 2019 Gavin Norman. Author Gavin Norman.')
     expect(license).toContain('TableKeep Classic Fantasy Rules Corpus © 2026 David Butler.')
 
-    const urls = new Set()
-    for (const page of corpus.pages) {
+    for (const page of Object.values(BUNDLES).flatMap(bundle => bundle.pages)) {
       expect(page.sourceUrl).toContain(`/blob/${corpus.source.revision}/`)
       expect(page.sections[0]).toMatchObject({ title: page.title, level: 1 })
       for (const section of page.sections) {
         expect(section.sourceUrl.startsWith(`${page.sourceUrl}?plain=1#L`)).toBe(true)
         expect(section.sourceUrl).toMatch(/#L[1-9]\d*$/)
-        expect(urls.has(section.sourceUrl)).toBe(false)
-        urls.add(section.sourceUrl)
         expect([section.title, ...section.markdownLines].join('\n')).not.toMatch(/old.school essentials|necrotic gnome|!\[/i)
       }
+    }
+    // Only the title of the page split between the core rules and the catalog is in two files.
+    for (const bundle of Object.values(BUNDLES)) {
+      const urls = bundle.pages.flatMap(page => page.sections.map(section => section.sourceUrl))
+      expect(new Set(urls).size).toBe(urls.length)
     }
   })
 
@@ -120,6 +133,58 @@ describe('the published Classic Fantasy corpus', () => {
     expect(section('Creating a Character', 'Ascending AC (Optional Rule)')).not.toContain('| Attack Roll |')
     expect(section('Creating a Character', '1st Level PC Attack Values')).toContain('| AC Hit | 9 | 8 | 7 |')
     expect(section('Advancement', 'High-Level Attack Table')).toContain('| 13–15 | 17–20 | 21–25 | 13 | 12 | 11 | **10** |')
+  })
+})
+
+describe('the monsters and the spells, equipment and treasure', () => {
+  const titles = bundle => bundle.pages.map(page => page.title)
+  const filedUnder = (bundle, parent) => bundle.pages.filter(page => page.partOf === parent)
+
+  it('holds every monster after the monster rules, and the encounter tables and adventuring parties', () => {
+    expect(titles(monsters).slice(0, 3)).toEqual(['General', 'Monster Descriptions', 'Acolyte'])
+    expect(filedUnder(monsters, 'Monster Descriptions')).toHaveLength(138)
+    expect(monsters.pages.filter(page => page.category === 'encounters').map(page => page.title)).toEqual([
+      'Dungeon Encounters', 'Wilderness Encounters', 'Adventuring Parties', 'Stronghold Encounters',
+    ])
+    const ghoul = monsters.pages.find(page => page.title === 'Ghoul')
+    expect(ghoul.sections[0].markdownLines.join('\n')).toMatch(/\| Armor Class \| 6 \[13\] \|[\s\S]*Paralysis/)
+  })
+
+  it('holds both spell lists with every spell filed under its list, then the gear, then all treasure and magic items', () => {
+    expect(spellsAndItems.pages.map(page => page.category)).toEqual([
+      ...Array(108).fill('spells'), ...Array(5).fill('equipment'), ...Array(100).fill('treasure'),
+    ])
+    expect(filedUnder(spellsAndItems, 'Cleric Spells')).toHaveLength(34)
+    expect(filedUnder(spellsAndItems, 'Magic-User Spells')).toHaveLength(72)
+    expect(filedUnder(spellsAndItems, 'Cleric Spells')[0].title).toBe('Cure Light Wounds (Cause Light Wounds)')
+    for (const [kind, count] of [['Miscellaneous Items', 26], ['Potions', 21], ['Rings', 16], ['Rods, Staves, Wands', 21]]) {
+      expect(filedUnder(spellsAndItems, kind), kind).toHaveLength(count)
+    }
+    expect(spellsAndItems.pages.filter(page => !page.partOf).map(page => page.title)).toEqual([
+      'Cleric Spells', 'Magic-User Spells',
+      'Adventuring Gear', 'Weapons And Armor', 'Mounts', 'Land Vehicles', 'Water Vessels',
+      'Placing Treasure', 'Treasure Types', 'Gems and Jewellery', 'Magic Items (General)', 'Armor and Shields',
+      'Miscellaneous Items', 'Potions', 'Rings', 'Rods, Staves, Wands', 'Scrolls and Maps', 'Swords', 'Weapons',
+      'Sentient Swords', 'Extraordinary Powers of Sentient Swords', 'Sensory Powers of Sentient Swords', 'Special Purpose of Sentient Swords',
+    ])
+    const weapons = spellsAndItems.pages.find(page => page.title === 'Weapons And Armor')
+    expect(weapons.sections.map(section => section.title)).not.toContain('Weapon Qualities')
+    expect(weapons.sections.find(section => section.title === 'Weapons').markdownLines.join('\n')).toContain('| Battle axe | 7 | 50 | 1d8 | Melee, Slow, Two-handed |')
+  })
+
+  it('leaves out the referee chapters, the Advanced classes, and index pages that only point elsewhere', () => {
+    const sources = [...monsters.pages, ...spellsAndItems.pages].map(page => decodeURIComponent(page.sourceUrl)).join('\n')
+    expect(sources).not.toMatch(/\/6\. Running Adventures\/|\/1\. Characters\/|\/2\. Classes\/|\/5\. Adventures\/|Advanced/)
+    expect(sources).not.toMatch(/1a\. Equipment|Rules for Vehicles|Fantasy-Statblocks/)
+  })
+
+  it('names the source of the reincarnation tables without the product name, and records that it did', () => {
+    const reincarnation = spellsAndItems.pages.find(page => page.title === 'Reincarnation')
+    expect(reincarnation.sections.flatMap(section => section.markdownLines).join('\n')).toContain('are drawn from *Classic Fantasy*.')
+    expect(spellsAndItems.source.corrections).toEqual([expect.objectContaining({ section: 'Reincarnation' })])
+    expect(monsters.source.corrections).toEqual([])
+    expect(() => parseRulesPage('# Reincarnation\n\nDrawn from elsewhere.', REINCARNATION_PATH, 'spells'))
+      .toThrow('no longer names product identity as expected')
   })
 })
 
@@ -261,11 +326,55 @@ describe('the importer', () => {
       '# Weapons And Armor', '', '## Weapons', '', 'Catalog <table> layout.', '',
       '### Weapon Qualities', '', 'A slow weapon acts last.', '', '## Ammunition', '', 'Ammunition prices.',
     ].join('\n')
-    const selected = parseRulesPage(source, WEAPON_RULES_PATH, 'services').sections
+    const selected = parseRulesPage(source, WEAPON_RULES_PATH, 'services', { keep: 'Weapon Qualities' }).sections
     expect(selected).toHaveLength(2)
     expect(selected[1]).toMatchObject({ title: 'Weapon Qualities', level: 2, markdownLines: ['A slow weapon acts last.'] })
-    expect(() => parseRulesPage('# Weapons And Armor\n\n## Weapons\n\nCatalog only.', WEAPON_RULES_PATH, 'services'))
+    expect(() => parseRulesPage('# Weapons And Armor\n\n## Weapons\n\nCatalog only.', WEAPON_RULES_PATH, 'services', { keep: 'Weapon Qualities' }))
       .toThrow('Weapon Qualities section is missing')
+  })
+
+  it('keeps everything but the weapon rules section for the catalog, and files a folder page under its list', () => {
+    const source = [
+      '# Weapons And Armor', '', '## Weapons', '', '| Weapon | Damage |', '| --- | --- |', '| Club | 1d4 |', '',
+      '### Weapon Qualities', '', 'A slow weapon acts last.', '', '## Ammunition', '', 'Ammunition prices.',
+    ].join('\n')
+    const omitted = parseRulesPage(source, WEAPON_RULES_PATH, 'equipment', { omit: 'Weapon Qualities' })
+    expect(omitted.sections.map(({ title }) => title)).toEqual(['Weapons And Armor', 'Weapons', 'Ammunition'])
+    expect(omitted.partOf).toBeUndefined()
+    expect(parseRulesPage('# Sleep\n\nSends creatures to sleep.', 'Sleep.md', 'spells', { partOf: 'Magic-User Spells' }).partOf)
+      .toBe('Magic-User Spells')
+  })
+
+  it('reads every file path in the pinned revision, and refuses a failed or partial listing', async () => {
+    const asked = []
+    const tree = (body, status = 200) => async (url, init) => {
+      asked.push({ url, init })
+      return new Response(JSON.stringify(body), { status })
+    }
+    const listing = {
+      truncated: false,
+      tree: [{ path: '4. Magic', type: 'tree' }, { path: '4. Magic/1. Rules.md', type: 'blob' }, { path: 'License.md', type: 'blob' }],
+    }
+    await expect(fetchSourceTree(tree(listing))).resolves.toEqual(['4. Magic/1. Rules.md', 'License.md'])
+    expect(asked[0].url).toBe(`https://api.github.com/repos/Obsidian-TTRPG-Community/Old-School-Essentials-Markdown/git/trees/${corpus.source.revision}?recursive=1`)
+    expect(asked[0].init.redirect).toBe('error')
+    await expect(fetchSourceTree(tree({ ...listing, truncated: true }))).rejects.toThrow('is truncated')
+    await expect(fetchSourceTree(tree({}, 403))).rejects.toThrow(/^HTTP 403 for https:\/\/api\.github\.com\//)
+  })
+
+  it('lists the Markdown pages directly in a folder, reading the revision once', async () => {
+    let reads = 0
+    const listFolder = folderLister(async () => {
+      reads += 1
+      return [
+        '8. Treasures/7. Potions.md', '8. Treasures/Potions/Potion of Healing.md', '8. Treasures/Potions/Notes.txt',
+        '8. Treasures/Potions/Old/Potion of Old.md', '8. Treasures/Potions Extra/Potion of Nothing.md', 'Potions/Elsewhere.md',
+      ]
+    })
+    await expect(listFolder('8. Treasures/Potions')).resolves.toEqual(['Potion of Healing'])
+    await expect(listFolder('8. Treasures')).resolves.toEqual(['7. Potions'])
+    await expect(listFolder('7. Monsters')).resolves.toEqual([])
+    expect(reads).toBe(1)
   })
 
   it('rejects pages with unsupported content or a missing title', () => {
@@ -282,18 +391,29 @@ describe('the importer', () => {
     const outputDirectory = pathToFileURL(outputPath + sep)
     const readSource = async path => {
       if (path === 'License.md') return SOURCE_LICENSE
-      if (path === WEAPON_RULES_PATH) return '# Weapons And Armor\n\n### Weapon Qualities\n\nA slow weapon acts last.'
+      if (path === WEAPON_RULES_PATH) {
+        return '# Weapons And Armor\n\n## Weapons\n\nCatalog.\n\n### Weapon Qualities\n\nA slow weapon acts last.'
+      }
+      if (path === REINCARNATION_PATH) return '# Reincarnation\n\nFrom *Old-School Essentials Classic Fantasy*.'
       return '# Sample\n\nRules.'
     }
-    const options = { readSource, outputDirectory }
+    // Two pages in each folder, listed out of order.
+    const listFolder = async folder => folder === '4. Magic/Magic-User Spells' ? ['6 - Reincarnate', '1 - Sleep'] : ['B', 'A']
+    const options = { readSource, listFolder, outputDirectory }
+    const counts = 'corpus.json, 8 pages and 8 sections into monsters.json, 35 pages and 36 sections into spells-and-items.json'
     try {
-      await expect(generateRules(options)).resolves.toBe('Imported 43 pages and 44 sections')
+      await expect(generateRules(options)).resolves.toBe(`Imported 43 pages and 44 sections into ${counts}`)
       const generated = JSON.parse(await readFile(new URL('corpus.json', outputDirectory), 'utf8'))
       expect(generated.pages).toHaveLength(43)
       expect(generated.pages[0].sections[0].markdownLines).toEqual(['Rules.'])
+      const parts = JSON.parse(await readFile(new URL('spells-and-items.json', outputDirectory), 'utf8'))
+      expect(parts.pages.slice(0, 4).map(page => [page.sourceUrl.split('/').at(-1), page.partOf])).toEqual([
+        ['4.%20Cleric%20Spells.md', undefined], ['A.md', 'Sample'], ['B.md', 'Sample'], ['5.%20Magic-User%20Spells.md', undefined],
+      ])
+      expect(parts.pages[5].sections[0].markdownLines).toEqual(['From *Classic Fantasy*.'])
       const generatedLicense = new URL('OGL.txt', outputDirectory)
       expect(await readFile(generatedLicense, 'utf8')).toContain(SOURCE_NOTICE)
-      await expect(generateRules({ ...options, check: true })).resolves.toBe('Verified 43 pages and 44 sections')
+      await expect(generateRules({ ...options, check: true })).resolves.toBe(`Verified 43 pages and 44 sections into ${counts}`)
       await writeFile(generatedLicense, 'Changed license')
       await expect(generateRules({ ...options, check: true })).rejects.toThrow('OGL.txt differs')
       expect(await readFile(generatedLicense, 'utf8')).toBe('Changed license')

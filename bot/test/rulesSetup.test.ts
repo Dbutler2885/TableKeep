@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { OPENAI_RESPONSES_URL } from '../src/rules/answer.ts'
-import { RULES_BOOKS } from '../src/rules/books.ts'
+import { RULES_BOOKS, SUPPLEMENTS, type Supplement } from '../src/rules/books.ts'
 import { JEV_URL } from '../src/rules/jev.ts'
 import { rulesAnswering, type RulesSetup } from '../src/rules/setup.ts'
 
@@ -14,8 +14,14 @@ const KEYS = { TYPESAFE_API_KEY: 'ts-key', OPENAI_API_KEY: 'sk-key' }
 const scratch = mkdtempSync(path.join(tmpdir(), 'tablekeep-rules-setup-'))
 after(() => rmSync(scratch, { recursive: true, force: true }))
 
-/** A repository root holding the stand-in rules named in `files`, by where the bot looks for them. */
-function repository(files: Partial<Record<'lubec' | 'ose', string | null>> = { lubec: LUBEC, ose: CORPUS }): string {
+/**
+ * A repository root holding the stand-in rules named in `files`, by where the
+ * bot looks for them, and the stand-in corpus as each of the OSE parts in `parts`.
+ */
+function repository(
+  files: Partial<Record<'lubec' | 'ose', string | null>> = { lubec: LUBEC, ose: CORPUS },
+  parts: readonly Supplement[] = SUPPLEMENTS,
+): string {
   const root = mkdtempSync(path.join(scratch, 'root-'))
   for (const [ruleSet, from] of Object.entries(files) as ['lubec' | 'ose', string | null][]) {
     if (from === null) continue
@@ -23,6 +29,7 @@ function repository(files: Partial<Record<'lubec' | 'ose', string | null>> = { l
     mkdirSync(path.dirname(to), { recursive: true })
     cpSync(from, to)
   }
+  for (const part of parts) cpSync(CORPUS, path.join(root, RULES_BOOKS.ose!.supplements![part]!.file))
   return root
 }
 
@@ -144,17 +151,59 @@ test('a project secret that cannot be read turns answering off without stopping 
   )
 })
 
-test("the repository's own rules can all be read: the Lubec rules and the Classic Fantasy corpus", async () => {
+test("the repository's own rules can all be read: the Lubec rules, and the Classic Fantasy corpus with both its parts", async () => {
   const { rules, logged } = await setUp({ root: new URL('../..', import.meta.url).pathname })
   assert.deepEqual(Object.keys(rules!.byRuleSet).sort(), ['lubec', 'ose'])
+  assert.deepEqual(rules!.byRuleSet.ose!.supplements, ['monsters', 'spellsAndItems'])
+  assert.deepEqual(rules!.byRuleSet.lubec!.supplements, [])
   assert.deepEqual(logged.map((entry) => entry.message), ['rules answers on'])
+  assert.deepEqual(Object.keys((logged[0]!.detail!.ose as { supplements: object }).supplements), ['monsters', 'spellsAndItems'])
+})
+
+test('an OSE question is answered from the corpus, with each part it needs after it', async () => {
+  const root = repository()
+  const { request, instructions } = services()
+  const { rules } = await setUp({ root, fetch: request })
+  const ose = rules!.byRuleSet.ose!
+  await ose.answer([], [])
+  await ose.answer([], [], ['monsters', 'spellsAndItems'])
+  assert.doesNotMatch(instructions[0]!, /# Classic Fantasy monsters|# Classic Fantasy spells/)
+  const monsters = instructions[1]!.indexOf('\n# Classic Fantasy monsters (pre-2026 text)\n')
+  const spells = instructions[1]!.indexOf('\n# Classic Fantasy spells, equipment and treasure (pre-2026 text)\n')
+  assert.ok(instructions[1]!.startsWith(instructions[0]!.trimEnd()), 'the corpus comes first, as it does without the parts')
+  assert.ok(monsters > 0 && spells > monsters, 'then the monsters, then the spells, equipment and treasure')
+})
+
+test("a part of the rules that cannot be read is left out, saying why, and its rule set is answered without it", async () => {
+  const root = repository({ lubec: LUBEC, ose: CORPUS }, ['monsters'])
+  const { rules, logged } = await setUp({ root })
+  assert.deepEqual(rules!.byRuleSet.ose!.supplements, ['monsters'])
+  assert.deepEqual(logged[0], {
+    message: 'rules part unavailable',
+    detail: {
+      ruleSet: 'ose',
+      supplement: 'spellsAndItems',
+      reason: `there is no rules document at ${path.join(root, 'docs/rules/ose-classic/spells-and-items.json')}`,
+    },
+  })
+  assert.equal(logged[1]!.message, 'rules answers on')
 })
 
 const repo = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8')
 
 test('the image, its build context and the deploy carry every rule set\'s rules, and the license of any that has one', () => {
-  const files = Object.values(RULES_BOOKS).flatMap((book) => [book.file, ...(book.license ? [book.license] : [])])
-  assert.deepEqual(files, ['docs/lubec/rules.md', 'docs/rules/ose-classic/corpus.json', 'docs/rules/ose-classic/OGL.txt'])
+  const files = Object.values(RULES_BOOKS).flatMap((book) => [
+    book.file,
+    ...Object.values(book.supplements ?? {}).map((part) => part.file),
+    ...(book.license ? [book.license] : []),
+  ])
+  assert.deepEqual(files, [
+    'docs/lubec/rules.md',
+    'docs/rules/ose-classic/corpus.json',
+    'docs/rules/ose-classic/monsters.json',
+    'docs/rules/ose-classic/spells-and-items.json',
+    'docs/rules/ose-classic/OGL.txt',
+  ])
   for (const file of files) {
     assert.match(repo('bot/Dockerfile'), new RegExp(`^COPY ${file} /app/${file}$`, 'm'))
     assert.match(repo('.dockerignore'), new RegExp(`^!${file}$`, 'm'))

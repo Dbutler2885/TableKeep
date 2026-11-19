@@ -19,6 +19,7 @@ import type { VoicePacket } from '../../src/audio/timeline.ts'
 import { JournalWriter, readJournal } from '../../src/journal/journal.ts'
 import { recoverSessions } from '../../src/session/recover.ts'
 import { SessionRecorder, type RecorderAlarm, type RecorderOptions } from '../../src/session/recorder.ts'
+import { ROOMY_DISK } from '../helpers/disk.ts'
 import { FirestoreSessionStore, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { FIRST_STRETCH_SECONDS, JEM, PETER } from '../helpers/botProcess.ts'
 import { scriptedSpeech } from '../helpers/speech.ts'
@@ -75,6 +76,7 @@ beforeEach(async () => {
 
 const startInput = { discordServerId: SERVER, discordChannelId: 'voice', startedByDiscordId: JEM, startedAtMs: START }
 const options = (extra: Partial<RecorderOptions> = {}): RecorderOptions => ({
+  ...ROOMY_DISK,
   store,
   journalDir,
   journalSyncEveryMs: 0,

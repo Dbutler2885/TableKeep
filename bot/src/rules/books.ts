@@ -11,9 +11,20 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import type { CharacterRuleSet as RuleSet } from '../../../functions/src/characterSchemaVersions.ts'
-import { renderClassicFantasyCorpus } from './classicFantasy.ts'
+import { renderClassicFantasyCorpus, renderClassicFantasyMonsters, renderClassicFantasySpellsAndItems } from './classicFantasy.ts'
 
 export type { RuleSet }
+
+/**
+ * The parts of a rule set's rules that are only sent when a question needs
+ * them, in the order they follow the core rules. Jev is asked, of each, whether
+ * the question needs it.
+ */
+export const SUPPLEMENTS = ['monsters', 'spellsAndItems'] as const
+export type Supplement = (typeof SUPPLEMENTS)[number]
+
+/** A further part of a rule set's rules, in the same shape as the rules themselves. */
+export type RulesPart = Pick<RulesBook, 'file' | 'render'>
 
 export type RulesBook = {
   /** Where the rules are, from the repository root. */
@@ -27,6 +38,8 @@ export type RulesBook = {
   citedAs: string | null
   /** The rules document the answering model is given, from the file's contents. */
   render: (contents: string) => string
+  /** Parts of the rules sent after the rules document only when a question needs them. */
+  supplements?: Partial<Record<Supplement, RulesPart>>
 }
 
 export const RULES_BOOKS: Partial<Record<RuleSet, RulesBook>> = {
@@ -41,11 +54,16 @@ export const RULES_BOOKS: Partial<Record<RuleSet, RulesBook>> = {
     // The captain's decision: OSE answers carry no line naming their source or edition.
     citedAs: null,
     render: renderClassicFantasyCorpus,
+    // Under the same license as the core rules, and generated beside them.
+    supplements: {
+      monsters: { file: 'docs/rules/ose-classic/monsters.json', render: renderClassicFantasyMonsters },
+      spellsAndItems: { file: 'docs/rules/ose-classic/spells-and-items.json', render: renderClassicFantasySpellsAndItems },
+    },
   },
 }
 
-/** A rule set's rules document, read from under `root`. Throws, saying why, when there is none to use. */
-export function readRulesBook(root: string, book: RulesBook): string {
+/** A rule set's rules document, or one of its parts, read from under `root`. Throws, saying why, when there is none to use. */
+export function readRulesBook(root: string, book: RulesPart): string {
   const at = path.join(root, book.file)
   let contents: string
   try {

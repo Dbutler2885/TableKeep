@@ -7,7 +7,9 @@
  * the session. When Jev is sure enough that someone has asked a new rules
  * question those answers do not cover and nobody has answered, that stretch
  * goes to the answering model with the session's rules and the same answers,
- * and its answer is posted, naming the rules it comes from.
+ * and its answer is posted, naming the rules it comes from. When the rules
+ * have parts sent only when a question needs them, Jev is asked in the same
+ * request whether it needs each, and those it likely does go too.
  *
  * Every answer posted in the session is what keeps a question from being
  * answered twice, there and in any later look. There is no pause after a
@@ -20,11 +22,23 @@
  */
 import { rulesAnswerMessages } from '../discord/replies.ts'
 import type { AnswerRulesQuestion, RulesAnswer } from './answer.ts'
-import type { RuleSet } from './books.ts'
+import type { RuleSet, Supplement } from './books.ts'
 import type { AskJev } from './jev.ts'
 import { SESSION_SAMPLE_RATE, TranscriptWindow, type PostedAnswer, type TranscriptLine } from './transcriptWindow.ts'
 
 export type Log = (message: string, detail?: Record<string, unknown>) => void
+
+/**
+ * How sure Jev must be that a rules question needs a part of the rules sent
+ * only when needed, such as the OSE monsters, for that part to be sent. It
+ * counts only once Jev is sure there is a rules question at all. It is well
+ * below that bar on purpose: sending a part that was not needed costs a few
+ * cents and a little time, while leaving out one that was turns a question the
+ * rules answer into "not covered". On eight hand-written OSE windows, every
+ * part a question needed came out at 0.80 to 0.99, and every part it did not
+ * at 0.37 or less (the spells part, for a cleric asking how turning works).
+ */
+export const SUPPLEMENT_THRESHOLD = 0.5
 
 /** How a watcher can be tuned, and what it does when it is not. */
 const DEFAULTS = {
@@ -51,6 +65,8 @@ const DEFAULTS = {
 export type SessionRules = {
   /** Answers from this rule set's rules. */
   answer: AnswerRulesQuestion
+  /** The parts of this rule set's rules sent only when a question needs them, which Jev is asked about. */
+  supplements?: readonly Supplement[]
   /** How a posted answer's last line names the rules it comes from, or null for no such line. */
   citedAs: string | null
 }
@@ -84,7 +100,7 @@ export class RulesWatcher {
   #failures = 0
 
   constructor(options: RulesWatcherOptions) {
-    this.#options = { ...DEFAULTS, ...options }
+    this.#options = { ...DEFAULTS, supplements: [], ...options }
     this.#window = new TranscriptWindow({ windowSeconds: this.#options.windowSeconds, maxChars: this.#options.maxWindowChars })
   }
 
@@ -138,38 +154,53 @@ export class RulesWatcher {
 
   async #look(window: TranscriptLine[]): Promise<void> {
     const posted = [...this.#posted]
-    const probability = await this.#check(window, posted)
-    if (probability < this.#options.threshold) return
-    const reply = await this.#answer(window, posted)
+    const needs = await this.#check(window, posted)
+    if (!needs) return
+    const reply = await this.#answer(window, posted, needs)
     if (reply) await this.#post(reply, window)
   }
 
-  /** Jev's probability that the window holds a new rules question, or nothing when Jev could not be asked. */
-  async #check(window: TranscriptLine[], posted: PostedAnswer[]): Promise<number> {
-    const { askJev, log, now } = this.#options
+  /**
+   * When Jev is sure enough that the window holds a new rules question, the
+   * parts of the rules it likely needs. Nothing when there is no such
+   * question, or Jev could not be asked.
+   */
+  async #check(window: TranscriptLine[], posted: PostedAnswer[]): Promise<Supplement[] | null> {
+    const { askJev, log, now, supplements } = this.#options
     const startedAtMs = now()
     try {
-      const probability = await askJev(window, posted)
+      const verdict = await askJev(window, posted, supplements)
       if (this.#failures > 0) log('rules checks working again', { failedInARow: this.#failures })
       this.#failures = 0
-      if (probability >= this.#options.threshold) {
-        log('rules question heard', { probability, lines: window.length, jevMs: now() - startedAtMs, sinceSpeechMs: this.#sinceSpeechMs(window) })
-      }
-      return probability
+      if (verdict.rulesQuestion < this.#options.threshold) return null
+      const needs = supplements.filter((supplement) => (verdict.needs[supplement] ?? 0) >= SUPPLEMENT_THRESHOLD)
+      log('rules question heard', {
+        probability: verdict.rulesQuestion,
+        ...(supplements.length > 0 && { needs: verdict.needs }),
+        lines: window.length,
+        jevMs: now() - startedAtMs,
+        sinceSpeechMs: this.#sinceSpeechMs(window),
+      })
+      return needs
     } catch (error) {
       this.#failures += 1
       if (this.#failures === 1) log('rules check failed', { error: String(error) })
-      return 0
+      return null
     }
   }
 
-  /** The answering model's reply, or nothing when it could not be had. */
-  async #answer(window: TranscriptLine[], posted: PostedAnswer[]): Promise<RulesAnswer | null> {
+  /** The answering model's reply, from the rules and the parts of them in `needs`, or nothing when it could not be had. */
+  async #answer(window: TranscriptLine[], posted: PostedAnswer[], needs: Supplement[]): Promise<RulesAnswer | null> {
     const { answer, log, now } = this.#options
     const startedAtMs = now()
     try {
-      const reply = await answer(window, posted)
-      log('rules answer written', { kind: reply.kind, answerMs: now() - startedAtMs, characters: reply.answer.length })
+      const reply = await answer(window, posted, needs)
+      log('rules answer written', {
+        kind: reply.kind,
+        ...(needs.length > 0 && { sent: needs }),
+        answerMs: now() - startedAtMs,
+        characters: reply.answer.length,
+      })
       return reply
     } catch (error) {
       log('rules answer failed', { error: String(error) })
