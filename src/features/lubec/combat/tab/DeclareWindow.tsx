@@ -17,7 +17,7 @@ import { combatFightCombatant, type CombatRosterRecords } from './combatFightCom
 import { CombatStepper, CombatWindow, NoticeSlot, type SlotNotice } from './CombatParts'
 import { useCombatRun, type CombatRun } from './useCombatRun'
 import { aimedText, attackBadge, declaredAt } from './declarationsModel'
-import { declaredAtAttacker, orderedTargets } from './targetOrder'
+import { declaredAtAttacker, orderedOpponentKeys, orderedTargets } from './targetOrder'
 
 type WindowProps = {
   state: CombatState
@@ -162,7 +162,7 @@ const guardedKey = (picked: string | null, draft: AttackDraft): string => picked
 
 function DeclareBody(body: BodyProps) {
   const { state, declarer, sheet } = body
-  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, combatOpponents(state, declarer).map((entry) => entry.key)))
+  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, orderedOpponentKeys(state, declarer, combatOpponents(state, declarer).map((entry) => entry.key))))
   // Evasive Movement used this round's action: Full Defense is all that is left to declare.
   const evading = declarer.movement?.choice === 'evade'
   const [fullChosen, setFull] = useState(false)

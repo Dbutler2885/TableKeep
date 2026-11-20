@@ -143,7 +143,7 @@ describe('a declared attack on its turn', () => {
 
   it('locks the declared split for the attacker, with Roll live once the GM ranges it', async () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, range))
-    expect(screen.getByText('Round 1 · Stage 3, Attack')).toBeTruthy()
+    expect(screen.queryByText('Round 1 · Stage 3, Attack')).toBeNull()
     const matchup = screen.getByRole('group', { name: 'Current attack' })
     expect(matchup.querySelector('.matchup-attacker')?.textContent).toBe('AttackerWayne Gardner')
     expect(matchup.querySelector('.matchup-target')?.textContent).toBe('TargetRoy Carver')

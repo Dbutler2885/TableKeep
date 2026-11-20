@@ -110,12 +110,11 @@ describe('moment 2: the GM grants a Sneak Attack', () => {
 })
 
 describe('moment 6: the GM while a player aims', () => {
-  it('waits on the player with no grant offered, and offers to act for them', () => {
+  it('waits on the player in one window with no grant offered, and offers to act for them', () => {
     show('gm', 'gm', granted())
     expect(screen.getByText(/Waiting on Wayne Gardner to roll/)).toBeTruthy()
     expect(screen.getByText('Choosing a target and a weapon.')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Grant Sneak Attack' }).every((entry) => (entry as HTMLButtonElement).disabled)).toBe(true)
-    expect(within(screen.getByText('Wayne Gardner', { selector: '.row-line' }).closest('li')!).getByText('Attack running on their screen')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Grant Sneak Attack' })).toBeNull()
     fireEvent.click(button('Away from the table? Roll for Wayne Gardner'))
     expect(screen.getByText('Wayne Gardner has a Sneak Attack.')).toBeTruthy()
     expect(screen.getByRole('radiogroup', { name: 'Target' })).toBeTruthy()

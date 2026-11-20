@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { lubecCombatantKey, type LubecCombatant } from '../../fight/lubecFightRequest'
-import { lubecTargetTiles } from '../../fight/LubecFightWindowContent'
+import { lubecTargetTiles } from '../../fight/lubecTargetTiles'
 import type { Combatant, CombatState } from '../engine/types'
 import { orderedTargets } from './targetOrder'
 

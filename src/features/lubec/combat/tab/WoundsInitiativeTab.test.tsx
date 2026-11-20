@@ -131,7 +131,8 @@ describe('a Dodgeball row\'s Check or Save', () => {
     // The wound's words are in the panel below, so the headline's line keeps only where the ball went.
     expect(screen.getByRole('heading', { name: 'Roy Carver is Out' }).nextSibling!.textContent).toBe('The dodgeball lands on the Floor.')
     expect([...document.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual(['What it doesMinor Concussion, which is Dazed and -10 Handle until a Long Rest.'])
-    expect(screen.getAllByText('Out', { selector: '.badge' })).toHaveLength(1)
+    // The turn order dims an Out fighter's line and says Out to a screen reader.
+    expect(screen.getAllByText('Out', { selector: '.sr-only' })).toHaveLength(1)
   })
 
   it('shows a spectator who cannot read Roy\'s sheet only who the Save waits on', () => {

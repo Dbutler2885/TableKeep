@@ -18,12 +18,9 @@ export function AttackNotices({ attacker, attack, refusal, gm }: NoticeProps) {
   )
 }
 
-/** The current matchup above the choices, with round metadata kept secondary. */
-export function AttackTrail({ attacker, target, round }: { attacker: Combatant; target: string | null; round: number }) {
-  return <>
-    <AttackMatchup attacker={attacker.name} target={target} />
-    <p className="matchup-context">{round ? `Round ${round} · Stage 3, Attack` : 'Before initiative'}</p>
-  </>
+/** The current matchup above the choices, on one line: the top bar already names the round and stage. */
+export function AttackTrail({ attacker, target }: { attacker: Combatant; target: string | null }) {
+  return <AttackMatchup attacker={attacker.name} target={target} compact />
 }
 
 type RoundNoticeProps = { attack: CombatAttack; targetName: string; gone: AttackGone; refusal: string | null }

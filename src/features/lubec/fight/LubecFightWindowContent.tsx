@@ -4,6 +4,7 @@ import { LubecFightWearingContent } from './LubecFightTargetContent'
 import { lubecFightAttacks } from './lubecFightWeapons'
 import { LubecFightHands } from './LubecFightHands'
 import { lubecCombatantFace, lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantHands, lubecCombatantKey, lubecTargetChoices, type LubecFightRequest, type LubecCombatant } from './lubecFightRequest'
+import { lubecTargetTiles } from './lubecTargetTiles'
 import './lubecFightWindowContent.css'
 
 type WindowProps = {
@@ -28,29 +29,15 @@ type WindowProps = {
 
 const kindNote = (target: LubecCombatant): string => (target.kind === 'npc' ? 'NPC' : 'Character')
 
-const TargetBadge = ({ words }: { words: string | null }) => (words ? <span className="badge must">{words}</span> : null)
-
 const noBadge = (): null => null
-
-/** Tiles the target grid has room for; past them the last tile becomes a list of the rest. */
-const TARGET_TILES = 8
-
-/** The targets on tiles and the rest behind the last tile; the chosen target always has a tile. */
-export function lubecTargetTiles(choices: readonly LubecCombatant[], chosen: string | null): { tiles: LubecCombatant[]; rest: LubecCombatant[] } {
-  if (choices.length <= TARGET_TILES) return { tiles: [...choices], rest: [] }
-  const first = choices.slice(0, TARGET_TILES - 1)
-  const picked = choices.find((target) => lubecCombatantKey(target) === chosen)
-  const tiles = picked && !first.includes(picked) ? [...first.slice(0, -1), picked] : first
-  return { tiles, rest: choices.filter((target) => !tiles.includes(target)) }
-}
 
 function TargetTile({ target, chosen, disabled, onTarget, note, badge }: { target: LubecCombatant; chosen: boolean; disabled: boolean; onTarget: (key: string) => void; note: string; badge: string | null }) {
   const name = lubecCombatantFace(target).name
   return <div className="tcell">
     <button type="button" className="trow" role="radio" aria-checked={chosen} disabled={disabled} title={`${name} · ${note}`} onClick={() => onTarget(lubecCombatantKey(target))}>
-      <span className="target-words"><b className="target-name">{name}</b><small>{note}</small></span>
+      {/* A tile's badge takes its second line, the more pressing of the two; the note stays in the title. */}
+      <span className="target-words"><b className="target-name">{name}</b>{badge ? <small className="target-badge">{badge}</small> : <small>{note}</small>}</span>
       <span className="target-status" aria-hidden="true">✓ Selected</span>
-      <TargetBadge words={badge} />
     </button>
   </div>
 }

@@ -58,9 +58,10 @@ const OPEN = '. Open details and actions'
 describe('effects in the turn order', () => {
   it('lists every fighter\'s cards under their row for the GM, each a button named by what it does now and what ends it', () => {
     show({ roster: { characters: [wayne], npcs: [{ npc, sheet: roy }] }, writers: { characters: writer(), npcSheets: writer() }, scope, viewer: { role: 'gm', userId: 'gm' } })
-    expect(entriesOf('Wayne').map((entry) => [entry.textContent, entry.getAttribute('aria-label')])).toEqual([
-      ['Bleeding · +1 Trauma in d4 = 2 rounds · Due at the end of round 3', `Bleeding · +1 Trauma in d4 = 2 rounds · Due at the end of round 3${OPEN}`],
-      ['Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest', `Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest${OPEN}`],
+    // Each card is a chip on the fighter's one line: its name shows, and its whole words are its title and name.
+    expect(entriesOf('Wayne').map((entry) => [entry.textContent, entry.getAttribute('title'), entry.getAttribute('aria-label')])).toEqual([
+      ['Bleeding', 'Bleeding · +1 Trauma in d4 = 2 rounds · Due at the end of round 3', `Bleeding · +1 Trauma in d4 = 2 rounds · Due at the end of round 3${OPEN}`],
+      ['Forearm', 'Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest', `Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest${OPEN}`],
     ])
     expect(entriesOf('Roy').map((entry) => entry.getAttribute('aria-label'))).toEqual([`Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest${OPEN}`])
     expect(entriesOf('Wayne').every((entry) => entry.getAttribute('type') === 'button')).toBe(true)

@@ -82,7 +82,7 @@ export function AttackResult({ state, attack, controls = null }: { state: Combat
   const progress = resultProgress(attack)
   return (
     <CombatWindow title="Result" stepper={<CombatStepper steps={progress.steps} now={progress.now} />}>
-      <AttackMatchup attacker={attacker} target={combatantName(state, attack.aim?.targetKey)} />
+      <AttackMatchup attacker={attacker} target={combatantName(state, attack.aim?.targetKey)} compact />
       <p className="matchup-context">{pairWords(attack.frozen.choice.name, attack.frozen.weaponName)}</p>
       <div className="seq">
         {progress.cards.map((card, index) => <StepCard key={card} state={state} attack={attack} card={card} index={index} controls={controls} />)}

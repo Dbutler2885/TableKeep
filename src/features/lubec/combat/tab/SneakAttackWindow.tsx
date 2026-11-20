@@ -7,7 +7,7 @@ import { lubecCombatantFace, lubecCombatantKey, lubecCombatantRecord, type Lubec
 import { combatOpponents } from '../engine/attackParty'
 import type { CombatAim, CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackBar, SegmentRoll } from './AttackBar'
-import { declaredAtAttacker, orderedTargets } from './targetOrder'
+import { declaredAtAttacker, orderedOpponentKeys, orderedTargets } from './targetOrder'
 import type { AttackAct, AttackCommands } from './attackCommands'
 import { initialDraft, sameAim, segmentMiddle, withDefense, withWeapon, type AttackDraft } from './attackDraft'
 import { attackGone, attackWindowModel, type AttackGone, type AttackWindowModel } from './attackWindowModel'
@@ -62,7 +62,7 @@ type WindowProps = {
 type BodyProps = WindowProps & { fighter: LubecCombatant; sheet: LubecCharacterSheet }
 
 function useAttackWindow({ state, attack, attacker, commands, sheet, ...props }: BodyProps) {
-  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(attack, sheet, combatOpponents(state, attacker).map((entry) => entry.key)))
+  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(attack, sheet, orderedOpponentKeys(state, attacker, combatOpponents(state, attacker).map((entry) => entry.key))))
   const [refusal, setRefusal] = useState<string | null>(null)
   const refuse = useCallback<Refuse>((reason) => setRefusal(reason), [])
   const model = attackWindowModel({ state, attack, attacker, sheet, draft, fightId: props.fightId, roster: props.roster })
@@ -177,7 +177,7 @@ function WindowBody(body: BodyProps) {
   return (
     <>
       <WindowNotices body={body} gone={gone} />
-      <AttackTrail attacker={body.attacker} target={model.target ? lubecCombatantFace(model.target).name : null} round={body.state.round} />
+      <AttackTrail attacker={body.attacker} target={model.target ? lubecCombatantFace(model.target).name : null} />
       <WindowChoices body={body} draft={draft} setDraft={setDraft} model={model} />
       <ChooseAgain body={body} gone={gone} refuse={refuse} />
       <WindowRange body={body} model={model} refuse={refuse} />

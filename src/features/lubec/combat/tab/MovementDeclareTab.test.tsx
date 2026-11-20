@@ -270,7 +270,7 @@ describe('declaration approval', () => {
   it('gives the GM approve and reject controls for the submitted choice', async () => {
     show('gm', 'gm', fightAfter(...declaring(), proposal))
     expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
-    expect(rail('Declarations').getByText('Awaiting GM approval')).toBeTruthy()
+    expect(rail('Declarations').getByText('GM?').closest('li')!.getAttribute('title')).toMatch(/ Awaiting GM approval$/)
     expect(rail('Turn order').getByText('Now')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
     fireEvent.click(button('Reject declaration'))
@@ -355,7 +355,7 @@ describe('Declare', () => {
     expect(screen.queryByText(/takes effect when submitted/)).toBeNull()
     expect(screen.getByText(/Wayne Gardner/, { selector: '.notice b' })).toBeTruthy()
     expect(screen.getByText(/has declared a throw at you \(ATK 61\)/)).toBeTruthy()
-    expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.badge')!.textContent).toBe('Throws at you')
+    expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.target-badge')!.textContent).toBe('Throws at you')
   })
 
   it('shows the waiting declarer their own declaration and everyone every split', () => {
@@ -367,7 +367,9 @@ describe('Declare', () => {
     const declarations = rail('Declarations')
     expect(declarations.getByText('YOU')).toBeTruthy()
     expect(declarations.getByText('Declaring now...')).toBeTruthy()
-    expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Throw with the Dodgeball at Roy Carver. ATK 41; Defense 20 against Roy Carver.')
+    // One line in the rail, the whole sentence in its title.
+    expect(document.querySelector('.decls li.you .short')!.textContent).toBe('→ Roy Carver · ATK 41 · DEF 20')
+    expect(document.querySelector('.decls li.you')!.getAttribute('title')).toBe('Throw with the Dodgeball at Roy Carver. ATK 41; Defense 20 against Roy Carver.')
   })
 
   it('marks a declaration aimed at the viewer, a runner and Full Defense in the rail', () => {
@@ -377,8 +379,10 @@ describe('Declare', () => {
     live.fight.state.phase = 'attack'
     live.fight.state.attack = { id: 'shown', grantId: null, attackerKey: ROY, step: 'done', detached: [], closed: true }
     show('player', 'wayne-uid', live)
-    expect(document.querySelector('.decls li.atyou .txt')!.textContent).toBe('Full Defense: no attack. Defense 46 Full against Wayne Gardner.')
-    expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Ran: no attack, no Defense')
+    expect(document.querySelector('.decls li.atyou .short')!.textContent).toBe('Full Defense vs Wayne Gardner')
+    expect(document.querySelector('.decls li.atyou')!.getAttribute('title')).toBe('Full Defense: no attack. Defense 46 Full against Wayne Gardner.')
+    expect(document.querySelector('.decls li.you .short')!.textContent).toBe('Ran')
+    expect(document.querySelector('.decls li.you')!.getAttribute('title')).toBe('Ran: no attack, no Defense')
     expect(screen.getByText('AT YOU')).toBeTruthy()
   })
 
