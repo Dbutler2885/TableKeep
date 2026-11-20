@@ -59,7 +59,8 @@ export function lubecScopeCovers(scope: LubecRollScope, request: LubecRollReques
   return SCOPE_COVERS[scope](request)
 }
 
-const sourceName = (effect: LubecEffect) => (typeof effect.part === 'string' && effect.part && effect.part !== effect.name ? `${effect.name} (${effect.part})` : effect.name)
+/** A card goes by its wound's name from the table, or a hand-made effect's own name. */
+const sourceName = (effect: LubecEffect) => effect.name
 
 /** The mode the active cards set for this roll, and every card that sets one. */
 export function lubecRollMode(effects: readonly LubecEffect[], request: LubecRollRequest, fixed: readonly LubecModeSource[] = []): LubecResolvedMode {

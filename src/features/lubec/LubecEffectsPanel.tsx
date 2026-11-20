@@ -10,17 +10,20 @@ import {
 import type { LubecCounters } from '../ruleSets/lubec/characterRecord'
 import { stepDownLubecSheet } from '../ruleSets/lubec/stepDown'
 import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
-import { lubecEffectGroups, lubecEffectTrigger, lubecEffectWound, lubecStepByHand, lubecStepTrigger } from '../ruleSets/lubec/woundCards'
+import { lubecEffectGroups, lubecEffectTrigger, lubecEffectWound, lubecStepByHand, lubecStepTrigger, lubecWoundRoundTrigger, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
+import { LubecTableWords } from './LubecTableWords'
 import { LubecEffectEditor } from './LubecEffectEditor'
 import { LubecGearLosses } from './LubecGearLosses'
 import { LubecWoundDetail } from './LubecWoundDetail'
 import { useLubecEffectRecovery, type RecoveringEffect } from './useLubecEffectRecovery'
 
-// The Core page's active effects, each one compact line drawn as the class
-// cards' grey modifier bar: the name, what its current step does, what ends
-// that step, and what it turns into next. A wound's linked cards sit together
-// under the wound's name. The cause is kept but only shown when the effect is
-// opened. Anyone who can see the sheet taps a wound card to read where it came
+// The Core page's active effects. A wound sits under its heading: the
+// table's name for it, its severity and Trauma, and the table's own words,
+// unchanged; each card it made follows as one compact line drawn as the class
+// cards' grey modifier bar, saying only what it does now and the round it ends
+// with. A hand-made effect is one line: its name, what its current step does,
+// what ends that step, and what it turns into next. The cause is kept but
+// only shown when the effect is opened. Anyone who can see the sheet taps a wound card to read where it came
 // from; whoever may edit the sheet taps a hand-made effect to open its editor,
 // and has one Step down button beside every line. Gear's Speed losses follow,
 // in a group of their own.
@@ -50,49 +53,65 @@ function nextWords(effect: LubecEffect): string | null {
   return until && now?.until !== 'lasting' ? 'then healed' : null
 }
 
-function LubecEffectSummary({ effect, grouped }: { effect: LubecEffect; grouped: boolean }) {
+/** A hand-made effect's line: its name, what its step does, what ends it and what follows. */
+function HandMadeSummary({ effect }: { effect: LubecEffect }) {
   const now = effect.steps[0]
-  const trigger = lubecEffectTrigger(effect)
-  const next = nextWords(effect)
   return (
     <>
-      <span className="lubec-effect-name">{effectLineName(effect, grouped)}</span>
+      <span className="lubec-effect-name">{effect.name}</span>
       <EffectWords kind="now" words={now ? describeLubecEffectStep(now) : null} />
-      <EffectWords kind="until" words={trigger} />
-      <EffectWords kind="next" words={next} />
+      <EffectWords kind="until" words={lubecEffectTrigger(effect)} />
+      <EffectWords kind="next" words={nextWords(effect)} />
+    </>
+  )
+}
+
+/** A wound card's line under its wound: what it does now, and the round it ends with when the fight set one. The table's words above say the rest. */
+function WoundCardSummary({ effect }: { effect: LubecEffect }) {
+  const now = effect.steps[0]
+  const words = now ? describeLubecEffectStep(now) : ''
+  return (
+    <>
+      <EffectWords kind="now" words={words || effect.name} />
+      <EffectWords kind="until" words={lubecWoundRoundTrigger(effect)} />
       <EffectWords kind="manual" words={lubecStepByHand(effect) ? 'Resolved by hand' : null} />
     </>
   )
+}
+
+function LubecEffectSummary({ effect }: { effect: LubecEffect }) {
+  return lubecEffectWound(effect) ? <WoundCardSummary effect={effect} /> : <HandMadeSummary effect={effect} />
 }
 
 function EffectWords({ kind, words }: { kind: string; words: string | null }) {
   return words === null ? null : <span className={`lubec-effect-${kind}`}>{words}</span>
 }
 
-function effectLineName(effect: LubecEffect, grouped: boolean): string {
-  const part = typeof effect.part === 'string' && effect.part ? effect.part : null
-  return grouped && part ? part : effect.name
+type LineProps = { effect: LubecEffect; editable: boolean; onOpen: (() => void) | null; onStepDown: () => void }
+
+/** A wound card's line shows no name of its own, so it is read with its wound's: "Forearm injury: Handle -20". */
+function lineLabel(effect: LubecEffect): string | undefined {
+  if (!lubecEffectWound(effect)) return undefined
+  const words = effect.steps[0] ? describeLubecEffectStep(effect.steps[0]) : ''
+  return words ? `${effect.name}: ${words}` : effect.name
 }
 
-type LineProps = { effect: LubecEffect; grouped: boolean; editable: boolean; onOpen: (() => void) | null; onStepDown: () => void }
-
-function LubecEffectLine({ effect, grouped, editable, onOpen, onStepDown }: LineProps) {
-  const summary = <LubecEffectSummary effect={effect} grouped={grouped} />
+function LubecEffectLine({ effect, editable, onOpen, onStepDown }: LineProps) {
+  const summary = <LubecEffectSummary effect={effect} />
   const line = onOpen
-    ? <button type="button" className="modifier lubec-effect-line" onClick={onOpen}>{summary}</button>
+    ? <button type="button" className="modifier lubec-effect-line" aria-label={lineLabel(effect)} onClick={onOpen}>{summary}</button>
     : <div className="modifier lubec-effect-line">{summary}</div>
   if (!editable) return line
   return (
     <>
       {line}
-      <button type="button" className="secondary-button" aria-label={`Step down ${effect.name}${grouped && effect.part ? ` ${String(effect.part)}` : ''}`} onClick={onStepDown}>Step down</button>
+      <button type="button" className="secondary-button" aria-label={`Step down ${lineLabel(effect) ?? effect.name}`} onClick={onStepDown}>Step down</button>
     </>
   )
 }
 
 type ItemProps = {
   effect: LubecEffect
-  grouped: boolean
   editable: boolean
   open: OpenEffect
   actions: EffectActions
@@ -108,7 +127,7 @@ type EffectActions = {
 
 const isOpen = (open: OpenEffect, id: string, view: 'editor' | 'detail') => open !== null && open !== 'new' && open.id === id && open.view === view
 
-function LubecEffectItem({ effect, grouped, editable, open, actions }: ItemProps) {
+function LubecEffectItem({ effect, editable, open, actions }: ItemProps) {
   const wound = lubecEffectWound(effect)
   if (editable && isOpen(open, effect.id, 'editor')) {
     return <li className="lubec-effect"><LubecEffectEditor effect={effect} onSave={actions.save} onCancel={() => actions.open(null)} onRemove={() => actions.remove(effect.id)} /></li>
@@ -118,7 +137,7 @@ function LubecEffectItem({ effect, grouped, editable, open, actions }: ItemProps
   const onOpen = effectOpener(effect.id, Boolean(wound) || editable, detail, view, actions)
   return (
     <li className={`lubec-effect${detail ? ' is-open' : ''}`}>
-      <LubecEffectLine effect={effect} grouped={grouped} editable={editable} onOpen={onOpen} onStepDown={() => actions.stepDown(effect.id)} />
+      <LubecEffectLine effect={effect} editable={editable} onOpen={onOpen} onStepDown={() => actions.stepDown(effect.id)} />
       <EffectDetail effect={effect} visible={detail} editable={editable} actions={actions} />
     </li>
   )
@@ -178,11 +197,21 @@ function effectActions(effects: readonly LubecEffect[], counters: LubecCounters,
   }
 }
 
+/** A wound's heading over its cards: the table's name for it, its severity and Trauma, and the table's own words. */
+function WoundHeading({ wound, name }: { wound: LubecWoundSource; name: string }) {
+  return (
+    <li className="lubec-effect-group">
+      <span className="lubec-effect-group-name">{name}</span>
+      <span className="lubec-effect-group-meta">{wound.severity} · Trauma +{wound.trauma}</span>
+      {wound.prose ? <LubecTableWords text={wound.prose} className="lubec-effect-group-words" /> : null}
+    </li>
+  )
+}
+
 function EffectGroups({ effects, editable, open, actions }: { effects: readonly LubecEffect[]; editable: boolean; open: OpenEffect; actions: EffectActions }) {
   return lubecEffectGroups(effects).flatMap((group) => {
-    const grouped = group.effects.length > 1
-    const items = group.effects.map((effect) => <LubecEffectItem key={effect.id} effect={effect} grouped={grouped} editable={editable} open={open} actions={actions} />)
-    return grouped ? [<li key={`${group.key}-name`} className="lubec-effect-group">{group.effects[0].name}</li>, ...items] : items
+    const items = group.effects.map((effect) => <LubecEffectItem key={effect.id} effect={effect} editable={editable} open={open} actions={actions} />)
+    return group.wound ? [<WoundHeading key={`${group.key}-name`} wound={group.wound} name={group.effects[0].name} />, ...items] : items
   })
 }
 

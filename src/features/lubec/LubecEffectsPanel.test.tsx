@@ -5,9 +5,9 @@ import type { LubecEffect } from '../ruleSets/lubec/effects'
 import { lubecCharacterSheet } from '../ruleSets/lubec/sheetFixtures'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 
-// The Effects panel's wound cards: the compact line, the linked cards of one
-// wound under its name, the wound it came from on opening (for every viewer),
-// and Step down for whoever may change the sheet.
+// The Effects panel's wound cards: each wound under the table's own name and
+// words, its cards' compact lines, the wound it came from on opening (for
+// every viewer), and Step down for whoever may change the sheet.
 
 afterEach(cleanup)
 
@@ -28,20 +28,28 @@ const region = () => screen.getByLabelText('Active effects')
 const lineTexts = () => [...region().querySelectorAll('.lubec-effect-line')].map((line) => [...line.children].map((part) => part.textContent))
 
 describe('a wound card', () => {
-  it('reads its name, what it does now, what ends it and what follows', () => {
+  it('sits under the table\'s name, severity, Trauma and words, and its line says only what it does now', () => {
     mount([forearm], null)
-    expect(lineTexts()).toEqual([['Forearm injury', 'Handle -20', 'Step down after 1 Long Rest', 'then healed']])
+    const heading = region().querySelector('.lubec-effect-group')!
+    expect([...heading.children].map((part) => part.textContent)).toEqual(['Forearm injury', 'Serious · Trauma +1', '-20 Handle until 1 Long Rest.'])
+    expect(lineTexts()).toEqual([['Handle -20']])
+  })
+
+  it('shows a Trauma +0 wound\'s Trauma too', () => {
+    mount([{ ...forearm, wound: { ...wound, trauma: 0 } }], null)
+    expect(region().querySelector('.lubec-effect-group-meta')!.textContent).toBe('Serious · Trauma +0')
   })
 
   it('says Lasting on a lasting card without inventing a recovery', () => {
     mount([{ ...lasting, wound: { ...wound, groupId: 'other' } }], null)
-    expect(lineTexts()).toEqual([['Forearm injury', 'Charm -10', 'Lasting']])
+    expect(lineTexts()).toEqual([['Charm -10']])
   })
 
-  it('gathers a wound\'s linked cards under its name, each named by its part', () => {
+  it('gathers a wound\'s linked cards under its one heading, with no names the table does not give', () => {
     mount([forearm, handMade, lasting], null)
-    expect([...region().querySelectorAll('.lubec-effect-group')].map((group) => group.textContent)).toEqual(['Forearm injury'])
-    expect(lineTexts().map((line) => line[0])).toEqual(['Forearm', 'Scar', 'Sunburn'])
+    expect([...region().querySelectorAll('.lubec-effect-group-name')].map((group) => group.textContent)).toEqual(['Forearm injury'])
+    expect(lineTexts().map((line) => line[0])).toEqual(['Handle -20', 'Charm -10', 'Sunburn'])
+    expect(region().textContent).not.toMatch(/Forearm(?! injury)|Scar/)
   })
 
   it('opens the wound it came from, even for a viewer who may not change the sheet', () => {
@@ -92,17 +100,14 @@ describe('a wound card', () => {
   it('steps down only its own card for the owner or GM, never repeating anything else', () => {
     const onChange = vi.fn()
     mount([forearm, lasting, handMade], onChange)
-    fireEvent.click(within(region()).getByRole('button', { name: 'Step down Forearm injury Forearm' }))
+    fireEvent.click(within(region()).getByRole('button', { name: 'Step down Forearm injury: Handle -20' }))
     expect(onChange).toHaveBeenCalledWith([lasting, handMade])
   })
 
   it('marks a consequence the app does not play yet as resolved by hand, and only that', () => {
     const brief: LubecEffect = { ...forearm, id: 'wound_1_brief', cardKey: 'brief', part: 'Off guard', steps: [{ modifiers: [], labels: [], until: 'rounds', restrictions: [{ kind: 'no-run' }] }] }
     mount([brief, { ...forearm, wound: { ...wound, groupId: 'two' } }], null)
-    expect(lineTexts()).toEqual([
-      ['Forearm injury', 'Cannot run', 'Counts down by round', 'then healed', 'Resolved by hand'],
-      ['Forearm injury', 'Handle -20', 'Step down after 1 Long Rest', 'then healed'],
-    ])
+    expect(lineTexts()).toEqual([['Cannot run', 'Resolved by hand'], ['Handle -20']])
   })
 
   it('adds a lasting step\'s Minimum Stress with the Step down that reaches it, and only then', () => {
@@ -117,7 +122,7 @@ describe('a wound card', () => {
   it('names the round a brief window from a fight ends with', () => {
     const brief: LubecEffect = { ...forearm, combatOrigin: { fightId: 'f', woundId: 'w', originatingRound: 2, effectiveRound: 2 }, steps: [{ modifiers: [], labels: [], until: 'next-round-end', rolls: [{ scope: 'attacks', mode: 'disadvantage' }] }] }
     mount([brief], null)
-    expect(lineTexts()).toEqual([['Forearm injury', 'Attacks at Disadvantage', 'Ends with round 3', 'then healed']])
+    expect(lineTexts()).toEqual([['Attacks at Disadvantage', 'Ends with round 3']])
   })
 
   it('keeps a hand-made effect opening straight into its editor', () => {
@@ -156,7 +161,7 @@ it('offers the speech card\'s recovery Save at its Step down, sends it once, and
   render(<LubecEffectsPanel effects={[card, forearm]} counters={lubecCharacterSheet().counters} onChange={change} onRecover={recover} gear={lubecCharacterSheet().gear} onGearChange={null} />)
   fireEvent.click(screen.getAllByRole('button', { name: /Step down Windpipe opened/ })[0])
   const dialog = screen.getByRole('dialog', { name: 'Recovery Save' })
-  expect(dialog.textContent).toContain('Stepping Speech down reaches its recovery point: roll a Body Save once. Failure leaves Speech damaged')
+  expect(dialog.textContent).toContain('Stepping Windpipe opened down reaches its recovery point: roll a Body Save once. Failure leaves Speech damaged')
   const submit = screen.getByRole('button', { name: 'Step down and roll Body Save' })
   fireEvent.click(submit)
   fireEvent.click(submit)

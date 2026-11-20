@@ -8,7 +8,7 @@ const card = (name: string, steps: LubecEffectStep[], extra: Partial<LubecEffect
 describe('the Movement choices the active cards forbid', () => {
   it('takes Run for cannot-run, Evasive for no Evasive Movement, and both for crawl only, naming the card', () => {
     expect(lubecMovementLimits([card('Knee', [step([{ kind: 'no-run' }])])])).toEqual({ run: 'Cannot run (Knee)', evade: null })
-    expect(lubecMovementLimits([card('Ankle', [step([{ kind: 'no-evasive' }])], { part: 'Ankle sprain' })])).toEqual({ run: null, evade: 'No Evasive Movement (Ankle, Ankle sprain)' })
+    expect(lubecMovementLimits([card('Ankle', [step([{ kind: 'no-evasive' }])], { part: 'Ankle sprain' })])).toEqual({ run: null, evade: 'No Evasive Movement (Ankle)' })
     expect(lubecMovementLimits([card('Leg', [step([{ kind: 'crawl-only' }])])])).toEqual({ run: 'Crawl only without help (Leg)', evade: 'Crawl only without help (Leg)' })
   })
 

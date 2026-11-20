@@ -17,12 +17,12 @@ describe('a value\'s parts', () => {
     expect(lubecValueParts(lubecCharacterSheet(), 'Speed')).toEqual([{ label: 'Base', value: '51' }, { label: 'Working Kid', value: '+5' }])
   })
 
-  it('names each card by its wound and part: its fraction, then its flat amount, then what it drops the value to', () => {
+  it('names each card by its wound: its fraction, then its flat amount, then what it drops the value to', () => {
     const wound = card('Shattered forearm', { fractions: [{ target: 'Handle', factor: 0.5 }], modifiers: [{ target: 'Handle', amount: -10 }], setTo: [{ target: 'Handle', value: 20 }] }, 'Forearm')
     const other = card('Sprain', { modifiers: [{ target: 'Speed', amount: -10 }] })
     expect(lubecValueParts(lubecCharacterSheet({ effects: [wound, other] }), 'Handle')).toEqual([
       { label: 'Base', value: '50' }, { label: 'Working Kid', value: '+5' },
-      { label: 'Shattered forearm (Forearm)', value: 'halved' }, { label: 'Shattered forearm (Forearm)', value: '-10' }, { label: 'Shattered forearm (Forearm)', value: 'drops to 20' },
+      { label: 'Shattered forearm', value: 'halved' }, { label: 'Shattered forearm', value: '-10' }, { label: 'Shattered forearm', value: 'drops to 20' },
     ])
   })
 

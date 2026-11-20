@@ -41,7 +41,7 @@ describe('the delayed speech-recovery Save', () => {
     expect(ids(next)).toEqual(['op_throat', 'op_bleed', 'op_speech_recovered'])
     const card = next.lubec.effects[2] as typeof speech & { recoveryRoll: object }
     expect(card).toMatchObject({ part: 'Speech', wound: speech.wound, steps: [{ labels: ['Speech damaged'], until: 'lasting', charmReminder: true, modifiers: [] }] })
-    expect(card.recoveryRoll).toMatchObject({ result: 100, outcome: 'failure', purpose: 'Speech recovery' })
+    expect(card.recoveryRoll).toMatchObject({ result: 100, outcome: 'failure', purpose: 'Windpipe opened recovery' })
     expect(next.lubec.counters).toEqual({ stress: 3, minimumStress: 1, trauma: 2 })
   })
 

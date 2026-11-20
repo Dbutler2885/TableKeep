@@ -62,8 +62,13 @@ describe('a final Fisticuffs concussion', () => {
     expect(done.logs[0].event).toBe('Roy rolled a Body Save.')
   })
 
-  it('Rocked: the Results say which round loses its Movement, in the table\'s terms', () => {
-    expect(attackOf(landed('fisticuffs', 'head', 1)).rowSections).toEqual([{ label: 'Next round', items: ['Movement lost in round 2'] }])
+  it('Knocked unconscious: Results add only the dice the table leaves to the moment', () => {
+    const done = landed('fisticuffs', 'head', 9, { unconscious: [7, 4], 'minimum-stress': [3] })
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Rolled', items: ['Unconscious 2d10 minutes: 7 + 4 = 11', 'Minimum Stress 1d5: 3'] }])
+  })
+
+  it('Rocked: the table\'s words say it all, so Results add nothing of their own', () => {
+    expect(attackOf(landed('fisticuffs', 'head', 1)).rowSections).toEqual([])
   })
 
   it('Minor failure: Dazed and -10 Handle until one Long Rest, +1 Trauma and the Save\'s +1 Stress once', () => {
@@ -90,11 +95,7 @@ describe('a final Fisticuffs concussion', () => {
       ['long-rest', [{ target: 'Handle', amount: -10 }]],
       ['lasting', [{ target: 'Intellect', amount: -10 }]],
     ])
-    expect(attackOf(done).rowSections).toEqual([
-      { label: 'Now', items: ['Dazed: Action + Defense lost in round 1; Movement lost in round 2'] },
-      { label: 'Recovery', items: ['Concussion: Handle -30, step down after 1 Long Rest', 'then Concussion: Handle -10, step down after 1 Long Rest'] },
-      { label: 'Lasting', items: ['then Concussion: Intellect -10, Persistent concussion'] },
-    ])
+    expect(attackOf(done).rowSections).toEqual([])
   })
 })
 
@@ -147,7 +148,7 @@ describe('a final row that lands at once', () => {
   })
 
   it('says an Immediate Death Save is the GM\'s to resolve', () => {
-    expect(attackOf(landed('fisticuffs', 'head', 10))).toMatchObject({ rowTrauma: 4, rowSections: [{ label: 'Now', items: ['Immediate Death Save'] }] })
+    expect(attackOf(landed('fisticuffs', 'head', 10))).toMatchObject({ rowTrauma: 4, rowSections: [] })
   })
 
   it('reads a final Thrown concussion with the shared Body Save', () => {
@@ -162,7 +163,7 @@ describe('a final Cutting wound with a countdown', () => {
     const done = landed('cutting', 'neck', 3, { check: [10] })
     expect(attackOf(done).checks).toMatchObject([{ purpose: 'prevention', success: true, stress: 0 }])
     expect(outboxOf(done)).toMatchObject({ traumaDelta: 1, stressDelta: 0, effects: [] })
-    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['Countdown prevented'] }])
+    expect(attackOf(done).rowSections).toEqual([])
   })
 
   it('failure adds the Save\'s Stress once and rolls the d4 once, keeping it on a bleeding card', () => {
@@ -263,7 +264,7 @@ describe('final Gunshot head wounds', () => {
   it('Head 5 keeps +4 Trauma, asks for the Immediate Death Save, and takes -20 Intellect as the whole lasting loss', () => {
     const done = landed('gunshot', 'head', 5, { check: [99] })
     expect(outboxOf(done)).toMatchObject({ traumaDelta: 4, stressDelta: 1, minimumStressDelta: 8 })
-    expect(attackOf(done).rowSections![0].items).toContain('Immediate Death Save')
+    expect(attackOf(done).rowSections).toEqual([])
     const intellect = outboxOf(done).effects!.flatMap((card) => card.steps.flatMap((step) => step.modifiers)).filter((modifier) => modifier.target === 'Intellect')
     expect(intellect).toEqual([{ target: 'Intellect', amount: -20 }])
   })
@@ -344,7 +345,7 @@ describe('a drop from the struck hand', () => {
     expect(attackOf(done).checks).toEqual([])
     expect(outboxOf(done)).toMatchObject({ drop: { hand: 'right' }, stressDelta: 0, traumaDelta: 1 })
     expect(attackOf(done)).toMatchObject({ woundId: outboxOf(done).id })
-    expect(attackOf(done).rowSections![0]).toEqual({ label: 'Now', items: ['Whatever the right hand holds drops onto the Floor'] })
+    expect(attackOf(done).rowSections![0]).toEqual({ label: 'Struck hand', items: ['Whatever the right hand holds drops onto the Floor'] })
     expect(lubecEffectWound(outboxOf(done).effects![0])!.drop).toEqual({ hand: 'right' })
   })
 
@@ -362,14 +363,14 @@ describe('a drop from the struck hand', () => {
     const done = landed('fisticuffs', 'hand-R', 2, { check: [10] }, knifeAndLantern)
     expect(attackOf(done)).toMatchObject({ rowStress: 0, checks: [{ purpose: 'retention', success: true, stress: 0 }] })
     expect(outboxOf(done).drop).toBeUndefined()
-    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['Kept hold of the Knife in the right hand'] }])
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Struck hand', items: ['Kept hold of the Knife in the right hand'] }])
   })
 
   it('drops on a failure, with the ordinary failed-Check Stress once', () => {
     const done = landed('fisticuffs', 'hand-L', 2, { check: [99] }, knifeAndLantern)
     expect(attackOf(done).checks).toMatchObject([{ purpose: 'retention', success: false, stress: 1 }])
     expect(outboxOf(done)).toMatchObject({ stressDelta: 1, drop: { hand: 'left', kept: false, held: 'Lantern' } })
-    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['The Lantern drops from the left hand onto the Floor'] }])
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Struck hand', items: ['The Lantern drops from the left hand onto the Floor'] }])
     expect(done.logs[0].event).toBe('Roy rolled a Handle Check.')
   })
 
@@ -377,7 +378,7 @@ describe('a drop from the struck hand', () => {
     const done = landed('fisticuffs', 'hand-R', 2, { check: [99] }, holding(inHand('lantern', 'Lantern', 0)))
     expect(attackOf(done)).toMatchObject({ rowStress: 0, checks: [] })
     expect(outboxOf(done).drop).toBeUndefined()
-    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['The right hand held nothing to drop'] }])
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Struck hand', items: ['The right hand held nothing to drop'] }])
   })
 
   it('holds a two-handed thing in the struck hand, whichever side', () => {
@@ -409,7 +410,7 @@ describe('knocked out of striking reach', () => {
     const done = landed('fisticuffs', 'torso', 1)
     expect(done.fight.state.outOfReach).toEqual([{ attackerKey: HERO, targetKey: ROY, round: 1 }])
     expect(done.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBeNull()
-    expect(attackOf(done).rowSections![0].items).toContain('Knocked out of striking reach')
+    expect(attackOf(done).rowSections).toEqual([])
   })
 })
 

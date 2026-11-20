@@ -359,10 +359,10 @@ describe('the doll, Strength and the wound', () => {
     // The headline already says Serious: the panel shows only the Trauma, not the severity again.
     expect(results.querySelector('.results-wound .sev')).toBeNull()
     expect(results.querySelector('.results-wound-head')!.textContent).toBe('Trauma +1')
-    expect([...results.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual([
-      'NowCountdown prevented',
-    ])
-    expect(results.textContent).not.toMatch(/Goes on|The table says/)
+    // The table's own words, as written; its passed Save needs nothing of the app's own beyond the roll's note.
+    expect(results.querySelector('.results-prose')!.textContent).toBe('Gain +1 Trauma in d4 turns unless a Body Save succeeds.')
+    expect(results.querySelector('.results-parts')).toBeNull()
+    expect(results.textContent).not.toMatch(/Goes on|The table says|Countdown prevented/)
   })
 
   it('marks a small part\'s landing with the small crosshair', () => {

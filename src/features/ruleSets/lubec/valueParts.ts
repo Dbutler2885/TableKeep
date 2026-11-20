@@ -18,9 +18,8 @@ export type LubecTargetPart = { label: string; value: string }
 
 const signed = (amount: number): string => (amount < 0 ? `${amount}` : `+${amount}`)
 
-/** A wound's card by its wound and part ("Deep gash (Forearm)"); a hand-made effect by its name. */
-const effectLabel = (effect: LubecEffect): string =>
-  (typeof effect.part === 'string' && effect.part && effect.part !== effect.name ? `${effect.name} (${effect.part})` : effect.name)
+/** A wound's card by its wound's name from the table; a hand-made effect by its own name. */
+const effectLabel = (effect: LubecEffect): string => effect.name
 
 /** Everything one card's current step does to the value: fractions first, then flat amounts and narrow-action amounts, then "drops to". */
 function effectParts(effect: LubecEffect, name: LubecValueName, actions: readonly LubecRollAction[]): LubecTargetPart[] {

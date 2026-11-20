@@ -1,3 +1,4 @@
+import { LubecTableWords } from '../../LubecTableWords'
 import { awaitingContinue } from '../engine/roundAttacks'
 import type { CombatAttack, CombatState } from '../engine/types'
 import { outcomeBanner } from './outcomeWords'
@@ -5,29 +6,34 @@ import { Refusal, type StepControls } from './ResultSteps'
 import { useAct } from './useAct'
 import { continueWords, headWords, resultsWound, type ResultsWound } from './resultsModel'
 
-/** The headline already names the severity, or that the target is Out; the panel says what it does not. */
+/** The table's own name and words for the wound, its Trauma, and only what the table leaves to the dice; the headline already says the severity, or that the target is Out. */
 function WoundPanel({ wound }: { wound: ResultsWound }) {
   return (
     <div className={`results-wound ${wound.cls}`}>
-      {wound.out || wound.trauma ? (
-        <div className="results-wound-head">
-          {wound.out ? <span className={`sev ${wound.cls}`}>{wound.severity}</span> : null}
-          {wound.trauma ? <span className="tag ink">{wound.trauma}</span> : null}
-        </div>
-      ) : null}
+      <div className="results-wound-head">
+        {wound.out ? <span className={`sev ${wound.cls}`}>{wound.severity}</span> : null}
+        <span className="tag ink">{wound.trauma}</span>
+      </div>
       <h4>{wound.name}</h4>
-      <dl className="results-parts">
-        {wound.parts.map((part) => <div key={part.label}><dt>{part.label}</dt><dd>{part.text}</dd></div>)}
-        {wound.injury ? <div><dt>Lasting injury</dt><dd>{wound.injury}</dd></div> : null}
-        {wound.sections.map((section) => (
-          <div key={section.label} className="results-section">
-            <dt>{section.label}</dt>
-            <dd><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul></dd>
-          </div>
-        ))}
-      </dl>
+      <LubecTableWords text={wound.prose} className="results-prose" />
+      <WoundFacts wound={wound} />
       {wound.notes.map((note) => <p key={note} className="note">{note}</p>)}
     </div>
+  )
+}
+
+function WoundFacts({ wound }: { wound: ResultsWound }) {
+  if (!wound.injury && !wound.sections.length) return null
+  return (
+    <dl className="results-parts">
+      {wound.injury ? <div><dt>Lasting injury</dt><dd>{wound.injury}</dd></div> : null}
+      {wound.sections.map((section) => (
+        <div key={section.label} className="results-section">
+          <dt>{section.label}</dt>
+          <dd><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul></dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 

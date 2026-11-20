@@ -1,6 +1,4 @@
-import type { LubecEffect, LubecEffectStep } from '../../../ruleSets/lubec/effects'
-import { describeLubecEffectStep } from '../../../ruleSets/lubec/effects'
-import { lubecDropWords, lubecRolledKey, lubecStepByHand, lubecStepTrigger, type LubecWoundDrop, type LubecWoundRolled } from '../../../ruleSets/lubec/woundCards'
+import { lubecDropWords, lubecRolledKey, type LubecWoundDrop, type LubecWoundRolled } from '../../../ruleSets/lubec/woundCards'
 import { lubecConcussionOutcome, lubecConcussionTraumaRelief } from '../../../ruleSets/lubec/woundTables/concussion'
 import type { LubecWoundNow, LubecWoundOutcome } from '../../../ruleSets/lubec/woundTables/outcome'
 import type { LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables/types'
@@ -126,73 +124,18 @@ export function lubecRollAmounts(outcome: LubecWoundOutcome, entropy: CombatEntr
   return amounts
 }
 
-const BY_HAND = ' (resolved by hand)'
-
-const NOW_WORDS: Partial<Record<LubecWoundNow['kind'], (rolled: LubecWoundRolled, drop: LubecWoundDrop | null) => string | null>> = {
-  drop: (_, drop) => drop ? lubecDropWords(drop) : 'Whatever the struck hand holds drops onto the Floor',
-  'immediate-death-save': () => 'Immediate Death Save',
-  'out-of-reach': () => 'Knocked out of striking reach',
-  unconscious: (rolled) => rolled.minimumStress ? `Minimum Stress +${rolled.minimumStress} (1d5)` : null,
+/** "Bleeding d4: 3", "Unconscious 2d10 minutes: 7 + 4 = 11": one die the wound rolled, as it fell. */
+function rolledLine(what: string, dice: readonly number[]): string {
+  const sum = dice.reduce((total, die) => total + die, 0)
+  return `${what}: ${dice.join(' + ')}${dice.length > 1 ? ` = ${sum}` : ''}`
 }
 
-function nowWords(now: LubecWoundNow, rolled: LubecWoundRolled, drop: LubecWoundDrop | null): string | null {
-  return NOW_WORDS[now.kind]?.(rolled, drop) ?? null
-}
-
-const NEXT_ROUND_KEYS = ['movement', 'bleed', 'critical']
-
-/** A step that counts down by round already names its rounds, and a lasting one needs no end. */
-const ENDS_IN_WORDS = ['rounds', 'lasting']
-
-/** A lost Stage's own words name the loss: "Movement lost in round 2", "Action + Defense lost in round 3". */
-function stageWords(card: LubecEffect, words: string): string | null {
-  if (card.cardKey === 'movement') return `Movement lost in ${words.charAt(0).toLowerCase()}${words.slice(1)}`
-  return card.cardKey === 'action' ? words : null
-}
-
-function cardLine(card: LubecEffect, stepIndex: number): string {
-  const step = card.steps[stepIndex]
-  const part = typeof card.part === 'string' ? card.part : card.name
-  const trigger = ENDS_IN_WORDS.includes(String(step.until)) ? null : lubecStepTrigger(step)
-  const words = describeLubecEffectStep(step)
-  const line = (stepIndex === 0 ? stageWords(card, words) : null) ?? `${part}: ${words}`
-  return `${line}${trigger ? `, ${trigger.charAt(0).toLowerCase()}${trigger.slice(1)}` : ''}${lubecStepByHand(card, step) ? BY_HAND : ''}`
-}
-
-/** A landed wound's Results, by when each consequence happens: Now, Next round, Recovery and Lasting. */
-type SectionLines = { now: string[]; next: string[]; recovery: string[]; lasting: string[] }
-
-function currentSection(card: LubecEffect): keyof SectionLines {
-  if (NEXT_ROUND_KEYS.includes(String(card.cardKey)) || card.steps[0]?.until === 'next-round-end') return 'next'
-  if (['dazed', 'action', 'down', 'unconscious'].includes(String(card.cardKey))) return 'now'
-  return card.steps[0]?.until === 'lasting' ? 'lasting' : 'recovery'
-}
-
-/** A later step waits for recovery, unless it is the lasting one. */
-const laterSection = (step: LubecEffectStep): keyof SectionLines => (step.until === 'lasting' ? 'lasting' : 'recovery')
-
-/** Each card's current step goes where it acts now; every later step follows under Recovery or Lasting. */
-function cardSections(cards: readonly LubecEffect[]): SectionLines {
-  const lines: SectionLines = { now: [], next: [], recovery: [], lasting: [] }
-  for (const card of cards) {
-    card.steps.forEach((step, index) => {
-      if (index === 0) lines[currentSection(card)].push(cardLine(card, 0))
-      else lines[laterSection(step)].push(`then ${cardLine(card, index)}`)
-    })
-  }
-  return lines
-}
-
-export function lubecWoundSections(outcome: LubecWoundOutcome, cards: readonly LubecEffect[], rolled: LubecWoundRolled, prevented: boolean, drop: LubecWoundDrop | null = null): CombatWoundSection[] {
-  const { now, next, recovery, lasting } = cardSections(cards)
-  for (const item of outcome.now ?? []) {
-    const words = nowWords(item, rolled, drop)
-    if (words) now.push(words)
-  }
-  if (prevented) now.push('Countdown prevented')
-  const sections = [
-    { label: 'Now', items: now }, { label: 'Next round', items: next },
-    { label: 'Recovery', items: recovery }, { label: 'Lasting', items: lasting },
-  ]
+/**
+ * What a landed wound's Results add to the table's own words: only what the table leaves to the moment,
+ * the dice it rolled and what the struck hand dropped. The table's sentence says everything else.
+ */
+export function lubecWoundSections(dice: Readonly<Record<string, number[]>>, drop: LubecWoundDrop | null): CombatWoundSection[] {
+  const rolled = Object.entries(dice).filter(([, values]) => values.length).map(([what, values]) => rolledLine(what, values))
+  const sections = [{ label: 'Rolled', items: rolled }, { label: 'Struck hand', items: drop ? [lubecDropWords(drop)] : [] }]
   return sections.filter((section) => section.items.length)
 }

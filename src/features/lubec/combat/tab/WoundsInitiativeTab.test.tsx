@@ -130,7 +130,7 @@ describe('a Dodgeball row\'s Check or Save', () => {
     expect(screen.getByText(/^Failure\. 99 is over/)).toBeTruthy()
     // The wound's words are in the panel below, so the headline's line keeps only where the ball went.
     expect(screen.getByRole('heading', { name: 'Roy Carver is Out' }).nextSibling!.textContent).toBe('The dodgeball lands on the Floor.')
-    expect([...document.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual(['What it doesMinor Concussion, which is Dazed and -10 Handle until a Long Rest.'])
+    expect(document.querySelector('.results-prose')!.textContent).toBe('Minor Concussion, which is Dazed and -10 Handle until a Long Rest.')
     // The turn order dims an Out fighter's line and says Out to a screen reader.
     expect(screen.getAllByText('Out', { selector: '.sr-only' })).toHaveLength(1)
   })
@@ -170,13 +170,13 @@ describe('a Dodgeball row\'s Check or Save', () => {
     expect(screen.getByText(/Dodgeball · Legs · Impact/).textContent).toBe('Dodgeball · Legs · Impact 6+')
   })
 
-  it('puts both out on a Headshot, and shows a Minor row with no Trauma', () => {
+  it('puts both out on a Headshot, and shows a Minor row\'s Trauma +0', () => {
     show('player', 'marcy-uid', fightAfter(...rowAt(30, 5, 4, 99)))
     expect(screen.getByRole('heading', { name: 'Roy Carver and Wayne Gardner are Out' })).toBeTruthy()
     const wound = document.querySelector('.results-wound')!
     expect(wound.className).toBe('results-wound mi')
     expect(within(wound as HTMLElement).getByText('Minor')).toBeTruthy()
-    expect(wound.querySelector('.tag')).toBeNull()
+    expect(wound.querySelector('.tag')!.textContent).toBe('Trauma +0')
     expect(within(wound as HTMLElement).queryByText('Out of the fight')).toBeNull()
   })
 })

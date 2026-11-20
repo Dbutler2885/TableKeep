@@ -1,19 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CombatAttack, CombatState } from '../engine/types'
-import { continueWords, headWords, resultsWound, woundParts } from './resultsModel'
-
-describe('the wound\'s words', () => {
-  it('labels the parts the wound standard names, and calls bare words what it does', () => {
-    expect(woundParts('Now: Dazed. Lasting: -40 Handle. After 1 Long Rest: -10 Handle. After 2 Long Rests: healed.')).toEqual([
-      { label: 'Now', text: 'Dazed.' }, { label: 'Lasting', text: '-40 Handle.' },
-      { label: 'After 1 Long Rest', text: '-10 Handle.' }, { label: 'After 2 Long Rests', text: 'healed.' },
-    ])
-    expect(woundParts('Now: Knocked down. Lasting (Broken pelvis): Crawl only without help.')).toEqual([
-      { label: 'Now', text: 'Knocked down.' }, { label: 'Lasting (Broken pelvis)', text: 'Crawl only without help.' },
-    ])
-    expect(woundParts('Bleeding timer.')).toEqual([{ label: 'What it does', text: 'Bleeding timer.' }])
-  })
-})
+import { continueWords, headWords, resultsWound } from './resultsModel'
 
 const combatant = (key: string, name: string, outReason: string | null = null) => ({ key, name, outReason, declaration: { aim: {}, stopped: false } })
 
@@ -25,31 +12,32 @@ describe('the Results wound panel', () => {
     check: { kind: 'save', against: 'Body', result: 7, target: 40, success: true },
   } as unknown as CombatAttack
 
-  it('shows the rolls that picked the wound, and no charge it did not make', () => {
+  it('shows the rolls that picked the wound, its Trauma even at +0, and no Stress it did not charge', () => {
     const wound = resultsWound(state, attack)!
     expect(wound).toMatchObject({
-      severity: 'Severe', cls: 'sv', trauma: '', name: 'Skull hit', out: false,
+      severity: 'Severe', cls: 'sv', trauma: 'Trauma +0', name: 'Skull hit', out: false,
       notes: ['Body Save 07 against 40: passed', 'd2 rolled 2', 'Resolved by hand'],
     })
     expect(wound).not.toHaveProperty('sheet')
   })
 
-  it('plays a final row as cards, without the resolved-by-hand note, and shows its words without the table\'s marks', () => {
+  it('plays a final row as cards, without the resolved-by-hand note, and keeps the table\'s words exactly as written', () => {
     const final = { ...attack, check: null, rowOutcome: '`-20 Handle` until 1 Long Rest.', row: { name: 'Forearm injury', severity: 'Serious', trauma: 1, injury: null, choice: null, table: 'blunt', final: true } } as unknown as CombatAttack
-    expect(resultsWound(state, final)).toMatchObject({ notes: [], parts: [{ label: 'The table says', text: '-20 Handle until 1 Long Rest.' }] })
+    expect(resultsWound(state, final)).toMatchObject({ notes: [], prose: '`-20 Handle` until 1 Long Rest.' })
   })
 
-  it('lists a final wound\'s landing rolls with their purpose, both dice and Stress, its sections, and every counter it charged', () => {
+  it('lists a final wound\'s landing rolls with their purpose, both dice and Stress, the dice it rolled, and every counter it charged', () => {
     const final = {
       ...attack, rowOutcome: 'Body Save.', rowTrauma: 2, rowStress: 1, rowMinimumStress: 3, check: null,
       row: { name: 'Severe Concussion', severity: 'Severe', trauma: 2, injury: null, choice: null, table: 'fisticuffs', final: true },
       checks: [{ purpose: 'concussion', kind: 'save', against: 'Body', advantage: 'disadvantage', dice: [12, 88], result: 88, target: 31, success: false, stress: 1 }],
-      rowSections: [{ label: 'Now', items: ['Dazed'] }],
+      rowSections: [{ label: 'Now', items: ['Dazed: retired app wording'] }, { label: 'Rolled', items: ['Dazed 1d4: 3'] }],
     } as unknown as CombatAttack
     expect(resultsWound(state, final)).toMatchObject({
       trauma: 'Trauma +2, Stress +1, Minimum Stress +3',
       notes: ['Concussion: Body Save 88 (12 and 88) against 31: failed, +1 Stress'],
-      sections: [{ label: 'Now', items: ['Dazed'] }],
+      // Only the rolled dice show; a section of the app's own retired wording, kept on an older attack, never does.
+      sections: [{ label: 'Rolled', items: ['Dazed 1d4: 3'] }],
     })
   })
 

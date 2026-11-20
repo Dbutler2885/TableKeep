@@ -437,7 +437,9 @@
 .shell-root[data-theme="lubec"] .lubec-combat .results-wound.ca { --sev-edge: var(--lubec-ink); --sev-shade: rgba(154, 63, 39, 0.42); }
 .shell-root[data-theme="lubec"] .lubec-combat .results-wound-head { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-wound h4 { margin: 0.4rem 0 0.45rem; font: 800 1.5rem/1.1 var(--lubec-display); }
-.shell-root[data-theme="lubec"] .lubec-combat .results-parts { display: grid; gap: 0.35rem; margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .results-parts { display: grid; gap: 0.35rem; margin: 0.5rem 0 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .results-prose { margin: 0; font: 600 0.92rem/1.45 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .results-prose b { font-weight: 800; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-parts > div { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 0.7rem; align-items: baseline; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-parts dd { margin: 0; font: 700 0.84rem/1.45 var(--lubec-type); }
 .shell-root[data-theme="lubec"] .lubec-combat .results-section ul { display: grid; gap: 0.15rem; margin: 0; padding-left: 1rem; }

@@ -186,7 +186,7 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   const landed = lubecLanded(located.row, row.choice ?? null, checks)
   const withChecks = { ...attack, checks, check: checks[0] ?? null }
   if (!landed.wound) {
-    return closeAttack(state, { ...withChecks, rowOutcome: 'Failure: no effect, no wound and no Stress from this Check.', rowTrauma: 0, rowStress: 0, rowSections: [] }, 'no-wound')
+    return closeAttack(state, { ...withChecks, rowOutcome: located.row.text, rowTrauma: 0, rowStress: 0, rowSections: [] }, 'no-wound')
   }
   const details = landingDetails(state, attack, landed, checks, entropy, gear)
   const source = landingSource(attack, located, landed, checks, details)
@@ -194,7 +194,7 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   const wound = finalWound(state, attack, landed, details, cards, entropy)
   const closed = {
     ...withChecks, rowOutcome: located.row.text, rowTrauma: landed.trauma, rowStress: landed.stress, rowMinimumStress: details.minimumStress,
-    rowSections: lubecWoundSections(landed.outcome, cards, details.rolled, landed.prevented, details.drop), woundId: wound.id,
+    rowSections: lubecWoundSections(details.dice, details.drop), woundId: wound.id,
   }
   const roundWatch = watchedThrough(state, wound.target, cards)
   const countdowns = [...(state.countdowns ?? []), ...countdownsOf(state, wound, cards)]

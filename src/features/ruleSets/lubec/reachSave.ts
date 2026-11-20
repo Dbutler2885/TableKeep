@@ -29,7 +29,7 @@ export const lubecReachSavePending = (effect: LubecEffect | undefined): boolean 
 /** The words the panel shows before the Save is rolled. */
 export const lubecReachSaveWords = (effect: LubecEffect): string => {
   const reach = reachOf(effect.steps[1])!
-  return `Stepping ${effect.part ?? effect.name} down reaches its recovery point: roll a Body Save once. Failure leaves ${reach.failure}, and the GM may call for Disadvantage on a relevant Charm Check.`
+  return `Stepping ${effect.name} down reaches its recovery point: roll a Body Save once. Failure leaves ${reach.failure}, and the GM may call for Disadvantage on a relevant Charm Check.`
 }
 
 /** The card after the Save: on success the steps after the Save, if any; on failure the failure as a lasting step first. */
@@ -60,7 +60,7 @@ export function lubecReachSaveIntention(raw: Record<string, unknown>, id: string
   const mode = lubecRollMode(sheet.effects, { kind: 'save', stat: 'Body' })
   const roll = rollLubecCheck(sheet, { name: 'Body', advantage: mode.mode, skill: null }, dice)
   if (!roll) throw new Error('Fill in Body before the recovery Save.')
-  const recorded = { ...roll, because: lubecModeReason(mode), purpose: `${effect.part ?? effect.name} recovery` }
+  const recorded = { ...roll, because: lubecModeReason(mode), purpose: `${effect.name} recovery` }
   const steps = stepsAfter(effect, reach, roll.outcome === 'success')
   const effects = (raw.lubec as { effects: { id: string }[] }).effects
   const before = effects.find((entry) => entry.id === id)!

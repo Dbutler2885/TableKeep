@@ -344,6 +344,12 @@ const ROUND_TRIGGERS: Partial<Record<string, (effect: LubecEffect) => string | n
   rounds: countdownTrigger,
 }
 
+/** Only the round a wound card's step ends with, when the fight set one ("Ends with round 3"); the table's own words say the rest. */
+export function lubecWoundRoundTrigger(effect: LubecEffect): string | null {
+  if (hasLostRounds(effect)) return null
+  return ROUND_TRIGGERS[effect.steps[0]?.until ?? '']?.(effect) ?? null
+}
+
 export function lubecEffectTrigger(effect: LubecEffect): string | null {
   if (hasLostRounds(effect)) return null
   const step = effect.steps[0]

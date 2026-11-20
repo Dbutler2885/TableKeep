@@ -18510,14 +18510,41 @@ button:disabled {
   border: 1px solid currentColor;
 }
 
-/* A wound's linked cards sit under its name, each line then named by its part. */
+/* A wound's heading: the table's name for it, its severity and Trauma, and the table's own words; its cards follow as lines. */
 .shell-root[data-theme="lubec"] .lubec-effect-group {
-  margin-top: 0.2rem;
-  font-size: 0.74rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  align-items: baseline;
+  margin-top: 0.35rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-group-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-group-meta {
+  font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-group-words {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-table-amount {
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 /* An opened wound card: its line, its Step down, then the wound it came from across the full width. */

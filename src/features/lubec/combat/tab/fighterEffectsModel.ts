@@ -2,7 +2,7 @@ import type { Role } from '../../../../types/app'
 import type { CampaignScope } from '../../../campaign/firestorePaths'
 import type { LubecCharacterRecord } from '../../../ruleSets/lubec/characterRecord'
 import { describeLubecEffectStep, type LubecEffect } from '../../../ruleSets/lubec/effects'
-import { lubecEffectTrigger } from '../../../ruleSets/lubec/woundCards'
+import { lubecEffectGroups, lubecEffectTrigger, lubecPlainProse, lubecWoundRoundTrigger } from '../../../ruleSets/lubec/woundCards'
 import type { LubecEffectRecovery } from '../../effectRecovery'
 import type { LubecStore } from '../../useLubecSheetSession'
 import type { Combatant } from '../engine/types'
@@ -50,18 +50,19 @@ export const fighterSheetEditable = (sheet: FighterSheet, viewer: CombatEffectsA
 /** One effect as the turn order says it: which card, what it does now, and what ends it, and all three as one line. */
 export type FighterEffectLine = { id: string; label: string; now: string | null; until: string | null; words: string }
 
-/** A wound's card goes by its part ("Dazed", "Forearm"); a hand-made effect by its name. */
-const labelOf = (effect: LubecEffect): string =>
-  (typeof effect.part === 'string' && effect.part ? effect.part : effect.name)
-
 const nowOf = (effect: LubecEffect): string | null => {
   const words = effect.steps[0] ? describeLubecEffectStep(effect.steps[0]) : ''
   return words || null
 }
 
-function lineOf(effect: LubecEffect): FighterEffectLine {
-  const line = { id: effect.id, label: labelOf(effect), now: nowOf(effect), until: lubecEffectTrigger(effect) }
-  return { ...line, words: [line.label, line.now, line.until].filter(Boolean).join(' · ') }
+/** One wound as a chip, named as the table names it, however many cards it made; a hand-made effect by its own name. */
+function lineOf(group: ReturnType<typeof lubecEffectGroups>[number]): FighterEffectLine {
+  const first = group.effects[0]
+  const now = group.effects.map(nowOf).filter(Boolean).join('; ') || null
+  const until = group.wound ? group.effects.map(lubecWoundRoundTrigger).filter(Boolean).join('; ') || null : lubecEffectTrigger(first)
+  const line = { id: first.id, label: first.name, now, until }
+  const what = group.wound?.prose ? lubecPlainProse(group.wound.prose).replace(/\.$/, '') : line.now
+  return { ...line, words: [line.label, what, line.until].filter(Boolean).join(' · ') }
 }
 
-export const fighterEffectLines = (effects: readonly LubecEffect[]): FighterEffectLine[] => effects.map(lineOf)
+export const fighterEffectLines = (effects: readonly LubecEffect[]): FighterEffectLine[] => lubecEffectGroups(effects).map(lineOf)

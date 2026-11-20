@@ -2,8 +2,8 @@ import { lubecRestrictionWords, lubecStepRestrictions, type LubecEffect, type Lu
 
 export type LubecRestrictionSource = { restriction: LubecRestriction; why: string }
 
-const cardName = (effect: LubecEffect) =>
-  (typeof effect.part === 'string' && effect.part && effect.part !== effect.name ? `${effect.name}, ${effect.part}` : effect.name)
+/** A card goes by its wound's name from the table, or a hand-made effect's own name. */
+const cardName = (effect: LubecEffect) => effect.name
 
 /** Physical restrictions come only from current steps, never from converted after-combat cards. */
 export function lubecRestrictionSources(effects: readonly LubecEffect[]): LubecRestrictionSource[] {

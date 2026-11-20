@@ -22,7 +22,7 @@ beforeEach(() => {
 
 const wound = {
   groupId: 'w1', table: 'cutting', tableName: 'Cutting', location: 'forearm', part: 'forearm-L', impact: 5, severity: 'Serious', row: 'Deep gash',
-  prose: 'Bleeds.', branch: null, contentVersion: 'cutting.md@1', dice: { 'Bleeding d4': [2] }, checks: [], trauma: 1, stress: 0, minimumStress: 0,
+  prose: 'Bleeding timer. `-20 Handle` until 1 Long Rest.', branch: null, contentVersion: 'cutting.md@1', dice: { 'Bleeding d4': [2] }, checks: [], trauma: 1, stress: 0, minimumStress: 0,
 }
 const bleeding: LubecEffect = {
   id: 'w1_bleed', cardKey: 'bleed', name: 'Deep gash', part: 'Bleeding', cause: 'Cutting', wound, countdown: { kind: 'bleed', rounds: 2 }, combatOrigin: { originatingRound: 1 },
@@ -56,14 +56,14 @@ const entriesOf = (name: string) => within(screen.getByRole('list', { name: `${n
 const OPEN = '. Open details and actions'
 
 describe('effects in the turn order', () => {
-  it('lists every fighter\'s cards under their row for the GM, each a button named by what it does now and what ends it', () => {
+  it('lists every fighter\'s wounds under their row for the GM, one button each, named and worded as the table writes them', () => {
     show({ roster: { characters: [wayne], npcs: [{ npc, sheet: roy }] }, writers: { characters: writer(), npcSheets: writer() }, scope, viewer: { role: 'gm', userId: 'gm' } })
-    // Each card is a chip on the fighter's one line: its name shows, and its whole words are its title and name.
+    // Each wound is one chip on the fighter's line, by the table's name; its title is the table's words and the round it is due.
+    const words = 'Deep gash · Bleeding timer. -20 Handle until 1 Long Rest'
     expect(entriesOf('Wayne').map((entry) => [entry.textContent, entry.getAttribute('title'), entry.getAttribute('aria-label')])).toEqual([
-      ['Bleeding', 'Bleeding · +1 Trauma in d4 = 2 rounds · Due at the end of round 3', `Bleeding · +1 Trauma in d4 = 2 rounds · Due at the end of round 3${OPEN}`],
-      ['Forearm', 'Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest', `Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest${OPEN}`],
+      ['Deep gash', `${words} · Due at the end of round 3`, `${words} · Due at the end of round 3${OPEN}`],
     ])
-    expect(entriesOf('Roy').map((entry) => entry.getAttribute('aria-label'))).toEqual([`Forearm · Handle -20, Two-handed actions impossible · Step down after 1 Long Rest${OPEN}`])
+    expect(entriesOf('Roy').map((entry) => entry.getAttribute('aria-label'))).toEqual([`${words}${OPEN}`])
     expect(entriesOf('Wayne').every((entry) => entry.getAttribute('type') === 'button')).toBe(true)
     expect(screen.queryByRole('button', { name: /^Effects$|effects$/ })).toBeNull()
   })
@@ -79,10 +79,10 @@ describe('effects in the turn order', () => {
   it('opens the tapped card\'s details and actions over the fight, and Step down saves the sheet the way the sheet does', () => {
     const characters = writer()
     show({ roster: { characters: [wayne], npcs: [] }, writers: { characters, npcSheets: null }, scope, viewer: { role: 'player', userId: 'wayne-uid' } })
-    fireEvent.click(screen.getByRole('button', { name: /^Forearm · / }))
+    fireEvent.click(screen.getByRole('button', { name: /^Deep gash · / }))
     const dialog = screen.getByRole('dialog', { name: "Wayne's effects" })
     expect(within(dialog).getByLabelText('Deep gash wound').textContent).toContain('Left forearm')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Step down Deep gash Forearm' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Step down Deep gash: Handle -20, Two-handed actions impossible' }))
     expect(characters.updateCharacter).toHaveBeenCalledWith('wayne', { lubec: { ...wayne.lubec, effects: [bleeding] } }, wayne)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
@@ -90,7 +90,7 @@ describe('effects in the turn order', () => {
 
   it('opens a tapped card\'s wound read-only for a viewer who may not change the sheet', () => {
     show({ roster: { characters: [wayne], npcs: [] }, writers: { characters: writer(), npcSheets: null }, scope, viewer: { role: 'player', userId: 'someone-else' } })
-    fireEvent.click(screen.getByRole('button', { name: /^Bleeding · / }))
+    fireEvent.click(screen.getByRole('button', { name: /^Deep gash · / }))
     const dialog = screen.getByRole('dialog', { name: "Wayne's effects" })
     expect(within(dialog).queryByRole('button', { name: /^Step down/ })).toBeNull()
     expect(within(dialog).getByLabelText('Deep gash wound').textContent).toContain('Bleeding d4 2')

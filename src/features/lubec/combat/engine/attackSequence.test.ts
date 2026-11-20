@@ -346,7 +346,7 @@ describe('card-set modes on combat rolls', () => {
     const number = attackNumber()
     const records = fight([withCard(hero(), [{ scope: 'physical', mode: 'disadvantage' }]), roy()])
     const miss = thrown([number - 8, number + 9], records, slash, false).plan.fight.state.attack!
-    expect(miss.roll).toMatchObject({ roll: number + 9, hit: false, dice: [number - 8, number + 9], mode: 'disadvantage', because: 'Disadvantage from Broken rib(s) (Ribs)' })
+    expect(miss.roll).toMatchObject({ roll: number + 9, hit: false, dice: [number - 8, number + 9], mode: 'disadvantage', because: 'Disadvantage from Broken rib(s)' })
     expect(miss.outcome).toBe('miss')
     const low = thrown([number - 8, number - 46], records, slash, false).plan.fight.state.attack!
     expect(low.roll).toMatchObject({ roll: number - 46, hit: true, dice: [number - 8, number - 46] })

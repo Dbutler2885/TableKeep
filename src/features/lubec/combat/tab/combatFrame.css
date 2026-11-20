@@ -209,12 +209,17 @@
   .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row .ask { flex: 1 0 100%; white-space: normal; }
 }
 
-/* A narrow rail, at the frame's narrowest: a fighter's chips take the second line from their Speed and roll (which
-   stay in the row's title), so the name keeps the whole first line; the headings stay on one line. */
+/* A fighter's chips carry the table's wound names, so they take the second line from their Speed and roll (which
+   stay in the row's title), and the name keeps the whole first line at every rail width. */
+.shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .tags { grid-column: 2 / -1; grid-row: 2; min-width: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .words { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .fighter-effects { min-width: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .fighter-effects li { min-width: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .fighter-effect:not(.more) { max-width: 8rem; }
+
+/* A narrow rail, at the frame's narrowest: the headings stay on one line. */
 .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail { container: rail / inline-size; }
 @container rail (max-width: 13.5rem) {
-  .shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .tags { grid-column: 2 / -1; grid-row: 2; }
-  .shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .words { display: none; }
   .shell-root[data-theme="lubec"] .lubec-combat .rail .panel > h3 { white-space: nowrap; }
   /* A declaration's numbers are its point: the little split bar gives way so "→ target · ATK · DEF" has the line. */
   .shell-root[data-theme="lubec"] .lubec-combat .rail .decls .txt { grid-template-columns: minmax(0, 1fr); }
