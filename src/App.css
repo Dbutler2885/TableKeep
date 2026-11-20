@@ -17872,7 +17872,7 @@ button:disabled {
 }
 
 .shell-root[data-theme="lubec"] .fight-panel {
-  padding: 0.85rem;
+  padding: 0.85rem 0.85rem 0.55rem;
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid var(--lubec-rust);
   border-top: 0;
@@ -17971,6 +17971,7 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .fight-panel .allocation-stage {
   min-width: 0;
+  margin-top: 0.75rem;
   padding: 0;
   background: none;
   border: 0;
@@ -18226,7 +18227,7 @@ button:disabled {
 }
 
 .shell-root[data-theme="lubec"] .fight-panel .combat-instruction {
-  margin: 0.7rem 0 0;
+  margin: 0.35rem 0 0;
   color: var(--lubec-muted);
   font: 700 0.58rem/1.35 var(--lubec-type);
   text-align: center;
