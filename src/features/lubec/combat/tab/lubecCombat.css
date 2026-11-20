@@ -154,6 +154,10 @@
 @media (max-width: 1150px) {
   .shell-root[data-theme="lubec"] .lubec-combat :is(.ct, .ct.two, .two-col) { grid-template-columns: minmax(0, 1fr); }
 }
+/* Beside the campaign sidebar a wide window can still leave the tab too narrow for three columns. */
+@container combat (max-width: 1069.98px) {
+  .shell-root[data-theme="lubec"] .lubec-combat :is(.ct, .ct.two, .two-col) { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Narrow window: everything stacks */
 @media (max-width: 760px) {

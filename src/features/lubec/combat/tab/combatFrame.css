@@ -1,7 +1,8 @@
 /* The fixed frame. On a laptop-sized window the Combat tab is exactly the window's height: the head, three columns
    and the table line each keep one place and one size, whatever they show and however many people fight, so nothing
    moves another and nothing scrolls. Lists hold one line per fighter at a set height, cut long words short and keep
-   the rest behind a tap or a title. Narrower or shorter windows keep the stacked page, which scrolls. */
+   the rest behind a tap or a title. A tab narrower than the frame needs (a window under about 1280px beside the
+   campaign sidebar) or a shorter window keeps the stacked page, which scrolls. */
 
 /* Chips: a fighter's cards and lost stages on their one line. */
 .shell-root[data-theme="lubec"] .lubec-combat .fighter-effects { display: flex; gap: 0.2rem; margin: 0; padding: 0; list-style: none; }
@@ -56,8 +57,8 @@
 .shell-root[data-theme="lubec"] .lubec-combat .ct[data-crowd="crowd"] { --fighter-row: 2.05rem; }
 .shell-root[data-theme="lubec"] .lubec-combat .ct[data-crowd="crowd"] .turns .words { display: none; }
 
-@media (min-width: 1151px) and (min-height: 640px) {
-  .shell-root[data-theme="lubec"] .lubec-combat:has(> .ct.framed) { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 0.6rem; }
+@container combat (min-width: 1070px) {
+@media (min-height: 640px) {
   .shell-root[data-theme="lubec"] .lubec-combat > .chead:has(+ .ct.framed) { flex: none; margin-bottom: 0.7rem; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) auto; align-items: stretch; min-height: 0; row-gap: 0.5rem; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail { display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: hidden; }
@@ -82,6 +83,7 @@
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .mid > .lubec-fight.inpage { display: flex; flex-direction: column; min-height: 0; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .mid > .lubec-fight.inpage > .fight-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
 }
+}
 
 /* The attack windows (Declare, Sneak and round attacks): every slot one size, whatever the fight holds. */
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid { gap: 0.5rem 0.9rem; }
@@ -91,7 +93,7 @@
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout .tlist { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, 3.2rem); gap: 0.35rem; }
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target .tcell { min-width: 0; min-height: 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow { position: relative; display: flex; flex-direction: column; justify-content: flex-start; width: 100%; height: 100%; min-height: 0; padding: 0.3rem 0.45rem; overflow: hidden; border-width: 2px; text-align: left; }
-.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow > .target-words { display: block; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow > .target-words { display: block; min-width: 0; max-width: 100%; }
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-name { display: -webkit-box; margin: 0 0 0.05rem; overflow: hidden; font: 800 0.86rem/1.1 var(--lubec-type); overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow small { display: block; overflow: hidden; font-size: 0.64rem; text-overflow: ellipsis; white-space: nowrap; }
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-status { display: none; }
@@ -157,22 +159,38 @@
 .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row { align-items: center; height: 2.2rem; }
 
 /* Results: the body map is sized to the window's height, not its width, so Where it lands fits under the rolls. */
-@media (min-width: 1151px) and (min-height: 640px) {
+@container combat (min-width: 1070px) {
+@media (min-height: 640px) {
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed .doll-step .body-map { width: auto; max-width: 100%; height: min(19rem, calc(100dvh - 30rem)); margin: 0 auto; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed .seq .matchup-context { margin: -0.2rem 0 0.4rem; }
+}
+}
+
+/* The tab is a column the window's height, so its frame (below) can take the room left under the head. A tab too
+   narrow for the frame keeps the stacked page, whose columns stay as tall as they need inside it. */
+@media (min-width: 1151px) and (min-height: 640px) {
+  .shell-root[data-theme="lubec"] .lubec-combat:has(> .ct.framed) { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 0.6rem; }
 }
 
 /* Beside the campaign's permanent sidebar the tab has less width than the window: the rails give the middle the
    room its target tiles and armor need, and the window's lines shorten their words before they wrap. */
 .shell-root[data-theme="lubec"] .lubec-combat:has(> .ct.framed) { container: combat / inline-size; }
-@media (min-width: 1151px) and (min-height: 640px) {
+@container combat (min-width: 1070px) {
+@media (min-height: 640px) {
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { --fighter-row: 2.45rem; }
+  /* The middle comes first: the rails take what is left once it has 45rem for its target tiles and armor box, down
+     to 11.5rem each (the middle then has at least 40rem), and stop growing at their full widths. */
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed {
+    --rail-room: calc((100cqi - 4rem - 45rem) / 2);
+    grid-template-columns: clamp(11.5rem, var(--rail-room), 15rem) minmax(0, 1fr) clamp(11.5rem, var(--rail-room), 17rem);
+    column-gap: 0.8rem;
+  }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed[data-crowd="crowd"] { --fighter-row: 2.05rem; }
   @container combat (max-width: 1260px) {
-    .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { grid-template-columns: 13.25rem minmax(0, 1fr) 14.75rem; column-gap: 0.8rem; }
     .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .nums i { min-width: 1.75rem; padding-right: 0.1rem; padding-left: 0.1rem; }
     .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0.7rem; }
   }
+}
 }
 .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row { flex-wrap: nowrap; }
 .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row > * { flex: none; }
@@ -190,4 +208,19 @@
   /* The question takes its own line above Full Defense and the Handle. */
   .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row { flex-wrap: wrap; height: auto; }
   .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row .ask { flex: 1 0 100%; white-space: normal; }
+}
+
+/* A narrow rail, at the frame's narrowest: a fighter's chips take the second line from their Speed and roll (which
+   stay in the row's title), so the name keeps the whole first line; the headings stay on one line. */
+.shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail { container: rail / inline-size; }
+@container rail (max-width: 13.5rem) {
+  .shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .tags { grid-column: 2 / -1; grid-row: 2; }
+  .shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .words { display: none; }
+  .shell-root[data-theme="lubec"] .lubec-combat .rail .panel > h3 { white-space: nowrap; }
+  .shell-root[data-theme="lubec"] .lubec-combat .rail .panel > h3 small { letter-spacing: 0.02em; font-size: 0.72em; }
+}
+/* Tiles at the frame's narrowest set their second line a little smaller, so "NPC · Speed 56" fits whole. */
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout .tlist { container: tiles / inline-size; }
+@container tiles (max-width: 25rem) {
+  .shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow small { font-size: 0.56rem; letter-spacing: 0; }
 }
