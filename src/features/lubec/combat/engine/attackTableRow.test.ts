@@ -62,6 +62,10 @@ describe('a final Fisticuffs concussion', () => {
     expect(done.logs[0].event).toBe('Roy rolled a Body Save.')
   })
 
+  it('Rocked: the Results say which round loses its Movement, in the table\'s terms', () => {
+    expect(attackOf(landed('fisticuffs', 'head', 1)).rowSections).toEqual([{ label: 'Next round', items: ['Movement lost in round 2'] }])
+  })
+
   it('Minor failure: Dazed and -10 Handle until one Long Rest, +1 Trauma and the Save\'s +1 Stress once', () => {
     const done = landed('fisticuffs', 'head', 7, { check: [99] })
     expect(outboxOf(done)).toMatchObject({ traumaDelta: 1, stressDelta: 1 })
@@ -87,7 +91,7 @@ describe('a final Fisticuffs concussion', () => {
       ['lasting', [{ target: 'Intellect', amount: -10 }]],
     ])
     expect(attackOf(done).rowSections).toEqual([
-      { label: 'Now', items: ['Dazed: Action + Defense lost in round 1; Movement lost in round 2, counts down by round'] },
+      { label: 'Now', items: ['Dazed: Action + Defense lost in round 1; Movement lost in round 2'] },
       { label: 'Recovery', items: ['Concussion: Handle -30, step down after 1 Long Rest', 'then Concussion: Handle -10, step down after 1 Long Rest'] },
       { label: 'Lasting', items: ['then Concussion: Intellect -10, Persistent concussion'] },
     ])

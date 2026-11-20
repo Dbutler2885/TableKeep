@@ -356,6 +356,9 @@ describe('the doll, Strength and the wound', () => {
     expect(results.querySelector('.results-facts')).toBeNull()
     expect(within(results).getByRole('heading', { level: 4 }).textContent).toBe('Long chest cut')
     expect(results.querySelector('.results-wound')!.className).toBe('results-wound se')
+    // The headline already says Serious: the panel shows only the Trauma, not the severity again.
+    expect(results.querySelector('.results-wound .sev')).toBeNull()
+    expect(results.querySelector('.results-wound-head')!.textContent).toBe('Trauma +1')
     expect([...results.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual([
       'NowCountdown prevented',
     ])

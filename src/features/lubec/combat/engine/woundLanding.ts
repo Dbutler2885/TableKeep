@@ -141,12 +141,22 @@ function nowWords(now: LubecWoundNow, rolled: LubecWoundRolled, drop: LubecWound
 
 const NEXT_ROUND_KEYS = ['movement', 'bleed', 'critical']
 
+/** A step that counts down by round already names its rounds, and a lasting one needs no end. */
+const ENDS_IN_WORDS = ['rounds', 'lasting']
+
+/** A lost Stage's own words name the loss: "Movement lost in round 2", "Action + Defense lost in round 3". */
+function stageWords(card: LubecEffect, words: string): string | null {
+  if (card.cardKey === 'movement') return `Movement lost in ${words.charAt(0).toLowerCase()}${words.slice(1)}`
+  return card.cardKey === 'action' ? words : null
+}
+
 function cardLine(card: LubecEffect, stepIndex: number): string {
   const step = card.steps[stepIndex]
   const part = typeof card.part === 'string' ? card.part : card.name
-  const trigger = lubecStepTrigger(step)
+  const trigger = ENDS_IN_WORDS.includes(String(step.until)) ? null : lubecStepTrigger(step)
   const words = describeLubecEffectStep(step)
-  return `${part}: ${words}${trigger && step.until !== 'lasting' ? `, ${trigger.charAt(0).toLowerCase()}${trigger.slice(1)}` : ''}${lubecStepByHand(card, step) ? BY_HAND : ''}`
+  const line = (stepIndex === 0 ? stageWords(card, words) : null) ?? `${part}: ${words}`
+  return `${line}${trigger ? `, ${trigger.charAt(0).toLowerCase()}${trigger.slice(1)}` : ''}${lubecStepByHand(card, step) ? BY_HAND : ''}`
 }
 
 /** A landed wound's Results, by when each consequence happens: Now, Next round, Recovery and Lasting. */

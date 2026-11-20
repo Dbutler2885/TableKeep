@@ -177,7 +177,7 @@ describe('a Dodgeball row\'s Check or Save', () => {
     expect(wound.className).toBe('results-wound mi')
     expect(within(wound as HTMLElement).getByText('Minor')).toBeTruthy()
     expect(wound.querySelector('.tag')).toBeNull()
-    expect(within(wound as HTMLElement).getByText('Out of the fight')).toBeTruthy()
+    expect(within(wound as HTMLElement).queryByText('Out of the fight')).toBeNull()
   })
 })
 

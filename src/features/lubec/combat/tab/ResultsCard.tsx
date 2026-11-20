@@ -5,14 +5,16 @@ import { Refusal, type StepControls } from './ResultSteps'
 import { useAct } from './useAct'
 import { continueWords, headWords, resultsWound, type ResultsWound } from './resultsModel'
 
+/** The headline already names the severity, or that the target is Out; the panel says what it does not. */
 function WoundPanel({ wound }: { wound: ResultsWound }) {
   return (
     <div className={`results-wound ${wound.cls}`}>
-      <div className="results-wound-head">
-        <span className={`sev ${wound.cls}`}>{wound.severity}</span>
-        {wound.trauma ? <span className="tag ink">{wound.trauma}</span> : null}
-        {wound.out ? <span className="badge rust">Out of the fight</span> : null}
-      </div>
+      {wound.out || wound.trauma ? (
+        <div className="results-wound-head">
+          {wound.out ? <span className={`sev ${wound.cls}`}>{wound.severity}</span> : null}
+          {wound.trauma ? <span className="tag ink">{wound.trauma}</span> : null}
+        </div>
+      ) : null}
       <h4>{wound.name}</h4>
       <dl className="results-parts">
         {wound.parts.map((part) => <div key={part.label}><dt>{part.label}</dt><dd>{part.text}</dd></div>)}
