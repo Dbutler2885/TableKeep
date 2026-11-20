@@ -161,3 +161,33 @@
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed .doll-step .body-map { width: auto; max-width: 100%; height: min(19rem, calc(100dvh - 30rem)); margin: 0 auto; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed .seq .matchup-context { margin: -0.2rem 0 0.4rem; }
 }
+
+/* Beside the campaign's permanent sidebar the tab has less width than the window: the rails give the middle the
+   room its target tiles and armor need, and the window's lines shorten their words before they wrap. */
+.shell-root[data-theme="lubec"] .lubec-combat:has(> .ct.framed) { container: combat / inline-size; }
+@media (min-width: 1151px) and (min-height: 640px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { --fighter-row: 2.45rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed[data-crowd="crowd"] { --fighter-row: 2.05rem; }
+  @container combat (max-width: 1260px) {
+    .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { grid-template-columns: 13.25rem minmax(0, 1fr) 14.75rem; column-gap: 0.8rem; }
+    .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .nums i { min-width: 1.75rem; padding-right: 0.1rem; padding-left: 0.1rem; }
+    .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0.7rem; }
+  }
+}
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row { flex-wrap: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row > * { flex: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row .ask { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A name that takes two lines still leaves room for the tile's second line. */
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-name { line-height: 1.02; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow small { line-height: 1.1; }
+
+/* A phone: the targets as two columns of four, the armor box below them at its own fixed size. */
+@container combat (max-width: 700px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout { grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout .tlist { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, 3.2rem); }
+  .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-name { -webkit-line-clamp: 1; }
+  /* The question takes its own line above Full Defense and the Handle. */
+  .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row { flex-wrap: wrap; height: auto; }
+  .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row .ask { flex: 1 0 100%; white-space: normal; }
+}
