@@ -75,7 +75,7 @@ const SlotLine = ({ notice }: { notice: SlotNotice }) =>
 
 /**
  * The window's one notice line, there whether or not it has anything to say, so a notice arriving moves nothing.
- * It shows the first notice; the rest open over the window from a count beside it.
+ * It shows the first notice, its whole words in its title; the rest open over the window from a count beside it.
  */
 export function NoticeSlot({ notices }: { notices: readonly SlotNotice[] }) {
   const [first, ...rest] = notices
@@ -84,7 +84,7 @@ export function NoticeSlot({ notices }: { notices: readonly SlotNotice[] }) {
       {first ? <SlotLine notice={first} /> : null}
       {rest.length ? (
         <OverPop className="notice-more" summary={`+${rest.length}`} label={`${rest.length} more notice${rest.length === 1 ? '' : 's'}`}>
-          <div className="notice-pop">{notices.map((notice) => <SlotLine key={notice.key} notice={notice} />)}</div>
+          <div className="notice-pop">{rest.map((notice) => <SlotLine key={notice.key} notice={notice} />)}</div>
         </OverPop>
       ) : null}
     </div>

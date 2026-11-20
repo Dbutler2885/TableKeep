@@ -11,7 +11,8 @@ import { declaredAtAttacker, orderedOpponentKeys, orderedTargets } from './targe
 import type { AttackAct, AttackCommands } from './attackCommands'
 import { initialDraft, sameAim, segmentMiddle, withDefense, withWeapon, type AttackDraft } from './attackDraft'
 import { attackGone, attackWindowModel, type AttackGone, type AttackWindowModel } from './attackWindowModel'
-import { AttackAsk, AttackDefenseLine, AttackNotices, AttackTrail, LockedDefenseLine, RoundNotices } from './AttackWindowParts'
+import { AttackAsk, AttackDefenseLine, AttackTrail, LockedDefenseLine } from './AttackWindowParts'
+import { attackNotices } from './attackNotices'
 import { combatantName } from './attackWords'
 import { combatFloorRows } from './combatFloorRows'
 import { CombatFloorIcon } from './CombatParts'
@@ -126,7 +127,6 @@ function WindowSplit(props: SplitProps) {
   const roll = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Roll" disabled={!model.ready || busy} onRoll={onRoll} />
   return (
     <>
-      {model.reach ? <div className="notice cool" role="status"><span>{model.reach}</span></div> : null}
       <AttackAsk target={target} reading={reading} range={model.range} evasion={model.evasion} segments={segments} />
       <AttackBar segments={segments} onDefense={moveDefense} controls={roll} />
       <SplitLine {...props} />
@@ -164,24 +164,16 @@ function ChooseAgain({ body, gone, refuse }: AgainProps) {
   )
 }
 
-/** Why this attack runs now: a Sneak Attack's grant, or a declared attack with whatever has gone since. */
-function WindowNotices({ body, gone }: { body: BodyProps; gone: AttackGone }) {
-  if (!isRoundAttack(body.state, body.attack)) return <AttackNotices attacker={body.attacker} attack={body.attack} refusal={null} gm={body.gm} />
-  return <RoundNotices attack={body.attack} targetName={combatantName(body.state, body.attack.aim!.targetKey)} gone={gone} refusal={null} />
-}
-
 function WindowBody(body: BodyProps) {
   const { draft, setDraft, refusal, refuse, model, roll } = useAttackWindow(body)
   const declared = isRoundAttack(body.state, body.attack)
   const gone = attackGone(body.state, body.attack, body.sheet)
   return (
     <>
-      <WindowNotices body={body} gone={gone} />
-      <AttackTrail attacker={body.attacker} target={model.target ? lubecCombatantFace(model.target).name : null} />
+      <AttackTrail attacker={body.attacker} target={model.target ? lubecCombatantFace(model.target).name : null} notices={attackNotices({ state: body.state, attacker: body.attacker, attack: body.attack, gone, gm: body.gm, reach: model.reach, refusal })} />
       <WindowChoices body={body} draft={draft} setDraft={setDraft} model={model} />
       <ChooseAgain body={body} gone={gone} refuse={refuse} />
       <WindowRange body={body} model={model} refuse={refuse} />
-      {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
       <WindowSplit model={model} draft={draft} setDraft={setDraft} busy={roll.busy} onRoll={roll.roll} state={body.state} declared={declared} />
     </>
   )

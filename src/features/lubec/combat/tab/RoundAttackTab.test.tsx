@@ -165,8 +165,8 @@ describe('a declared attack on its turn', () => {
     expect(document.querySelector('.defense-lines')).toBeNull()
     fireEvent.click(button('Roll'))
     expect(await screen.findByText('That attack step is stale.')).toBeTruthy()
-    const alert = screen.getByRole('alert')
-    expect(alert.nextElementSibling?.classList.contains('ask-row')).toBe(true)
+    // The refusal takes the window's notice line, beside the matchup, so the bar below it does not move.
+    expect(screen.getByRole('alert').closest('.attack-top .notice-slot')).toBeTruthy()
   })
 
   it('rolls a Full Defense line at +10', () => {

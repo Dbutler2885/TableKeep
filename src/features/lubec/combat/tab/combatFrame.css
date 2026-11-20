@@ -186,10 +186,9 @@
     column-gap: 0.8rem;
   }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed[data-crowd="crowd"] { --fighter-row: 2.05rem; }
-  @container combat (max-width: 1260px) {
-    .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .nums i { min-width: 1.75rem; padding-right: 0.1rem; padding-left: 0.1rem; }
-    .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0.7rem; }
-  }
+  /* The armor box takes two fifths of the target row, with tight number cells, so a piece's name has room. */
+  .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .nums i { min-width: 1.75rem; padding-right: 0.1rem; padding-left: 0.1rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 0.7rem; }
 }
 }
 .shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row { flex-wrap: nowrap; }
@@ -217,10 +216,36 @@
   .shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .tags { grid-column: 2 / -1; grid-row: 2; }
   .shell-root[data-theme="lubec"] .lubec-combat .turns li:has(.tags :is(.fighter-effect, .stage-lost)) .words { display: none; }
   .shell-root[data-theme="lubec"] .lubec-combat .rail .panel > h3 { white-space: nowrap; }
+  /* A declaration's numbers are its point: the little split bar gives way so "→ target · ATK · DEF" has the line. */
+  .shell-root[data-theme="lubec"] .lubec-combat .rail .decls .txt { grid-template-columns: minmax(0, 1fr); }
+  .shell-root[data-theme="lubec"] .lubec-combat .rail .decls .txt .mini { display: none; }
   .shell-root[data-theme="lubec"] .lubec-combat .rail .panel > h3 small { letter-spacing: 0.02em; font-size: 0.72em; }
 }
 /* Tiles at the frame's narrowest set their second line a little smaller, so "NPC · Speed 56" fits whole. */
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout .tlist { container: tiles / inline-size; }
 @container tiles (max-width: 25rem) {
   .shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow small { font-size: 0.56rem; letter-spacing: 0; }
+}
+
+/* The attack window's top line: the matchup at its own width, the window's notices beside it in one fixed slot. */
+.shell-root[data-theme="lubec"] .lubec-combat .attack-top { display: flex; gap: 0.8rem; align-items: stretch; min-width: 0; margin: 0 0 0.5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .attack-top > .attack-matchup.compact { flex: none; grid-template-columns: auto 1.6rem auto; margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .attack-top > .attack-matchup.compact strong { overflow: visible; text-overflow: clip; }
+.shell-root[data-theme="lubec"] .lubec-combat .attack-top > .notice-slot { height: auto; min-height: 2rem; }
+@container combat (max-width: 700px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .attack-top { flex-wrap: wrap; }
+  .shell-root[data-theme="lubec"] .lubec-combat .attack-top > :is(.attack-matchup.compact, .notice-slot) { flex: 1 0 100%; }
+}
+/* A narrow tab: the boxes' colours and the arrow say who attacks whom, so the words "Attacker" and "Target" are
+   left to screen readers and the notice beside them gets the room. */
+@container combat (max-width: 1420px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .attack-top > .attack-matchup.compact strong { font-size: 1rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .attack-top > .attack-matchup.compact small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
+/* Beside the matchup a notice has two lines, in a smaller type, the height of the matchup's boxes. */
+.shell-root[data-theme="lubec"] .lubec-combat .attack-top > .notice-slot > .notice { padding-top: 0.15rem; padding-bottom: 0.15rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .attack-top > .notice-slot > .notice > span { display: -webkit-box; overflow: hidden; font-size: 0.72rem; line-height: 1.2; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+/* A result's headline is sized by the tab's width, not the window's, so beside the sidebar it keeps to one line where it can. */
+@container combat (min-width: 1070px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed .results-head h3 { font-size: clamp(1.25rem, 2.3cqi, 2.15rem); }
 }
