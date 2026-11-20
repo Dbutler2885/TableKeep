@@ -11,6 +11,8 @@ export type AttackAct = Promise<string | null>
 
 export type AttackCommands = {
   grant: (combatantKey: string) => AttackAct
+  /** Call off a granted Sneak Attack before it rolls; null sends it as the GM. */
+  withdraw: (actorKey: string | null, attackId: string) => AttackAct
   aim: (actorKey: string, aim: CombatAim) => AttackAct
   roll: (actorKey: string, aim: CombatAim) => AttackAct
   range: (band: LubecRangeBand, modifier: number | null) => AttackAct
@@ -55,6 +57,7 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
   }
   return {
     grant: (combatantKey) => act(null, { type: 'grant', combatantKey }),
+    withdraw: (actorKey, attackId) => act(actorKey, { type: 'withdraw', attackId }),
     aim: (actorKey, aim) => act(actorKey, { type: 'aim', aim }),
     roll: (actorKey, aim) => act(actorKey, { type: 'roll', aim }),
     range: (band, modifier) => act(null, { type: 'range', band, ...(modifier === null ? {} : { modifier }) }),

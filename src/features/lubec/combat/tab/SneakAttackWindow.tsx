@@ -18,7 +18,7 @@ import { combatFloorRows } from './combatFloorRows'
 import { CombatFloorIcon } from './CombatParts'
 import { isRoundAttack } from '../engine/roundAttacks'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
-import { CombatStepper, CombatWindow } from './CombatParts'
+import { CancelSneakAttack, CombatStepper, CombatWindow } from './CombatParts'
 import { RangeRow, type DeclareRange } from './RangeRow'
 
 type Refuse = (reason: string | null) => void
@@ -188,7 +188,7 @@ export function SneakAttackWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.attacker, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
   return (
-    <CombatWindow title="Attack" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Roll']} now={3} />}>
+    <CombatWindow title="Attack" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Roll']} now={3} />} action={<CancelSneakAttack onCancel={() => props.commands.withdraw(props.gm ? null : props.attacker.key, props.attack.id)} />}>
       {sheet ? <WindowBody key={props.attack.id} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.attacker.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

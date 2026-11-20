@@ -87,6 +87,30 @@ describe('granting a Sneak Attack', () => {
   })
 })
 
+describe('cancelling a granted Sneak Attack', () => {
+  const withdraw = (records: CombatRecords, extra: Partial<Step> = {}) => act(records, { type: 'withdraw', attackId: state(records).attack!.id, ...extra })
+
+  it('lets the GM call it off before it rolls, leaving nothing open so another can be granted', () => {
+    const { plan, records } = withdraw(aimed())
+    expect(plan.fight.state.attack).toBeNull()
+    expect(plan.fight.state.pendingActions).toEqual([])
+    expect(plan.logs).toEqual([{ event: "The GM cancelled Wayne's Sneak Attack.", actor: null }])
+    expect(state(granted(records)).attack).toMatchObject({ attackerKey: HERO, step: 'aim' })
+  })
+
+  it('lets the attacker call off their own, and no one else', () => {
+    expect(withdraw(granted(), { actor: HERO, by: player }).plan.logs).toEqual([{ event: 'Wayne called off the Sneak Attack.', actor: HERO }])
+    expect(() => withdraw(granted(), { actor: 'character:rival', by: { userId: 'other', isGm: false } })).toThrow('Only the attacker or the GM')
+    expect(() => withdraw(granted(), { by: player })).toThrow('Only the GM')
+  })
+
+  it('refuses once it has rolled, for a stale attack, and with nothing granted', () => {
+    expect(() => withdraw(rolled(ranged(), 10).records)).toThrow()
+    expect(() => withdraw(granted(), { attackId: 'old' })).toThrow('already ended')
+    expect(() => act(fight(), { type: 'withdraw', attackId: 'x' })).toThrow('no Sneak Attack to cancel')
+  })
+})
+
 describe('aiming the granted attack', () => {
   it('freezes the attack Handle with Throwing Arm, the named Defense line and the sheet revision', () => {
     const attack = state(aimed()).attack!

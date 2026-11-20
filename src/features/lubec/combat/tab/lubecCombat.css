@@ -474,3 +474,10 @@
 .shell-root[data-theme="lubec"] .fighter-effects-modal .section-heading { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 0 0.55rem; border-right: 0; border-bottom: 1px solid var(--lubec-line); text-align: left; }
 .shell-root[data-theme="lubec"] .fighter-effects-modal .section-heading h3 { margin: 0; }
 
+
+/* A granted Sneak Attack can be called off from its window's header bar until it rolls. */
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .section-head .head-action { margin-left: auto; display: flex; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel { padding: .28rem .6rem; color: var(--lubec-cream); background: transparent; border: 1.5px solid rgba(255, 248, 231, .75); font: 800 .62rem/1 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel:hover:not(:disabled) { background: rgba(255, 248, 231, .14); }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel:focus-visible { outline: 2px solid var(--lubec-cream); outline-offset: 2px; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel:disabled { opacity: .55; cursor: default; }

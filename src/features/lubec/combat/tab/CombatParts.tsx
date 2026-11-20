@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { LubecKindGlyph } from '../../gear/LubecGearArt'
 import { OverPop } from '../../fight/OverPop'
 import type { CombatFloorItem } from './combatFloorRows'
@@ -32,13 +32,13 @@ export function CombatStepper({ steps, now }: { steps: readonly string[]; now: n
   )
 }
 
-type WindowProps = { title: string; stepper: ReactNode; children: ReactNode; foot?: ReactNode }
+type WindowProps = { title: string; stepper: ReactNode; children: ReactNode; foot?: ReactNode; action?: ReactNode }
 
 /** The attack prototype's window, placed in the page: what this viewer must do, or who the fight waits on. */
-export function CombatWindow({ title, stepper, children, foot }: WindowProps) {
+export function CombatWindow({ title, stepper, children, foot, action }: WindowProps) {
   return (
     <section className="lubec-fight inpage" aria-label={title}>
-      <div className="section-head"><h2>{title}</h2>{stepper}</div>
+      <div className="section-head"><h2>{title}</h2>{stepper}{action ? <span className="head-action">{action}</span> : null}</div>
       <div className="fight-body">{children}</div>
       {foot ? <div className="step-foot">{foot}</div> : null}
     </section>
@@ -89,4 +89,14 @@ export function NoticeSlot({ notices }: { notices: readonly SlotNotice[] }) {
       ) : null}
     </div>
   )
+}
+
+/** Calls off a granted Sneak Attack before it rolls; the GM can grant it again. */
+export function CancelSneakAttack({ onCancel }: { onCancel: () => Promise<unknown> }) {
+  const [busy, setBusy] = useState(false)
+  const cancel = () => {
+    setBusy(true)
+    void onCancel().finally(() => setBusy(false))
+  }
+  return <button type="button" className="head-cancel" disabled={busy} onClick={cancel}>Cancel attack</button>
 }

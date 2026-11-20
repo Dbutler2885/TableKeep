@@ -120,6 +120,14 @@ describe('moment 6: the GM while a player aims', () => {
     expect(screen.getByRole('radiogroup', { name: 'Target' })).toBeTruthy()
   })
 
+  it('cancels the waiting Sneak Attack as the GM', async () => {
+    const live = granted()
+    show('gm', 'gm', live)
+    fireEvent.click(button('Cancel attack'))
+    await waitFor(() => expect(sentOf('withdraw')).toHaveLength(1))
+    expect(sentOf('withdraw')[0]).toMatchObject({ envelope: { actorKey: null }, payload: { type: 'withdraw', attackId: live.fight.state.attack!.id } })
+  })
+
   it('declares the range for a throw: a band with no number asks for one, with 0 filled in', async () => {
     show('gm', 'gm', aimed())
     expect(screen.getByText(/Declare the range/)).toBeTruthy()
@@ -148,6 +156,13 @@ describe('moment 6: the GM while a player aims', () => {
 })
 
 describe('moments 5 and 7: the owner picks, splits and rolls in one window', () => {
+  it('lets the attacker call off their own Sneak Attack before it rolls', async () => {
+    show('player', 'wayne-uid', aimed())
+    fireEvent.click(button('Cancel attack'))
+    await waitFor(() => expect(sentOf('withdraw')).toHaveLength(1))
+    expect(sentOf('withdraw')[0]).toMatchObject({ envelope: { actorKey: 'character:wayne' }, payload: { type: 'withdraw' } })
+  })
+
   it('opens the granted window with the thrower\'s choices and persists the first complete aim', async () => {
     show('player', 'wayne-uid', granted())
     expect(screen.getByText('The GM granted you a Sneak Attack.')).toBeTruthy()

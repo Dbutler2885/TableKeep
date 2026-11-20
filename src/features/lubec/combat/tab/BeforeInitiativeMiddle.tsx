@@ -16,7 +16,7 @@ function AimMiddle({ attack, attacker, ...props }: MiddleProps & { attack: Comba
     return <SneakAttackWindow state={state} fightId={props.fightId} attack={attack} attacker={attacker} roster={props.roster} commands={commands} gm={viewer.role === 'gm'} onInventory={(hands) => props.onInventory(attacker, hands)} />
   }
   // One window at a time: while a grant runs the GM sees who it waits on; the grants come back when it ends.
-  if (viewer.role === 'gm') return <AttackGmWaiting state={state} attack={attack} attacker={attacker} onRange={(band, modifier) => void commands.range(band, modifier)} onActFor={() => props.onActFor(attacker.key)} />
+  if (viewer.role === 'gm') return <AttackGmWaiting state={state} attack={attack} attacker={attacker} onRange={(band, modifier) => void commands.range(band, modifier)} onActFor={() => props.onActFor(attacker.key)} onCancel={() => commands.withdraw(null, attack.id)} />
   return <AttackWaiting state={state} attack={attack} attacker={attacker} />
 }
 
