@@ -13,6 +13,7 @@ import { getFirestore, type Firestore, type Timestamp } from 'firebase-admin/fir
 import { getStorage } from 'firebase-admin/storage'
 import type { VoicePacket } from '../../src/audio/timeline.ts'
 import { SessionRecorder } from '../../src/session/recorder.ts'
+import { ROOMY_DISK } from '../helpers/disk.ts'
 import type { Utterance } from '../../src/speech/transcriber.ts'
 import { FirestoreSessionStore, UtteranceConflictError, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { scriptedSpeech } from '../helpers/speech.ts'
@@ -54,7 +55,7 @@ beforeEach(async () => {
 async function start(speech = scriptedSpeech()) {
   const result = await SessionRecorder.start(
     { discordServerId: SERVER, discordChannelId: 'voice', startedByDiscordId: JEM, startedAtMs: START },
-    { store, journalDir, journalSyncEveryMs: 0, connectSpeech: speech.connect },
+    { ...ROOMY_DISK, store, journalDir, journalSyncEveryMs: 0, connectSpeech: speech.connect },
   )
   assert.equal(result.status, 'started')
   return { ...(result as Extract<typeof result, { status: 'started' }>), speech }
@@ -154,7 +155,7 @@ test('the campaign\'s character and NPC names are offered to the speech service'
 test('a session with no speech service still has its audio stored, and is flagged as lacking a transcript', async () => {
   const result = await SessionRecorder.start(
     { discordServerId: SERVER, discordChannelId: 'voice', startedByDiscordId: JEM, startedAtMs: START },
-    { store, journalDir, journalSyncEveryMs: 0 },
+    { ...ROOMY_DISK, store, journalDir, journalSyncEveryMs: 0 },
   )
   assert.equal(result.status, 'started')
   const { recorder } = result as Extract<typeof result, { status: 'started' }>

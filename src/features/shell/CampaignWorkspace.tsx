@@ -1,5 +1,4 @@
 import type { Dispatch, SetStateAction } from 'react'
-import { Menu } from 'lucide-react'
 import type { User } from 'firebase/auth'
 import type { NavigateFunction } from 'react-router-dom'
 import { CampaignSettingsModal } from '../campaign/CampaignSettingsModal'
@@ -26,8 +25,6 @@ type CampaignWorkspaceProps = {
   gameSystem: GameSystem
   activeTab: AppTab
   visibleTabs: CampaignNavTab[]
-  drawerOpen: boolean
-  setDrawerOpen: Dispatch<SetStateAction<boolean>>
   settingsOpen: boolean
   setSettingsOpen: Dispatch<SetStateAction<boolean>>
   navigate: NavigateFunction
@@ -41,23 +38,15 @@ type CampaignWorkspaceProps = {
   onReject: (request: ItemApprovalRequest) => Promise<void>
   showTransferNotification: boolean
   cliffhangerEnabled: boolean
+  clockAlertsEnabled: boolean
 }
 
-// A group's campaign route: the menu toggle, the campaign (or why there is
+// A group's campaign route: the campaign beside its sidebar (or why there is
 // none), and the overlays that sit above it.
 export function CampaignWorkspace(props: CampaignWorkspaceProps) {
-  const { campaign, loading, error, setDrawerOpen } = props
+  const { campaign, loading, error } = props
   return (
     <>
-      <button
-        type="button"
-        className="menu-toggle"
-        onClick={() => setDrawerOpen((current) => !current)}
-        aria-label="Open navigation"
-      >
-        <Menu size={18} strokeWidth={2.5} />
-      </button>
-
       {loading ? (
         <section>
           <h2>Loading Campaign</h2>
@@ -82,12 +71,10 @@ export function CampaignWorkspace(props: CampaignWorkspaceProps) {
 }
 
 function CampaignLayout(props: CampaignWorkspaceProps & { campaign: Campaign }) {
-  const { drawerOpen, setDrawerOpen, activeTab, gameSystem } = props
+  const { activeTab, gameSystem } = props
   return (
     <div className="shell-layout">
       <CampaignSideNav {...props} />
-
-      {drawerOpen ? <button className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /> : null}
 
       <section className={contentPanelClass(activeTab)}>
         {ruleSets[gameSystem].shell.campaignStrip ? <CampaignStrip /> : null}

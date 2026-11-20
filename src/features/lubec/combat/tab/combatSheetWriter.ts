@@ -5,7 +5,7 @@ import { lubecEffectRecovery } from '../../effectRecovery'
 import type { LubecStore } from '../../useLubecSheetSession'
 import type { CombatSheetWriter, CombatSheetWriters } from './fighterEffectsModel'
 
-type StoreWrites = Pick<LubecStore, 'updateCharacter' | 'updateCharacterNow' | 'hasPendingWrite'>
+type StoreWrites = Pick<LubecStore, 'updateCharacter' | 'updateCharacterNow' | 'hasPendingWrite' | 'settleSaves'>
 
 /**
  * A store's writes as the combat tab uses them, with the waking and reached-step Saves resolved against the
@@ -14,8 +14,7 @@ type StoreWrites = Pick<LubecStore, 'updateCharacter' | 'updateCharacterNow' | '
 export function combatSheetWriter(store: StoreWrites, collection: keyof CombatSheetWriters, scope: CampaignScope): CombatSheetWriter {
   const recovery = (record: LubecCharacterRecord) => {
     const sheet = collection === 'npcSheets' ? { kind: 'npc' as const, npcId: record.id } : { kind: 'character' as const, characterId: record.id }
-    const writes = { hasPendingWrite: store.hasPendingWrite, updateCharacterNow: (id: string, updates: object) => store.updateCharacterNow(id, updates, record) }
-    return lubecEffectRecovery({ db, scope, sheet }, writes, record.id)
+    return lubecEffectRecovery({ db, scope, sheet }, { settleSaves: store.settleSaves }, record.id)
   }
   return { updateCharacter: store.updateCharacter, updateCharacterNow: store.updateCharacterNow, hasPendingWrite: store.hasPendingWrite, recovery }
 }

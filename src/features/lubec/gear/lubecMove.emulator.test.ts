@@ -1,22 +1,35 @@
 /**
  * The safe move between two records (spec 4.7), run as a real transaction
  * against the real `firestore.rules`: it writes both records or neither, two
- * moves into one record at once leave the loser refused for room, a store's
- * waiting save cannot land on top of it, and a drop writes the character and
- * the GM item together. Deleting a character drops everything it had in the
- * transaction that deletes it.
+ * moves into one record at once leave the loser refused for room, the shared
+ * store's saves of the sheet, overlapping or waiting, cannot land on top of
+ * it, and a drop writes the character and the GM item together. Deleting a
+ * character drops everything it had in the transaction that deletes it.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { doc, getDoc, onSnapshot, setDoc, type DocumentData, type Firestore } from 'firebase/firestore'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { campaignDocRef, campaignGmItemRef, npcSheetRef } from '../../campaign/firestorePaths'
-import { saveSheetIntention } from '../../character/characterStore/sheetIntentionTransaction'
+import {
+  emptyCharacterStoreSaves,
+  isCharacterStoreSaveOutstanding,
+  sendCharacterStoreSavesNow,
+  settleCharacterStoreSaves,
+} from '../../character/characterStore/characterStoreWrites'
+import { enqueueSheetEdit, makeRevisionedSheetQueue, queueSheetSave } from '../../character/characterStore/revisionedSheetQueue'
+import { readSheetRevision } from '../../character/characterStore/sheetIntention'
+import { capturedSheetEdits } from '../../../../functions/src/sheets/capturedSheetEdits'
+import type { LubecCharacterRecord } from '../../ruleSets/lubec/characterRecord'
 import { LUBEC_NO_ROOM_TO_ACCEPT } from '../../ruleSets/lubec/gear/arrival'
 import { LUBEC_STALE_MOVE } from '../../ruleSets/lubec/gear/containers'
 import { lubecDeleteCharacterDroppingGear } from './lubecDeleteDrop'
 import { lubecMoveBetween, type LubecMoveRequest, type LubecMoveStore } from './lubecMoveTransaction'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
+
+// The shared store writes through the app's database; here that is the signed-in test client.
+const connection = vi.hoisted(() => ({ db: null as unknown as Firestore }))
+vi.mock('../../../firebase', () => ({ get db() { return connection.db } }))
 
 const projectId = 'homeboyshouse-lubec-move-tests'
 const scope = { groupId: 'move-group', campaignId: 'move-campaign' }
@@ -40,35 +53,31 @@ const gmItems = { kind: 'gm-items' } as const
 const droppedBy = { characterId: 'wayne', characterName: 'Wayne Gardner', userId: playerUid }
 
 /** A store with nothing waiting, for moves that start from a quiet sheet. */
-const quietStore: LubecMoveStore = { sendSaveNow: () => {}, hasPendingWrite: () => false }
+const quietStore: LubecMoveStore = { settleSaves: async () => {} }
 
 /**
- * A store that holds one save for half a second, as `useCharacterStore` does:
- * a pending save waiting out its delay, then in flight until Firestore settles
- * it, retaining the counter delta in an edit intention.
+ * The page's copy of a sheet in the shared store's real save tracking, as
+ * `useCharacterStore` keeps it for a Lubec sheet: each edit joins the sheet's
+ * queue as an edit intention, sent half a second later through the signed-in
+ * client `db`.
  */
-function storeHoldingASave(db: Firestore, characterId: string, localLubec: object) {
-  let pending: ReturnType<typeof setTimeout> | null = null
-  let inFlight = false
-  const send = () => {
-    pending = null
-    inFlight = true
-    const stress = (localLubec as { counters: { stress: number } }).counters.stress
-    void saveSheetIntention(db, campaignDocRef(db, scope, 'characters', characterId), {
-      operationId: 'held-counter', baseRevision: 0,
-      edits: [{ kind: 'delta', path: ['lubec', 'counters', 'stress'], base: 2, amount: stress - 2 }],
-    }).finally(() => { inFlight = false })
+function pageStore(db: Firestore, stored: DocumentData) {
+  connection.db = db
+  const saves = emptyCharacterStoreSaves()
+  const queue = makeRevisionedSheetQueue(db, campaignDocRef(db, scope, 'characters', 'wayne'), playerUid, stored, () => {})
+  saves.revisioned = { wayne: queue }
+  let copy = stored
+  const edit = (change: (sheet: LubecCharacterRecord['lubec']) => LubecCharacterRecord['lubec']) => {
+    const next = { ...copy, lubec: change(copy.lubec) }
+    enqueueSheetEdit(queue, { operationId: crypto.randomUUID(), baseRevision: readSheetRevision(queue.state.confirmed), edits: capturedSheetEdits(copy, next, queue.state.confirmed) })
+    queueSheetSave(queue)
+    copy = next
   }
-  pending = setTimeout(send, 500)
-  const store: LubecMoveStore = {
-    sendSaveNow: () => {
-      if (pending) clearTimeout(pending)
-      send()
-    },
-    hasPendingWrite: () => Boolean(pending || inFlight),
-  }
-  return store
+  const store: LubecMoveStore = { settleSaves: (id) => settleCharacterStoreSaves(saves, id) }
+  return { saves, queue, edit, store }
 }
+
+const withStress = (stress: number) => (sheet: LubecCharacterRecord['lubec']) => ({ ...sheet, counters: { ...sheet.counters, stress } })
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -203,18 +212,41 @@ describe('the move between two records', () => {
   it('sends the store\'s waiting save first, so the save cannot land on top of the move', async () => {
     const db = as(playerUid)
     // The page's copy: Stress ticked up, gear as it was before the move.
-    const local = sheet('wayne', playerUid, [anvil, flashlight]).lubec
-    const store = storeHoldingASave(db, 'wayne', { ...local, counters: { ...local.counters, stress: 3 } })
+    const page = pageStore(db, (await character('wayne'))!)
+    page.edit(withStress(3))
 
-    const result = await lubecMoveBetween(db, { scope, from: wayne, to: gmItems, store, move: { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy } })
+    const result = await lubecMoveBetween(db, { scope, from: wayne, to: gmItems, store: page.store, move: { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy } })
     expect(result).toEqual({ ok: true })
-    expect(store.hasPendingWrite('wayne')).toBe(false)
+    expect(isCharacterStoreSaveOutstanding(page.saves, 'wayne')).toBe(false)
     // Past the moment the held save would have landed on its own.
     await wait(700)
 
     const after = await character('wayne')
     expect(itemIds(after)).toEqual(['flashlight'])
     expect(after?.lubec.counters.stress).toBe(3)
+    expect(await gmItem('anvil')).toMatchObject({ status: 'dropped' })
+  })
+
+  it('waits for the sheet\'s queued edits, the one being sent and the one waiting, before it moves', async () => {
+    const db = as(playerUid)
+    const page = pageStore(db, (await character('wayne'))!)
+    page.edit(withStress(3))
+    sendCharacterStoreSavesNow(page.saves)
+    page.edit(withStress(4))
+    sendCharacterStoreSavesNow(page.saves)
+    page.edit(withStress(5))
+    expect(page.queue.running).toBeDefined()
+    expect(page.queue.state.pending).toHaveLength(3)
+
+    const result = await lubecMoveBetween(db, { scope, from: wayne, to: gmItems, store: page.store, move: { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy } })
+    expect(result).toEqual({ ok: true })
+    expect(isCharacterStoreSaveOutstanding(page.saves, 'wayne')).toBe(false)
+    expect(page.queue.state.pending.every((entry) => entry.committedRevision !== undefined)).toBe(true)
+    await wait(700)
+
+    const after = await character('wayne')
+    expect(itemIds(after)).toEqual(['flashlight'])
+    expect(after?.lubec.counters.stress).toBe(5)
     expect(await gmItem('anvil')).toMatchObject({ status: 'dropped' })
   })
 

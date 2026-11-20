@@ -20,6 +20,7 @@ import type { Segment } from '../../src/audio/segmenter.ts'
 import type { VoicePacket } from '../../src/audio/timeline.ts'
 import { readJournal } from '../../src/journal/journal.ts'
 import { SessionRecorder } from '../../src/session/recorder.ts'
+import { ROOMY_DISK } from '../helpers/disk.ts'
 import { FirestoreSessionStore, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { scriptedSpeech } from '../helpers/speech.ts'
 import { SILENCE, Voice, Wire, decode, rmsDifference } from '../helpers/synth.ts'
@@ -64,6 +65,7 @@ const startInput = (startedAtMs = START) => ({
 
 async function start(options: { maxSegmentSeconds?: number } = {}) {
   const result = await SessionRecorder.start(startInput(), {
+    ...ROOMY_DISK,
     store,
     journalDir,
     journalSyncEveryMs: 0,
@@ -171,7 +173,7 @@ test('a session counter that has run ahead of the recaps still decides the next 
 test('a server that is already being recorded cannot start a second session', async () => {
   const { recorder } = await start()
 
-  const again = await SessionRecorder.start(startInput(), { store, journalDir })
+  const again = await SessionRecorder.start(startInput(), { ...ROOMY_DISK, store, journalDir })
 
   assert.deepEqual(again, { status: 'already-recording', location: recorder.location })
   await recorder.stop('stop command', START + 1_000)
@@ -179,7 +181,7 @@ test('a server that is already being recorded cannot start a second session', as
 
 test('two people starting at the same moment get one session between them', async () => {
   const results = await Promise.all(
-    Array.from({ length: 4 }, () => SessionRecorder.start(startInput(), { store, journalDir, journalSyncEveryMs: 0 })),
+    Array.from({ length: 4 }, () => SessionRecorder.start(startInput(), { ...ROOMY_DISK, store, journalDir, journalSyncEveryMs: 0 })),
   )
 
   assert.equal(results.filter((result) => result.status === 'started').length, 1)
@@ -188,9 +190,9 @@ test('two people starting at the same moment get one session between them', asyn
 })
 
 test('a server no group has linked, or whose group has no current campaign, starts nothing', async () => {
-  const unlinked = await SessionRecorder.start({ ...startInput(), discordServerId: 'some-other-server' }, { store, journalDir })
+  const unlinked = await SessionRecorder.start({ ...startInput(), discordServerId: 'some-other-server' }, { ...ROOMY_DISK, store, journalDir })
   await db.collection('groups').doc(GROUP).update({ activeCampaignId: null })
-  const noCampaign = await SessionRecorder.start(startInput(), { store, journalDir })
+  const noCampaign = await SessionRecorder.start(startInput(), { ...ROOMY_DISK, store, journalDir })
 
   assert.deepEqual(unlinked, { status: 'server-not-linked' })
   assert.deepEqual(noCampaign, { status: 'no-current-campaign', groupId: GROUP })

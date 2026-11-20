@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom'
@@ -10,7 +10,6 @@ const group = (id: string, activeCampaign: Campaign | null) => ({ id, activeCamp
 const campaign = (id: string) => ({ id }) as Campaign
 
 function renderAt(path: string, selectedGroupId: string | null, groups: GroupRecord[] = []) {
-  const setDrawerOpen = vi.fn()
   const wrapper = ({ children }: { children: ReactNode }) => <MemoryRouter initialEntries={[path]}>{children}</MemoryRouter>
   const view = renderHook(() => {
     const location = useLocation()
@@ -18,14 +17,13 @@ function renderAt(path: string, selectedGroupId: string | null, groups: GroupRec
       groups,
       navigate: useNavigate(),
       selectedGroupId,
-      setDrawerOpen,
       createGroup: async () => 'g-new',
       createCampaign: async () => 'c-new',
       deleteGroup: async () => undefined,
     })
     return { handlers, pathname: location.pathname }
   }, { wrapper })
-  return { ...view, setDrawerOpen }
+  return view
 }
 
 afterEach(() => {
@@ -44,13 +42,20 @@ describe('groupEntryPath', () => {
 })
 
 describe('useGroupNavigation', () => {
-  it('closes the drawer after choosing a group', () => {
-    const { result, setDrawerOpen } = renderAt('/groups', null, [group('g1', campaign('c1'))])
+  it('opens the chosen group\'s active campaign, in place of the picker', () => {
+    const { result } = renderAt('/groups', null, [group('g1', campaign('c1'))])
 
     act(() => result.current.handlers.handleSelectGroup('g1'))
 
     expect(result.current.pathname).toBe('/groups/g1/campaigns/c1/character')
-    expect(setDrawerOpen).toHaveBeenCalledWith(false)
+  })
+
+  it('opens the home of a chosen group without an active campaign', () => {
+    const { result } = renderAt('/groups', null, [group('g1', null)])
+
+    act(() => result.current.handlers.handleSelectGroup('g1'))
+
+    expect(result.current.pathname).toBe('/groups/g1')
   })
 
   it('opens nothing without a selected group', () => {

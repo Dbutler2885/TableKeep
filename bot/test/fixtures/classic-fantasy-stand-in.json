@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "generatedBy": "bot/test/fixtures (a stand-in for docs/rules/ose-classic/corpus.json, used only by the bot's tests)",
+  "source": {
+    "edition": "2019 Classic Fantasy SRD",
+    "revisionDate": "2024-08-13"
+  },
+  "license": {
+    "name": "Open Game License Version 1.0a",
+    "file": "OGL.txt",
+    "notice": "All rules text and tables in the pages array are Open Game Content. Use is permitted only under the Open Game License Version 1.0a."
+  },
+  "pages": [
+    {
+      "title": "Cleric",
+      "category": "classes",
+      "sections": [
+        { "title": "Cleric", "level": 1, "markdownLines": ["Clerics are adventurers sworn to a deity."] },
+        { "title": "Combat", "level": 2, "markdownLines": ["Clerics may use only blunt weapons."] },
+        {
+          "title": "Cleric Level Progression",
+          "level": 2,
+          "markdownLines": ["| Level | XP | HD |", "| --- | --- | --- |", "| 1 | 0 | 1d6 |", "| 2 | 1,500 | 2d6 |"]
+        }
+      ]
+    },
+    {
+      "title": "Combat",
+      "category": "adventuring",
+      "sections": [
+        { "title": "Combat", "level": 1, "markdownLines": [] },
+        { "title": "Initiative", "level": 2, "markdownLines": ["Roll 1d6 for each side.", "", "The side with the higher roll acts first."] },
+        { "title": "Slow Weapons", "level": 3, "markdownLines": ["A slow weapon always acts last."] },
+        { "title": "Individual Initiative (Optional Rule)", "level": 3, "markdownLines": ["Each character rolls 1d6."] },
+        { "title": "Melee", "level": 2, "markdownLines": ["Roll 1d20 to hit."] }
+      ]
+    }
+  ]
+}

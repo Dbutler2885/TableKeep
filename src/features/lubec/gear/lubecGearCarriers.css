@@ -284,7 +284,7 @@
 }
 
 /* Desktop: the sheet frame stays put and the Carriers view scrolls inside the pane */
-@media (min-width: 1251px) {
+@media (min-width: 1431px) {
   .shell-root[data-theme="lubec"] .lubec-gear .carriers-view {
     max-height: calc(var(--lubec-gear-window, 100vh) / var(--lubec-gear-zoom, 1) - var(--lubec-gear-chrome, 18.5rem) + 1.1rem);
     overflow-y: auto;
@@ -295,7 +295,7 @@
 }
 
 /* Tablets and phones: the sheet is a stacked page, so the cards stack in one column, full width */
-@media (max-width: 1250px) {
+@media (max-width: 1430px) {
   .shell-root[data-theme="lubec"] .lubec-gear .carrier-list {
     grid-template-columns: minmax(0, 1fr);
   }

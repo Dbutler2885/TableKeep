@@ -39,6 +39,7 @@ import { useTakeOpenPage } from '../navigation/openRequest'
 import { LubecCombatGearNotice } from './combat/LubecCombatGearNotice'
 import { LubecDeathReminders } from './LubecDeathReminders'
 import { lubecPendingDeathReminders } from '../ruleSets/lubec/deathReminders'
+import { useLubecFitWidth } from './lubecFitWidth'
 
 type LubecPage = 'core' | 'skills' | 'gear'
 
@@ -322,6 +323,7 @@ export function LubecSheetView({
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const sheetRef = useRef<HTMLElement>(null)
+  useLubecFitWidth(sheetRef)
   const identityEditing = identityEditingOf(editing, identityEditable)
   return (
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>

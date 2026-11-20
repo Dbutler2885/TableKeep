@@ -6,7 +6,7 @@ export type DiscordStatusMessage = { tone: 'success' | 'error'; text: string }
 type DiscordStatusLineProps = {
   /**
    * Where the line sits. "subtitle" is under the "Signed in as" line on the
-   * group screens; "panel" is the account panel in a campaign's side rail.
+   * group screens; "panel" is the Discord dialog a campaign's sidebar opens.
    * Each borrows the classes of the text beside it, so it cannot drift from it.
    */
   variant: 'subtitle' | 'panel'

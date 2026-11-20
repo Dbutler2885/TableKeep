@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Role, SessionNote, SessionNoteGeneratedSnapshot } from '../../types/app'
 import { getSessionCardSubtitle, sanitizeSessionTitle } from './sessionNoteUtils'
 import {
@@ -63,21 +63,13 @@ function editedPatch(note: SessionNote, patch: Partial<SessionNote>): Partial<Se
   }
 }
 
-/** Which section is being edited, and the drafts of its text, for one note at a time. */
+/** Which section is being edited, and the drafts of its text, for the one note it is mounted for. */
 function useSessionNoteEditing(note: SessionNote, onUpdate: OnUpdate) {
   const [editingSection, setEditingSection] = useState<EditingSection | null>(null)
   const [titleDraft, setTitleDraft] = useState('')
   const [summaryDraft, setSummaryDraft] = useState('')
   const [sceneDraft, setSceneDraft] = useState<SceneDraft>({ summary: '', details: [] })
   const [cliffhangerDrafts, setCliffhangerDrafts] = useState<string[]>([])
-
-  useEffect(() => {
-    setEditingSection(null)
-    setTitleDraft('')
-    setSummaryDraft('')
-    setSceneDraft({ summary: '', details: [] })
-    setCliffhangerDrafts([])
-  }, [note.id])
 
   const cancel = () => {
     setEditingSection(null)
@@ -138,17 +130,42 @@ function useSessionNoteEditing(note: SessionNote, onUpdate: OnUpdate) {
   }
 }
 
+/**
+ * State that should outlive a change of note lives here; everything that belongs to one note lives in the body,
+ * which is keyed by the note's id so that switching notes discards an unsaved edit with its draft.
+ * Open scenes are kept by position, and only for as long as this component stays mounted.
+ * The key also replaces the body's DOM on a switch, so focus inside the old note's body is not kept.
+ */
 export function SessionNoteDetail({ note, role, onUpdate }: SessionNoteDetailProps) {
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set())
+
+  const toggleScene = (index: number) => {
+    setExpandedScenes((prev) => toggleIndex(prev, index))
+  }
+
+  return (
+    <SessionNoteBody
+      key={note.id}
+      note={note}
+      role={role}
+      onUpdate={onUpdate}
+      expandedScenes={expandedScenes}
+      onToggleScene={toggleScene}
+    />
+  )
+}
+
+type SessionNoteBodyProps = SessionNoteDetailProps & {
+  expandedScenes: Set<number>
+  onToggleScene: (index: number) => void
+}
+
+function SessionNoteBody({ note, role, onUpdate, expandedScenes, onToggleScene }: SessionNoteBodyProps) {
   const editor = useSessionNoteEditing(note, onUpdate)
   const { editingSection, cancel } = editor
 
   const canEdit = role === 'gm'
   const subtitle = getSessionCardSubtitle(note)
-
-  const toggleScene = (index: number) => {
-    setExpandedScenes((prev) => toggleIndex(prev, index))
-  }
 
   const summaryEditing = (key: SummaryKey) => ({
     canEdit,
@@ -182,7 +199,7 @@ export function SessionNoteDetail({ note, role, onUpdate }: SessionNoteDetailPro
       <SessionNoteScenes
         scenes={note.scenes}
         expandedScenes={expandedScenes}
-        onToggleScene={toggleScene}
+        onToggleScene={onToggleScene}
         editing={{
           canEdit,
           editingIndex: editingSceneIndex(editingSection),

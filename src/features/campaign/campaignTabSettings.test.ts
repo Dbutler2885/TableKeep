@@ -16,29 +16,42 @@ describe('toggleEnabledTab', () => {
 
     expect(toggleEnabledTab(enabled, 'character')).toBe(enabled)
   })
+
+  it('never turns Handouts or Clocks off', () => {
+    const enabled = new Set<AppTab>(['handouts', 'clocks'])
+
+    expect(toggleEnabledTab(enabled, 'handouts')).toBe(enabled)
+    expect(toggleEnabledTab(enabled, 'clocks')).toBe(enabled)
+  })
 })
 
 describe('initialEnabledTabs', () => {
   it('turns on every tab of the system, rules link included, when nothing is saved', () => {
-    expect([...initialEnabledTabs('ose', undefined)]).toEqual(['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules'])
-    expect([...initialEnabledTabs('vtm', [])]).toEqual(['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'])
+    expect([...initialEnabledTabs('ose', undefined)]).toEqual(['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'handouts', 'calendar', 'rules'])
+    expect([...initialEnabledTabs('vtm', [])]).toEqual(['character', 'maps', 'monsters', 'npcs', 'notes', 'handouts', 'calendar'])
   })
 
-  it('keeps a saved list as it is', () => {
-    expect([...initialEnabledTabs('vtm', ['notes', 'items'])]).toEqual(['notes', 'items'])
+  it('adds Handouts to a saved list from before the feature', () => {
+    expect([...initialEnabledTabs('vtm', ['notes', 'items'])]).toEqual(['notes', 'items', 'handouts'])
+  })
+
+  it('adds Lubec\'s Clocks to a saved list from before the feature, and no other rule set\'s', () => {
+    expect([...initialEnabledTabs('lubec', ['character', 'maps'])]).toEqual(['character', 'maps', 'clocks', 'handouts'])
+    expect([...initialEnabledTabs('ose', ['notes'])]).not.toContain('clocks')
   })
 })
 
 describe('enabledTabsToSave', () => {
   it('saves only the tabs the system has, in its order', () => {
-    expect(enabledTabsToSave('vtm', new Set<AppTab>(['notes', 'items', 'character', 'rules']))).toEqual(['character', 'notes'])
+    expect(enabledTabsToSave('vtm', new Set<AppTab>(['notes', 'items', 'character', 'rules']))).toEqual(['character', 'notes', 'handouts'])
+    expect(enabledTabsToSave('lubec', new Set<AppTab>(['notes']))).toEqual(['clocks', 'notes', 'handouts'])
   })
 })
 
 describe('the live-fight tab in settings', () => {
   it('is neither offered nor saved, as it follows the fight', () => {
-    expect(campaignSettingsTabs('lubec').map((tab) => tab.id)).toEqual(['character', 'maps', 'items', 'npcs', 'notes', 'calendar'])
+    expect(campaignSettingsTabs('lubec').map((tab) => tab.id)).toEqual(['character', 'maps', 'items', 'npcs', 'clocks', 'notes', 'handouts', 'calendar'])
     expect([...initialEnabledTabs('lubec', undefined)]).not.toContain('combat')
-    expect(enabledTabsToSave('lubec', new Set<AppTab>(['character', 'combat', 'notes']))).toEqual(['character', 'notes'])
+    expect(enabledTabsToSave('lubec', new Set<AppTab>(['character', 'combat', 'notes']))).toEqual(['character', 'clocks', 'notes', 'handouts'])
   })
 })

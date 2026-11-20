@@ -13,8 +13,15 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { joinReply, noteReply, stopReply } from '../../src/discord/replies.ts'
 import { SessionRunner, type CommandCaller, type JoinReply } from '../../src/discord/runner.ts'
+import { OPENAI_RESPONSES_URL } from '../../src/rules/answer.ts'
+import { renderClassicFantasyCorpus, renderClassicFantasySpellsAndItems } from '../../src/rules/classicFantasy.ts'
+import { JEV_URL } from '../../src/rules/jev.ts'
+import { rulesAnswering } from '../../src/rules/setup.ts'
+import type { TranscriptLine } from '../../src/rules/transcriptWindow.ts'
+import type { RulesAnswering } from '../../src/rules/watcher.ts'
 import { FirestoreSessionStore, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { recoverSessions } from '../../src/session/recover.ts'
+import { readFileSync } from 'node:fs'
 import type { RecorderOptions } from '../../src/session/recorder.ts'
 import { scriptedSpeech, type ScriptedSpeech } from '../helpers/speech.ts'
 import { Voice, Wire } from '../helpers/synth.ts'
@@ -90,7 +97,7 @@ beforeEach(async () => {
   runner = newRunner()
 })
 
-const newRunner = () => new SessionRunner({ voice, messages: board, now: () => clock, recorder: recorderOptions })
+const newRunner = (rules?: RulesAnswering) => new SessionRunner({ voice, messages: board, now: () => clock, recorder: recorderOptions, rules })
 
 const asJem: CommandCaller = { serverId: SERVER, userId: JEM.id, voiceChannelId: CHANNEL, textChannelId: TEXT }
 const sessions = async () => (await db.collection(`groups/${GROUP}/campaigns/${CAMPAIGN}/sessions`).get()).docs
@@ -327,6 +334,170 @@ test('an ordinary session leaves two messages in the channel: how it went, and t
   )
 })
 
+test('a rules question heard at the table is answered in the channel while the session records, and never after it ends', async () => {
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
+  const windows: (readonly TranscriptLine[])[] = []
+  const postedQuestions: string[][] = []
+  const failures: string[] = []
+  runner = newRunner({
+    askJev: async (window, posted) => {
+      windows.push(window)
+      postedQuestions.push(posted.map((answer) => answer.question))
+      if (windows.length === 1) throw new Error('TypeSafe answered 503')
+      return { rulesQuestion: windows.length === 2 ? 0.95 : 0.05, needs: {} }
+    },
+    byRuleSet: {
+      lubec: {
+        citedAs: 'the rules document',
+        answer: async () => ({ kind: 'answered', question: 'do I add strength?', askedBy: 'mapman', answer: 'Yes, to hit and to damage.', section: 'Attacks' }),
+      },
+    },
+    log: (message) => failures.push(message),
+  })
+  const location = await started(await runner.join(asJem))
+
+  // Each look runs in the background, so it is let finish before time moves on.
+  const looked = () => new Promise((resolve) => setImmediate(resolve))
+  // The first look fails, which changes nothing for the recording; the second, after Peter speaks, is flagged.
+  speak(JEM.id, 1)
+  await looked()
+  speak(PETER.id, 1)
+  await looked()
+  pass(5_000)
+  await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
+  // With no pause after a flag, the next line is looked at as soon as it arrives, beside the answer given.
+  speak(JEM.id, 1)
+  await looked()
+
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+  assert.equal((await session(location)).state, 'ended')
+  assert.deepEqual(
+    windows.map((window) => window.map((line) => line.speaker)),
+    [['mapman'], ['mapman', 'Peter'], ['mapman', 'Peter', 'mapman']],
+    'each look was at the last stretch of the session, with speakers named',
+  )
+  assert.deepEqual(postedQuestions, [[], [], ['do I add strength?']])
+  assert.deepEqual(
+    board.messages.map((message) => message.text),
+    [
+      'Session 1 ended after 0:14.\nmapman: 2 lines\nPeter: 1 line',
+      '**Rules answer** - mapman asked: "do I add strength?"\nYes, to hit and to damage.\n-# From the rules document: Attacks',
+      'Session 1 is saved.',
+    ],
+  )
+  assert.deepEqual(failures, [
+    'rules answers on for this session',
+    'rules check failed',
+    'rules checks working again',
+    'rules question heard',
+    'rules answer written',
+    'rules answer posted',
+  ])
+
+  // The next session starts with none of the last one's answers, so the same question can be answered again.
+  await started(await runner.join(asJem))
+  speak(PETER.id, 1)
+  await looked()
+  assert.deepEqual(postedQuestions.at(-1), [])
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+})
+
+test("each session is answered from its campaign's rules: the Classic Fantasy corpus for OSE, the Lubec rules for Lubec, none for a rule set without rules", async () => {
+  const root = new URL('../../..', import.meta.url).pathname
+  const classicFantasy = renderClassicFantasyCorpus(readFileSync(`${root}/docs/rules/ose-classic/corpus.json`, 'utf8'))
+  const spellsAndItems = renderClassicFantasySpellsAndItems(readFileSync(`${root}/docs/rules/ose-classic/spells-and-items.json`, 'utf8'))
+  const lubec = readFileSync(`${root}/docs/lubec/rules.md`, 'utf8').trim()
+  // The real setup, reading the repository's rules, with both model services stood in for.
+  const jevAsked: { questions: Record<string, unknown> }[] = []
+  const instructions: string[] = []
+  let answeredThisSession = false
+  const request = (async (url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body)) as { instructions: string; questions: Record<string, unknown> }
+    if (url === JEV_URL) {
+      jevAsked.push(body)
+      // The question needs a spell, not a monster.
+      return Response.json({
+        answers: {
+          rules_question: { noul: answeredThisSession ? 0.05 : 0.95 },
+          monster_question: { noul: 0.04 },
+          spell_or_item_question: { noul: 0.91 },
+        },
+      })
+    }
+    assert.equal(url, OPENAI_RESPONSES_URL)
+    instructions.push(body.instructions)
+    answeredThisSession = true
+    const fromClassicFantasy = body.instructions.includes('# Classic Fantasy rules (pre-2026 text)')
+    const answer = fromClassicFantasy
+      ? { kind: 'answered', question: 'who goes first?', asked_by: 'Peter', answer: 'Each side rolls **1d6**.', section: 'Combat › Initiative' }
+      : { kind: 'answered', question: 'who goes first?', asked_by: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }
+    return Response.json({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(answer) }] }] })
+  }) as unknown as typeof fetch
+  const logged: { message: string; detail?: Record<string, unknown> }[] = []
+  const rules = await rulesAnswering({
+    root,
+    env: { TYPESAFE_API_KEY: 'ts-key', OPENAI_API_KEY: 'sk-key' },
+    live: false,
+    projectSecret: () => Promise.reject(new Error('not in a test')),
+    log: (message, detail) => logged.push({ message, detail }),
+    fetch: request,
+  })
+  runner = newRunner(rules)
+  const rulesAnswers = () => board.messages.map((message) => message.text).filter((text) => text.startsWith('**Rules answer**'))
+
+  /** One session of the campaign as it is now, in which Peter asks a question. */
+  async function playSession(expectAnswer: boolean) {
+    answeredThisSession = false
+    const before = rulesAnswers().length
+    await started(await runner.join(asJem))
+    speak(PETER.id, 1)
+    await new Promise((resolve) => setImmediate(resolve))
+    pass(5_000)
+    if (expectAnswer) await until(async () => rulesAnswers().length > before)
+    assert.equal((await runner.stop(asJem)).status, 'saved')
+  }
+
+  // A campaign from before rule sets has no system, and is played with OSE, as the app reads it.
+  await playSession(true)
+  assert.equal(instructions.length, 1)
+  assert.ok(
+    instructions[0]!.endsWith(`${classicFantasy.trim()}\n\n${spellsAndItems.trim()}\n`),
+    'an OSE session is answered from the whole Classic Fantasy corpus, with the spells, equipment and treasure the question needs after it',
+  )
+  assert.ok(!instructions[0]!.includes('# Classic Fantasy monsters'), 'and without the monsters it does not')
+  assert.ok(!instructions[0]!.includes(lubec))
+  assert.deepEqual(Object.keys(jevAsked[0]!.questions), ['rules_question', 'monster_question', 'spell_or_item_question'])
+
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
+  await playSession(true)
+  assert.equal(instructions.length, 2)
+  assert.ok(instructions[1]!.endsWith(`${lubec}\n`), 'a Lubec session is still answered from the Lubec rules')
+  assert.ok(!instructions[1]!.includes('Classic Fantasy'))
+  assert.deepEqual(Object.keys(jevAsked.at(-1)!.questions), ['rules_question'], 'Jev is asked only the rules question of a Lubec session')
+
+  assert.deepEqual(rulesAnswers(), [
+    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**.',
+    '**Rules answer** - Peter asked: "who goes first?"\nEveryone rolls Speed.\n-# From the rules document: Initiative',
+  ])
+
+  // A rule set with no rules is not listened to at all, and the session records just the same.
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'vtm' })
+  const jevAskedBefore = jevAsked.length
+  await playSession(false)
+  assert.equal(jevAsked.length, jevAskedBefore, 'nothing from a VTM session is put to Jev')
+  assert.equal(instructions.length, 2)
+  assert.equal(rulesAnswers().length, 2)
+  assert.deepEqual(
+    logged.filter((entry) => entry.message.endsWith('for this session')).map((entry) => [entry.message, entry.detail?.ruleSet, entry.detail?.reason]),
+    [
+      ['rules answers on for this session', 'ose', undefined],
+      ['rules answers on for this session', 'lubec', undefined],
+      ['rules answers off for this session', 'vtm', 'there are no rules for vtm'],
+    ],
+  )
+  assert.equal((await sessions()).length, 3)
+})
+
 test('/note marks the moment the command arrived, with who wrote it', async () => {
   const location = await started(await runner.join(asJem))
   pass(75_000)
@@ -427,6 +598,95 @@ test('a bot that restarts mid-session rejoins the channel, says so, and carries 
   assert.equal((await sessions()).length, 1)
   assert.deepEqual((await store.transcript(location)).map((utterance) => utterance.speakerId), [JEM.id, PETER.id])
   assert.equal((await db.collection(sessionPath(location, 'gaps')).get()).size, 1)
+})
+
+test("a session picked up after a restart is answered from its campaign's rules again", async () => {
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
+  const logged: string[] = []
+  const rulesFor = (citedAs: string | null) => ({
+    citedAs,
+    answer: async () => ({ kind: 'answered' as const, question: 'who goes first?', askedBy: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }),
+  })
+  const rules: RulesAnswering = {
+    askJev: async () => ({ rulesQuestion: 0.95, needs: {} }),
+    byRuleSet: { lubec: rulesFor('the rules document'), ose: rulesFor(null) },
+    log: (message) => logged.push(message),
+  }
+  // A session started without rules answering, by a bot that then dies.
+  await started(await runner.join(asJem))
+  clock += 30_000
+  runner = newRunner(rules)
+  const [recovered] = await recoverSessions(recorderOptions, clock)
+  assert.equal(await runner.adopt((recovered as Extract<typeof recovered, { outcome: 'resumed' }>).recorder), 'resumed')
+
+  speak(PETER.id, 1)
+  await new Promise((resolve) => setImmediate(resolve))
+  pass(5_000)
+  await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+
+  assert.deepEqual(
+    board.messages.map((message) => message.text).filter((text) => text.startsWith('**Rules answer**')),
+    ['**Rules answer** - Peter asked: "who goes first?"\nEveryone rolls Speed.\n-# From the rules document: Initiative'],
+  )
+  assert.equal(logged[0], 'rules answers on for this session')
+})
+
+test("a session whose campaign's rule set cannot be read is recorded without rules answers, and says why in the log", async () => {
+  const unreadable = new (class extends FirestoreSessionStore {
+    override async ruleSet(): Promise<never> {
+      throw new Error('The database cannot be reached.')
+    }
+  })(db, bucket)
+  recorderOptions = { ...recorderOptions, store: unreadable }
+  const logged: { message: string; detail?: Record<string, unknown> }[] = []
+  let jevAsked = 0
+  runner = newRunner({
+    askJev: async () => {
+      jevAsked += 1
+      return { rulesQuestion: 0.95, needs: {} }
+    },
+    byRuleSet: { ose: { citedAs: null, answer: () => Promise.reject(new Error('not asked')) } },
+    log: (message, detail) => logged.push({ message, detail }),
+  })
+  const location = await started(await runner.join(asJem))
+  speak(PETER.id, 1)
+  pass(5_000)
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+
+  assert.equal(jevAsked, 0)
+  assert.deepEqual(logged, [
+    {
+      message: 'rules answers off for this session',
+      detail: { sessionId: location.sessionId, reason: 'its rule set could not be read: Error: The database cannot be reached.' },
+    },
+  ])
+  assert.deepEqual((await store.transcript(location)).map((utterance) => utterance.speakerId), [PETER.id])
+})
+
+test('a session whose voice channel cannot be rejoined after a restart is stopped where the bot left it', async () => {
+  const location = await started(await runner.join(asJem))
+  speak(JEM.id, 1)
+
+  clock += 30_000
+  runner = newRunner()
+  voice.refuses = true
+  const [recovered] = await recoverSessions(recorderOptions, clock)
+  assert.equal(await runner.adopt((recovered as Extract<typeof recovered, { outcome: 'resumed' }>).recorder), 'stopped')
+
+  assert.equal(runner.recording.size, 0)
+  assert.equal((await session(location)).stopReason, 'the bot restarted and could not rejoin the voice channel')
+  assert.equal((await db.collection('discordServers').doc(SERVER).get()).data()!.activeSession, null)
+  assert.deepEqual((await store.transcript(location)).map((utterance) => utterance.speakerId), [JEM.id])
+})
+
+test('a runner given nowhere to post records just the same, on the real clock, and says nothing', async () => {
+  runner = new SessionRunner({ voice, recorder: recorderOptions })
+  const location = await started(await runner.join(asJem))
+
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+  assert.equal((await session(location)).state, 'ended')
+  assert.equal(board.messages.length, 0)
 })
 
 test('a channel the bot may not write in does not stop the session being recorded', async () => {

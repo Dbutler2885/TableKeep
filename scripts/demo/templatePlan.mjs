@@ -42,6 +42,9 @@ export const TEMPLATE_SUBCOLLECTIONS = [
   { name: 'tables', children: [{ name: 'history' }] },
   { name: 'images' },
   { name: 'referenceDocs' },
+  { name: 'handouts' },
+  { name: 'handoutFolders' },
+  { name: 'clocks' },
   { name: 'sessionSummaries' },
   { name: 'sharedNotes' },
 ]

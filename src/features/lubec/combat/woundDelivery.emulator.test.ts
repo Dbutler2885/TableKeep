@@ -459,7 +459,7 @@ describe('standing through real rules and command receipts', () => {
 describe('waking Head 9 through real rules', () => {
   const card = { id: 'wake', name: 'Knocked out', cause: 'Fisticuffs Head 9', cardKey: 'unconscious', wakeSave: 'severe-concussion', wound: { groupId: 'original', trauma: 2, minimumStress: 3, dice: { minutes: [4, 9] } }, steps: [{ modifiers: [], labels: ['13 minutes'], until: 'by-hand', restrictions: [{ kind: 'unconscious' }] }] }
   const sibling = { id: 'sibling', name: 'Dazed', cause: 'Another wound', steps: [{ modifiers: [], labels: ['Keep'], until: 'rounds' }] }
-  const quiet = { updateCharacterNow: () => undefined, hasPendingWrite: () => false }
+  const quiet = { settleSaves: async () => undefined }
   const recover = (uid: string, selection: CombatantSelection) => lubecEffectRecovery({ db: as(uid), scope, sheet: selection.kind === 'npc' ? { kind: 'npc', npcId: selection.sheetId } : { kind: 'character', characterId: selection.sheetId } }, quiet, selection.sheetId)
 
   it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('resolves $kind once across racing clears and reload, preserving landing charges and siblings', async (selection) => {
@@ -540,7 +540,7 @@ describe('the delayed speech-recovery Save through real rules', () => {
     ],
   }
   const bleed = { id: 'bleed', name: 'Windpipe opened', part: 'Bleeding', cause: 'Cutting Neck 5', steps: [{ modifiers: [], labels: ['Keep'], until: 'rounds' }] }
-  const quiet = { updateCharacterNow: () => undefined, hasPendingWrite: () => false }
+  const quiet = { settleSaves: async () => undefined }
   const recover = (uid: string, selection: CombatantSelection) => lubecEffectRecovery({ db: as(uid), scope, sheet: selection.kind === 'npc' ? { kind: 'npc', npcId: selection.sheetId } : { kind: 'character', characterId: selection.sheetId } }, quiet, selection.sheetId)
 
   it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('resolves a $kind card once across racing Step downs and a replay, keeping the sibling and the landing charges', async (selection) => {

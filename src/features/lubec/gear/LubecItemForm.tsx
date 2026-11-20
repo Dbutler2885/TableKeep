@@ -11,7 +11,7 @@ import { LubecSheetHead } from './LubecSheetHead'
 import { useLubecPictureUpload, type LubecFormPictures, type LubecPicking } from './useLubecPictureUpload'
 import type { LubecMakeSupply } from './LubecSupplyField'
 import type { LubecStockEntry } from './stockEntries'
-import { useLubecMediaQuery } from './useLubecMediaQuery'
+import { useMediaQuery } from '../../common/useMediaQuery'
 
 /** What the form's buttons do. */
 export type LubecFormActions = {
@@ -104,7 +104,7 @@ function FormTop({ form, onFields, stock, supplyName, actions, picking }: Pick<F
 export function LubecItemForm(props: FormProps) {
   const { form, gear, supplies, actions, placed = true, onYou = true, pictures = null } = props
   const editing = gear.items.find((x) => x.id === form.editId)
-  const paged = useLubecMediaQuery(PAGED)
+  const paged = useMediaQuery(PAGED)
   const picking = useLubecPictureUpload(form, actions.onForm, pictures)
   const onFields = (fields: LubecItemFields) => actions.onForm({ ...form, fields })
   const onPage = (page: number) => actions.onForm({ ...form, page })

@@ -200,7 +200,7 @@ describe('writing a session recap', () => {
 
     const { summaryId } = await writeSessionRecap(db, session, dependencies(model))
 
-    expect(model.requests[0]!.model).toBe('gpt-5.6-luna')
+    expect(model.requests[0]!.model).toBe('gpt-6.1-sol')
     expect(model.requests[0]!.instructions).toContain('This is the first session on the calendar')
     const saved = (await summaries()).find((summary) => summary.id === summaryId) as { calendar: { key: string }[] }
     expect(saved.calendar.map((day) => day.key)).toEqual(['day_001', 'day_002'])

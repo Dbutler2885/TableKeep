@@ -46,7 +46,7 @@ vi.mock('firebase/firestore', async (original) => {
 const scope = { groupId: 'g', campaignId: 'c' }
 const prefix = 'groups/g/campaigns/c'
 const db = {} as Firestore
-const store = { hasPendingWrite: () => false, updateCharacterNow: vi.fn() }
+const store = { settleSaves: vi.fn(async () => undefined) }
 const unconscious: LubecEffect = { id: 'card', name: 'Knocked out', cause: 'Head 9', wakeSave: 'severe-concussion', steps: [{ modifiers: [], labels: [], restrictions: [{ kind: 'unconscious' }] }] }
 const recoveringSpeech: LubecEffect = { id: 'card', name: 'Neck wound', cause: 'Cutting Neck 5', steps: [
   { modifiers: [], labels: ['Speech impaired'], until: 'long-rest' },

@@ -3,14 +3,16 @@
    ------------------------------------------------------------------------
    Floating rather than laid out: the app shell is a flex column whose height
    chain feeds the map canvas, so a new child in that column changes how large
-   the map renders. Anchored bottom-left and below the nav drawer's z-index
-   (60) so an open drawer covers it cleanly.
+   the map renders. Anchored to the bottom-left of the page: inside a campaign
+   that is just right of its sidebar, whose width the sidebar publishes as
+   --side-nav-width, so the notice never covers the sidebar's account buttons.
+   Below the phone drawer, which is a modal dialog and covers it.
    ========================================================================= */
 
 .tk-demo-banner,
 .tk-demo-chip {
   position: fixed;
-  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  left: calc(max(0.75rem, env(safe-area-inset-left, 0px)) + var(--side-nav-width, 0px));
   bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
   z-index: 55;
   font-family: 'Geist', -apple-system, sans-serif;
@@ -20,7 +22,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  max-width: min(620px, calc(100vw - 1.5rem));
+  max-width: min(620px, calc(100vw - 1.5rem - var(--side-nav-width, 0px)));
   padding: 0.6rem 0.65rem 0.6rem 0.75rem;
   background: #1a1614;
   color: #faf6ec;

@@ -304,7 +304,7 @@
   text-align: left;
 }
 
-@media (min-width: 1251px) {
+@media (min-width: 1431px) {
   .shell-root[data-theme="lubec"] .lubec-gear .strength-roll {
     --lubec-circle: clamp(4.5rem, 5.55vw, 5.55rem);
   }

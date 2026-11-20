@@ -14,20 +14,19 @@ const record = { id: 'roy' } as LubecCharacterRecord
 
 describe("a fighter's sheet writer", () => {
   it('saves through the store and resolves an NPC sheet\'s Saves against the NPC', () => {
-    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false), settleSaves: vi.fn(async () => undefined) }
     const writer = combatSheetWriter(store, 'npcSheets', scope)
     expect(writer.updateCharacter).toBe(store.updateCharacter)
     expect(writer.recovery(record)).toBe('recover')
-    const [records, writes, sheetId] = recovery.calls.at(-1)! as [unknown, { updateCharacterNow: (id: string, updates: object) => void; hasPendingWrite: unknown }, string]
+    const [records, writes, sheetId] = recovery.calls.at(-1)! as [unknown, { settleSaves: unknown }, string]
     expect(records).toEqual({ db: { name: 'db' }, scope, sheet: { kind: 'npc', npcId: 'roy' } })
     expect(sheetId).toBe('roy')
-    writes.updateCharacterNow('roy', { lubec: {} })
-    expect(store.updateCharacterNow).toHaveBeenCalledWith('roy', { lubec: {} }, record)
-    expect(writes.hasPendingWrite).toBe(store.hasPendingWrite)
+    // The Save waits for the sheet's own saves to settle first, as a gear move does.
+    expect(writes.settleSaves).toBe(store.settleSaves)
   })
 
   it("resolves a character's Saves against the character", () => {
-    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false), settleSaves: vi.fn(async () => undefined) }
     combatSheetWriter(store, 'characters', scope).recovery({ id: 'wayne' } as LubecCharacterRecord)
     expect(recovery.calls.at(-1)![0]).toMatchObject({ sheet: { kind: 'character', characterId: 'wayne' } })
   })

@@ -13,7 +13,7 @@ export default defineConfig([
   globalIgnores(['dist', 'functions', 'bot']),
   {
     name: 'node-scripts',
-    files: ['scripts/browser-smoke.mjs', 'scripts/characters/*.mjs', 'scripts/demo/*.mjs', 'scripts/sessions/*.mjs'],
+    files: ['scripts/browser-smoke.mjs', 'scripts/characters/*.mjs', 'scripts/demo/*.mjs', 'scripts/ose/*.mjs', 'scripts/sessions/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,
@@ -70,7 +70,6 @@ export default defineConfig([
       'src/features/maps/hooks/useTokenSelection.ts',
       'src/features/notes/CliffhangerModal.tsx',
       'src/features/notes/NotesTab.tsx',
-      'src/features/notes/SessionNoteDetail.tsx',
       'src/features/notes/useSessionNotes.ts',
       'src/features/tables/TablesTab.tsx',
       'src/features/tables/useTables.ts',

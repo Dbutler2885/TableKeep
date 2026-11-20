@@ -14,6 +14,7 @@ import { getStorage } from 'firebase-admin/storage'
 import type { VoicePacket } from '../../src/audio/timeline.ts'
 import { finaliseSession } from '../../src/session/finalise.ts'
 import { SessionRecorder } from '../../src/session/recorder.ts'
+import { ROOMY_DISK } from '../helpers/disk.ts'
 import { FirestoreSessionStore, sessionPath, transcriptObjectPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { scriptedSpeech, type ScriptedSpeech } from '../helpers/speech.ts'
 import { Voice, Wire } from '../helpers/synth.ts'
@@ -53,6 +54,7 @@ const startInput = { discordServerId: SERVER, discordChannelId: 'voice', started
 
 async function start(speech: ScriptedSpeech) {
   const result = await SessionRecorder.start(startInput, {
+    ...ROOMY_DISK,
     store,
     journalDir,
     journalSyncEveryMs: 0,
@@ -172,7 +174,7 @@ test('if the speech service is down when a session is stopped, the audio is safe
 test('a session still finalising does not stop the server starting a new one', async () => {
   const { recorder } = await recordedThroughAnOutage()
 
-  const next = await SessionRecorder.start({ ...startInput, startedAtMs: START + 60_000 }, { store, journalDir, journalSyncEveryMs: 0 })
+  const next = await SessionRecorder.start({ ...startInput, startedAtMs: START + 60_000 }, { ...ROOMY_DISK, store, journalDir, journalSyncEveryMs: 0 })
 
   assert.equal(next.status, 'started')
   assert.equal((await session(recorder.location)).state, 'finalising')

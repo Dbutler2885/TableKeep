@@ -192,6 +192,28 @@ service firebase.storage {
       allow read: if isSignedIn() && isDemoTemplateGroup(groupId);
     }
 
+    // Exactly two Firestore documents on every read path: member + handout.
+    // Do not fall back to isGroupCampaignGM here; that would add a third read.
+    // The GM id and selected characters' owner ids are captured on GM save.
+    function canReadHandout(groupId, campaignId, handoutId) {
+      let member = groupMemberDoc(groupId).data;
+      let handout = firestore.get(/databases/(default)/documents/groups/$(groupId)/campaigns/$(campaignId)/handouts/$(handoutId)).data;
+      return isSignedIn() && member.status == 'active' && (
+        member.role == 'admin' || handout.gmUserId == request.auth.uid
+        || handout.visibility == 'all'
+        || (handout.visibility == 'some' && request.auth.uid in handout.viewerUids)
+      );
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/handouts/{handoutId}/{fileName} {
+      allow read: if canReadHandout(groupId, campaignId, handoutId);
+      allow create, update: if isGroupCampaignGM(groupId, campaignId)
+        && withinVisitorObjectLimit()
+        && request.resource.size <= 20 * 1024 * 1024
+        && request.resource.contentType in ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif'];
+      allow delete: if isGroupCampaignGM(groupId, campaignId);
+    }
+
     match /groups/{groupId}/campaigns/{campaignId}/maps/{mapId} {
       allow read: if canReadGroupMapAsset(groupId, campaignId, mapId);
       allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId);
