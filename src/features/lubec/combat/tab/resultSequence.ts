@@ -1,4 +1,4 @@
-import { signed } from '../engine/attackFlow'
+import { armorAbsorbed, signed } from '../engine/attackFlow'
 import { lubecAdvantageName } from '../../../ruleSets/lubec/checkRoll'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import type { CombatAttack, CombatCatchRoll, CombatDefenseRoll, CombatImpact, CombatStrengthRoll } from '../engine/types'
@@ -132,7 +132,7 @@ const plainBox = (head: string, tag: string | null, body: string): WoundBoxWords
 export function woundBox(attack: CombatAttack, target: string): WoundBoxWords {
   const impact = attack.impact!
   const table = tableName(impact.table)
-  if (impact.total <= 0) return plainBox(table, 'No wound', `Impact ${impact.total}: a hit with no effect.`)
+  if (impact.total <= 0) return plainBox(table, 'No wound', `Impact ${impact.total}: ${armorAbsorbed(impact) > 0 ? `armor absorbed ${armorAbsorbed(impact)} damage.` : 'a hit with no effect.'}`)
   if (attack.row) return rowBox(attack, table)
   const head = `${table} · ${locName(attack.landing!.part!).toLowerCase()} · Impact ${impact.total}`
   return plainBox(head, null, `The GM records this wound on ${target}'s sheet. Nothing was changed automatically.`)

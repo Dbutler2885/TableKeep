@@ -304,6 +304,20 @@ describe('the doll, Strength and the wound', () => {
     await waitFor(() => expect(sentOf('land')[0]).toMatchObject({ envelope: { actorKey: WAYNE, step: 'location' }, payload: { part: 'torso' } }))
   })
 
+  it('shows the target\'s armor while Wayne places the hit, for the part he picks', () => {
+    const live = fightAfter(...landed())
+    const armor = [{ locs: ['torso', 'upperarm-L', 'upperarm-R'], armor: { blunt: 1, cut: 2, pierce: 1, gun: 0 } }, { locs: ['waist'], armor: { blunt: 3, cut: 0, pierce: 0, gun: 0 } }]
+    live.fight.state.combatants = live.fight.state.combatants.map((entry) => (entry.key === ROY ? { ...entry, armor } : entry))
+    show('player', 'wayne-uid', live)
+    const kind = live.fight.state.attack!.frozen!.choice.armor
+    expect(document.querySelector('.armor-here')!.textContent).toBe('Armor 3')
+    expect(screen.getByRole('img', { name: /^Armor against / }).getAttribute('aria-label')).toBe(`Armor against ${kind}: Torso 1, Waist 3, Right upper arm 1, Left upper arm 1`)
+    expect(document.querySelector('.armor-doll figcaption')!.textContent).toBe(`Armor vs ${kind[0].toUpperCase()}${kind.slice(1)}`)
+    expect(document.querySelector('.armor-look .wear-head')!.textContent).toBe('Roy Carver is wearing')
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Where it lands' })).getByRole('radio', { name: 'Left thigh: quality 1' }))
+    expect(document.querySelector('.armor-here')!.textContent).toBe('Armor 0')
+  })
+
   it('makes the GM wait on Wayne for the hit, with the way to act for him', () => {
     show('gm', 'gm', fightAfter(...landed()))
     expect(screen.getByText('Waiting for Wayne Gardner to roll')).toBeTruthy()
@@ -341,9 +355,13 @@ describe('the doll, Strength and the wound', () => {
     }
     show('player', 'marcy-uid', after([{ type: 'land', actor: WAYNE, part: 'waist' }, { type: 'strength', actor: WAYNE, dice: { strength: 99 } }]))
     expect(screen.getByText('Strength roll: adds nothing')).toBeTruthy()
-    expect(screen.getByText('Armor').nextSibling!.textContent).toBe('9')
+    expect(screen.getAllByText('Armor').find((term) => term.tagName === 'DT')!.nextSibling!.textContent).toBe('9')
     expect(screen.getByRole('heading', { name: 'No effect' })).toBeTruthy()
-    expect(screen.getByText('Impact -7: a hit with no effect.')).toBeTruthy()
+    // Impact before armor was 2, so the armor took 2 of its 9.
+    expect(screen.getByText('Impact -7: armor absorbed 2 damage.')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'No effect' }).nextSibling!.textContent).toBe('Armor absorbed 2 damage. The dodgeball lands on the Floor.')
+    const woundRow = [...document.querySelectorAll('.seq > details.completed summary')].find((summary) => summary.textContent!.includes('Impact -7'))
+    expect(woundRow!.textContent).toContain('Impact -7 on Dodgeball. Armor absorbed 2 damage.')
   })
 
   it('reads a located table: the wound box says where and how bad, and Results show the wound bound for the sheet', () => {

@@ -314,6 +314,16 @@
 .shell-root[data-theme="lubec"] .lubec-combat .big-pick { margin: 0 0 .7rem; font: 800 clamp(1.4rem, 3vw, 1.9rem)/1 var(--lubec-display); text-transform: uppercase; color: var(--lubec-blue); }
 .shell-root[data-theme="lubec"] .lubec-combat .quality-left { display: block; margin-top: .35rem; color: var(--lubec-ink); font: 800 1.15rem/1 var(--lubec-type); text-transform: none; }
 .shell-root[data-theme="lubec"] .lubec-combat .quality-left .q { margin-inline-start: .05em; font: 700 2.6rem/.9 var(--lubec-condensed); }
+.shell-root[data-theme="lubec"] .lubec-combat .quality-left .armor-here { margin-inline-start: 1.1rem; color: var(--lubec-blue); }
+/* The target's armor under the hit: a small body of what each part stops against this wound, beside what they wear. */
+.shell-root[data-theme="lubec"] .lubec-combat .armor-look { display: grid; grid-template-columns: 5.4rem minmax(0, 1fr); gap: .9rem; align-items: start; margin-top: .8rem; padding-top: .7rem; border-top: 1.5px solid var(--lubec-ink); }
+.shell-root[data-theme="lubec"] .lubec-combat .armor-doll { margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .armor-doll .body-map, .shell-root[data-theme="lubec"] .lubec-combat .ct.framed .doll-step .armor-doll .body-map { width: 100%; height: auto; margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .armor-doll .armored { fill: var(--lubec-blue); fill-opacity: .55; }
+.shell-root[data-theme="lubec"] .lubec-combat .armor-doll .chosen-line { fill: none; stroke: var(--lubec-rust); stroke-width: 16; stroke-linejoin: round; pointer-events: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .armor-doll .cost { font-size: 124px; stroke-width: 20; }
+.shell-root[data-theme="lubec"] .lubec-combat .armor-doll .cost.sm { font-size: 100px; }
+.shell-root[data-theme="lubec"] .lubec-combat .armor-doll figcaption { margin-top: .3rem; color: var(--lubec-muted); font: 800 .5rem/1.2 var(--lubec-type); letter-spacing: .06em; text-align: center; text-transform: uppercase; }
 .shell-root[data-theme="lubec"] .lubec-combat .wound { margin-top: .65rem; border: 2px solid var(--lubec-ink); background: var(--lubec-cream); }
 .shell-root[data-theme="lubec"] .lubec-combat .wound .wh { display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: center; justify-content: space-between; padding: .4rem .55rem; border-bottom: 1px solid var(--lubec-line); font: 800 .6rem/1.3 var(--lubec-type); letter-spacing: .06em; text-transform: uppercase; }
 .shell-root[data-theme="lubec"] .lubec-combat .wound .wb { padding: .55rem; font: 700 .78rem/1.5 var(--lubec-type); }

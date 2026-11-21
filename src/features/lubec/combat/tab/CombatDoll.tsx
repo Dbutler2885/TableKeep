@@ -1,5 +1,8 @@
 import { useId, type KeyboardEvent } from 'react'
 import { BODY_REGIONS, locName } from '../../../ruleSets/lubec/gear/gearRules'
+import type { LubecWoundKind } from '../../../ruleSets/lubec/gear/gearRecord'
+import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
+import { WOUND_SHORT } from '../../gear/itemLabels'
 import bodyInk from '../../gear/assets/body-ink.webp'
 import bodyMask from '../../gear/assets/body-mask.png'
 
@@ -86,5 +89,35 @@ export function CombatDoll({ start, chosen, distances, reach, onPick }: DollProp
       <text className="side-label" x="18" y="300">R</text><text className="side-label" x="572" y="300">L</text>
       {PARTS.map((part) => <HitPart key={part} part={part} chosen={chosen} live={inReach(part)} label={partLabel(part, inReach(part), reach - distances[part])} onPick={onPick} />)}
     </svg>
+  )
+}
+
+type ArmorDollProps = { zones: readonly LubecArmorZone[]; kind: LubecWoundKind; chosen: string }
+
+const armorOn = (zones: readonly LubecArmorZone[], part: string, kind: LubecWoundKind): number =>
+  zones.find((zone) => zone.locs.includes(part))?.armor[kind] ?? 0
+
+/** A small body of the target's armor against this attack's kind of wound: armored parts shaded with their number, the chosen part outlined. */
+export function CombatArmorDoll({ zones, kind, chosen }: ArmorDollProps) {
+  const mask = useId()
+  const armored = PARTS.filter((part) => armorOn(zones, part, kind) > 0)
+  const label = armored.length ? `Armor against ${WOUND_SHORT[kind].toLowerCase()}: ${armored.map((part) => `${locName(part)} ${armorOn(zones, part, kind)}`).join(', ')}` : `No armor against ${WOUND_SHORT[kind].toLowerCase()}`
+  return (
+    <figure className="armor-doll">
+      <svg className="body-map" viewBox="0 0 620 1290" role="img" aria-label={label}>
+        <defs><mask id={mask} maskUnits="userSpaceOnUse" x="0" y="0" width="620" height="1290"><image href={bodyMask} width="620" height="1290" /></mask></defs>
+        <g mask={`url(#${mask})`}>
+          <rect className="base" width="620" height="1290" />
+          {armored.map((part) => <polygon key={part} className="armored" points={BODY_REGIONS[part]} />)}
+        </g>
+        <image href={bodyInk} width="620" height="1290" pointerEvents="none" />
+        <polygon className="chosen-line" points={BODY_REGIONS[chosen]} />
+        {armored.map((part) => {
+          const [x, y] = ANCHOR[part]
+          return <text key={part} className={`cost${small(part) ? ' sm' : ''}`} x={x} y={y}>{armorOn(zones, part, kind)}</text>
+        })}
+      </svg>
+      <figcaption>Armor vs {WOUND_SHORT[kind]}</figcaption>
+    </figure>
   )
 }

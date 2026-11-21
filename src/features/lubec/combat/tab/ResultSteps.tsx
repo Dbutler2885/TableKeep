@@ -1,14 +1,18 @@
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
+import type { LubecWoundKind } from '../../../ruleSets/lubec/gear/gearRecord'
+import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
 import { lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
+import { armorAtPart } from '../engine/attackFlow'
 import { lubecPartDistances } from '../engine/hitLocation'
 import { combatInputModifiers } from '../engine/inputModifiers'
 import type { CombatAttack, Combatant, CombatState } from '../engine/types'
 import { SegmentRoll } from './AttackBar'
 import type { AttackAct, AttackCommands } from './attackCommands'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
-import { CombatDoll } from './CombatDoll'
+import { CombatArmorDoll, CombatDoll } from './CombatDoll'
+import { LubecFightWearingContent } from '../../fight/LubecFightTargetContent'
 import { catchFacts, catchVerdict, checkAsk, checkVerdict, defenseVerdict, impactChips, stopWords, strengthTitle, woundBox, type WoundBoxWords } from './resultSequence'
 import { RollModeNote } from './RollModeNote'
 import { RollBar } from './RollBar'
@@ -245,7 +249,7 @@ function LocationLive(props: StepProps & { controls: StepControls }) {
   const distances = lubecPartDistances(landing.start)
   const reach = props.attack.net!
   return (
-    <LocationLayout landing={landing.start} part={part} distances={distances} reach={reach} onPick={setPart} target={nameOf(props.state, props.attack.aim!.targetKey)}>
+    <LocationLayout landing={landing.start} part={part} distances={distances} reach={reach} onPick={setPart} guard={guardOf(props)}>
       <p className="note">Move it one part per point of reach, 1 Impact each.</p>
       {part !== landing.start ? <p className="note"><button type="button" className="linkish" onClick={() => setPart(landing.start)}>Keep it on the {lower(landing.start)}</button></p> : null}
       <Refusal refusal={act.refusal} />
@@ -254,9 +258,29 @@ function LocationLive(props: StepProps & { controls: StepControls }) {
   )
 }
 
-type LayoutProps = { landing: string; part: string; distances: Record<string, number>; reach: number; target: string; onPick: ((part: string) => void) | null; children: ReactNode }
+/** Who is hit and what they wear against this attack's kind of wound. */
+type Guard = { target: string; zones: readonly LubecArmorZone[]; kind: LubecWoundKind; wearer: LubecCombatant | null }
 
-function LocationLayout({ landing, part, distances, reach, target, onPick, children }: LayoutProps) {
+const guardOf = (props: StepProps): Guard => {
+  const target = combatantOf(props.state, props.attack.aim!.targetKey)
+  const wearer = props.controls ? combatFightCombatant(target, props.controls.roster) : null
+  return { target: target.name, zones: target.armor, kind: props.attack.frozen!.choice.armor, wearer }
+}
+
+/** The small armor body beside what the target wears, as the sheet lists it; without a sheet to read, the armor body alone. */
+function ArmorLook({ guard, part }: { guard: Guard; part: string }) {
+  return (
+    <div className="armor-look lubec-fight-content">
+      <CombatArmorDoll zones={guard.zones} kind={guard.kind} chosen={part} />
+      {guard.wearer ? <LubecFightWearingContent target={guard.wearer} /> : <div className="wearing"><div className="wear-head"><span>{guard.target}&apos;s armor</span></div><p className="none">{guard.zones.length ? 'The numbers on the body are what each part stops.' : 'Nothing that stops a wound.'}</p></div>}
+    </div>
+  )
+}
+
+type LayoutProps = { landing: string; part: string; distances: Record<string, number>; reach: number; guard: Guard; onPick: ((part: string) => void) | null; children: ReactNode }
+
+function LocationLayout({ landing, part, distances, reach, guard, onPick, children }: LayoutProps) {
+  const armor = armorAtPart(guard.zones, part, guard.kind)
   return (
     <div className="doll-step">
       <div>
@@ -264,10 +288,11 @@ function LocationLayout({ landing, part, distances, reach, target, onPick, child
         <p className="map-legend"><span><i className="cross-key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><circle cx="12" cy="12" r="6" /><path d="M1 12h22M12 1v22" /></svg></i>Landed</span><span><i className="reach-key" />In reach</span><span><i className="chosen-key" />Chosen</span></p>
       </div>
       <div>
-        <p className="ask">It lands on {target}&apos;s {lower(landing)}.</p>
+        <p className="ask">It lands on {guard.target}&apos;s {lower(landing)}.</p>
         <div className="impact roll-chips"><dl className="chip"><dt>Quality left</dt><dd>{reach}</dd></dl><dl className="chip armor"><dt>Reach</dt><dd>{reach}</dd></dl></div>
-        <p className="big-pick">{locName(part)}<span className="quality-left">Quality <span className="q">{reach - distances[part]}</span></span></p>
+        <p className="big-pick">{locName(part)}<span className="quality-left">Quality <span className="q">{reach - distances[part]}</span><span className="armor-here">Armor <span className="q">{armor}</span></span></span></p>
         {children}
+        <ArmorLook guard={guard} part={part} />
       </div>
     </div>
   )
@@ -275,11 +300,12 @@ function LocationLayout({ landing, part, distances, reach, target, onPick, child
 
 export function LocationStep(props: StepProps) {
   const landing = props.attack.landing!
-  const target = nameOf(props.state, props.attack.aim!.targetKey)
+  const guard = guardOf(props)
+  const target = guard.target
   if (props.attack.step === 'location' && working(props, props.attack.attackerKey)) return <LocationLive {...props} controls={props.controls} />
   const part = landing.part ?? landing.start
   const words = landing.part ? <p className="verdict neutral">Hits {target}&apos;s {lower(part)}.</p> : <Waiting state={props.state} controls={props.controls} owner={props.attack.attackerKey} what="hit" />
-  return <LocationLayout landing={landing.start} part={part} distances={lubecPartDistances(landing.start)} reach={props.attack.net!} target={target} onPick={null}>{words}</LocationLayout>
+  return <LocationLayout landing={landing.start} part={part} distances={lubecPartDistances(landing.start)} reach={props.attack.net!} guard={guard} onPick={null}>{words}</LocationLayout>
 }
 
 function StrengthControl({ at, ...props }: StepProps & { at: number }) {

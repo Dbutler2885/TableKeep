@@ -48,6 +48,9 @@ export function combatImpact(attack: CombatAttack, armor: readonly LubecArmorZon
   return { quality: attack.net!, base: choice.impact, strength, moved: landing.moved, armor: worn, total, table: choice.wound }
 }
 
+/** How much Impact the armor took: all of its value, or only what there was to take when that was less. */
+export const armorAbsorbed = (impact: CombatImpact): number => Math.min(impact.armor, Math.max(0, impact.total + impact.armor))
+
 /** Where Impact leaves the attack: no wound at 0 or less, a table the app has reads its row, any other is the GM's to record. */
 function impactOutcome(impact: CombatImpact): CombatAttackOutcome {
   if (impact.total <= 0) return 'no-wound'

@@ -1,4 +1,5 @@
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
+import { armorAbsorbed } from '../engine/attackFlow'
 import type { CombatAttack, CombatState } from '../engine/types'
 import { isThrow, missWords } from './attackWords'
 import { tableName } from './resultSequence'
@@ -17,11 +18,18 @@ const BANNERS: Readonly<Record<string, (words: Words) => Banner>> = {
   caught: (w) => (w.out
     ? { tone: 'out', title: `Caught: ${w.attacker} is Out`, text: `The ${w.item} goes to ${w.target}'s hand. Catching it puts the thrower out, so ${w.attacker} is Out.` }
     : { tone: 'safe', title: 'Caught', text: `The ${w.item} goes to ${w.target}'s hand.` }),
-  'no-wound': (w) => ({ tone: '', title: 'No effect', text: `The hit did nothing.${lands(w)}` }),
+  'no-wound': (w) => ({ tone: '', title: 'No effect', text: `${noWoundWords(w.attack)}${lands(w)}` }),
   wounded: (w) => ({ tone: w.targetOut || w.out ? 'out' : 'hit', title: woundedTitle(w), text: `${w.attack.row!.name}: ${w.attack.rowOutcome}${lands(w)}`, aside: lands(w).trim() }),
   'row-caught': (w) => ({ tone: 'out', title: `Caught it: ${w.attacker} is Out`, text: `${w.attack.row!.name}: ${w.target} holds on and stays in, and ${w.attacker} is Out instead.` }),
   interrupted: (w) => ({ tone: 'out', title: `Stopped: ${w.attacker} is Out`, text: lands(w).trim() }),
   manual: (w) => ({ tone: '', title: 'The GM records this wound', text: `${tableName(w.attack.impact!.table)} table, ${locName(w.attack.landing!.part!).toLowerCase()}, Impact ${w.attack.impact!.total}.${lands(w)}` }),
+}
+
+/** Impact armor brought to 0 says how much the armor took; a table row with no wound keeps the plain words. */
+function noWoundWords(attack: CombatAttack): string {
+  const impact = attack.impact
+  const absorbed = impact && impact.total <= 0 ? armorAbsorbed(impact) : 0
+  return absorbed > 0 ? `Armor absorbed ${absorbed} damage.` : 'The hit did nothing.'
 }
 
 /** "Roy Carver is Out", both names when a Headshot puts the thrower out too, or the wound when the target stays in. */
