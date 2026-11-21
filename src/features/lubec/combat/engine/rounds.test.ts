@@ -393,6 +393,22 @@ describe('standing during Movement', () => {
     expect(who(declared, HERO).declaration).toMatchObject({ lost: true, stopped: true, lines: [] })
     expect(state(declared).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
   })
+  it('staying down allows no attack from the ground, only Full Defense', () => {
+    const records = declaring(downMovement())
+    const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
+    expect(() => act(records, { type: 'declare', actor: HERO, by: player, aim })).toThrow('Wayne is knocked down: no attack from the ground. Declare Full Defense instead.')
+    const guarded = act(records, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).records
+    expect(who(guarded, HERO).proposedDeclaration).toMatchObject({ full: true, lines: [{ against: ROY }] })
+  })
+  it('a successful Stand clears the card, so the fighter can attack again', () => {
+    const records = downMovement()
+    const stood = act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [1] }).records
+    const hero = stood.sheets.find((sheet) => sheet.sheetId === 'hero')!
+    hero.sheet = { ...hero.sheet, effects: hero.sheet.effects.filter((effect) => effect.id !== 'down') }
+    const declaringNow = settled(act(stood, npcs({ [ROY]: stay, [DALE]: stay })).records).records
+    const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
+    expect(who(act(declaringNow, { type: 'declare', actor: HERO, by: player, aim }).records, HERO).proposedDeclaration).toMatchObject({ full: false, aim: { targetKey: ROY } })
+  })
   it('a separately lost Movement never grants a free Stand', () => {
     const records = downMovement()
     records.fight!.state = withMovementRequests(withLostStages(state(records), HERO, { movement: [1], action: [1] }, 'Dazed'))

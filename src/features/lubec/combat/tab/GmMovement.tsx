@@ -18,7 +18,7 @@ const PICKUP = 'pickup:'
 function npcOptions(state: CombatState, down = false, limits: LubecMovementLimits = LUBEC_FREE_MOVEMENT): (readonly [string, string])[] {
   const rows = combatFloorRows(state.floor)
   const pickups = rows.map((row) => [`${PICKUP}${row.recordIds[0]}`, rows.length === 1 ? 'Pick up' : `Pick up: ${row.item.name}`] as const)
-  if (down) return [['stay', 'Stay down'], ['stand', 'Stand'], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
+  if (down) return [['stay', 'Stay down (no attack)'], ['stand', 'Stand'], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
   const moving = (['run', 'evade'] as const).filter((choice) => !limits[choice]).map((choice) => [choice, MOVEMENT_NAMES[choice]] as const)
   return [['stay', MOVEMENT_NAMES.stay], ...moving, ...pickups, ['leave', MOVEMENT_NAMES.leave]]
 }
@@ -104,9 +104,10 @@ function GmFoot({ state, run, onConfirm }: { state: CombatState; run: CombatRun;
   return <button type="button" className="btn rust" disabled={run.busy || choosingNpcs(state).length === 0} onClick={onConfirm}>Confirm the NPCs&apos; movement</button>
 }
 
+type NpcPicks = { choices: Record<string, string>; setChoices: (choices: Record<string, string>) => void }
+
 /** Moment 4 for the GM: everyone's choice, each NPC's choice to set, and every Leave to answer. */
-function GmMovementList({ state, commands, onActFor, roster }: MovementProps) {
-  const [choices, setChoices] = useState<Record<string, string>>({})
+function GmMovementList({ state, commands, onActFor, roster, choices, setChoices }: MovementProps & NpcPicks) {
   const run = useCombatRun()
   const confirmNpcs = () => run.run(() => commands.npcMovement(Object.fromEntries(choosingNpcs(state).map((npc) => [npc.key, npcPick(choices[npc.key] ?? 'stay')]))))
   const asking = state.combatants.filter((entry) => entry.movement?.leave === 'asked')
@@ -124,8 +125,12 @@ function GmMovementList({ state, commands, onActFor, roster }: MovementProps) {
 const actingFor = (state: CombatState, key: string | null): Combatant | undefined =>
   state.combatants.find((entry) => entry.key === key && entry.kind === 'character' && entry.outReason === null && !entry.movement)
 
+/** The GM's NPC picks live here, so choosing for an away player and coming back keeps them; a new stage starts fresh. */
 export function GmMovement(props: MovementProps) {
+  const [picks, setPicks] = useState<{ stage: string; choices: Record<string, string> }>({ stage: props.state.stageInstanceId, choices: {} })
+  const choices = picks.stage === props.state.stageInstanceId ? picks.choices : {}
+  const setChoices = (next: Record<string, string>) => setPicks({ stage: props.state.stageInstanceId, choices: next })
   const away = actingFor(props.state, props.viewer.actingFor)
-  if (!away) return <GmMovementList {...props} />
+  if (!away) return <GmMovementList {...props} choices={choices} setChoices={setChoices} />
   return <MoveWindow key={away.key} state={props.state} combatant={away} sheet={movementSheetOf(away, props.roster)} commands={props.commands} named />
 }

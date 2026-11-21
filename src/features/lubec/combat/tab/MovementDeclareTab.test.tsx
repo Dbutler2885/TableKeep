@@ -513,3 +513,45 @@ it('lets the GM advance an all-unconscious skipped round explicitly', async () =
   fireEvent.click(screen.getByRole('button', { name: 'Advance skipped round' }))
   await waitFor(() => expect(sentOf('settleMovement')).toHaveLength(1))
 })
+
+const downCard = () => [{ id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end' as const, restrictions: [{ kind: 'down' as const }] }] }]
+
+it('says on a down player\'s Stay down that it means no attack from the ground', () => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = downCard(); return record }
+  mocks.roster = { characters: [currentWayne()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+  show('player', 'wayne-uid', fightAfter(...rolled))
+  expect(radio(/^Stay down/).textContent).toBe('Stay downNo attack from the ground this round.')
+})
+
+it('keeps a down fighter who stayed down to Full Defense when they declare', () => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = downCard(); return record }
+  mocks.roster = { characters: [currentWayne()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+  show('player', 'wayne-uid', fightAfter(...declaring()))
+  expect(screen.getByText(/No attack from the ground: declare Full Defense against one person/)).toBeTruthy()
+  expect(button('Declare Full Defense')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+})
+
+it('keeps the GM\'s Stand for a down NPC while the GM chooses for an away player', async () => {
+  const downRoy = () => { const record = royRecord(); record.lubec.effects = downCard(); return record }
+  mocks.roster = { characters: [wayne()], npcs: [{ npc: royNpc, sheet: downRoy() }] }
+  const tree = (live: LubecLiveFight) => (
+    <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
+      <LubecCombatContext value={{ enabled: true, ready: true, live }}>
+        <Routes><Route path="*" element={<LubecCombat campaign={campaign} role="gm" user={{ uid: 'gm' } as User} username="someone" setError={() => undefined} characterTabProps={null} />} /></Routes>
+      </LubecCombatContext>
+    </MemoryRouter>
+  )
+  const view = render(tree(fightAfter(...rolled)))
+  const options = (screen.getByRole('combobox', { name: 'Roy Carver movement' }) as HTMLSelectElement).options
+  expect([...options].map((option) => option.text)).toEqual(['Stay down (no attack)', 'Stand', 'Pick up', 'Leave the fight'])
+  fireEvent.change(screen.getByRole('combobox', { name: 'Roy Carver movement' }), { target: { value: 'stand' } })
+  fireEvent.click(button('Away: choose for Wayne Gardner'))
+  fireEvent.click(radio(/^Move or stay/))
+  fireEvent.click(button('Confirm movement'))
+  await waitFor(() => expect(sentOf('move')).toHaveLength(1))
+  view.rerender(tree(fightAfter(...rolled, { type: 'move', actor: WAYNE, choice: 'stay' })))
+  expect((screen.getByRole('combobox', { name: 'Roy Carver movement' }) as HTMLSelectElement).value).toBe('stand')
+  fireEvent.click(button("Confirm the NPCs' movement"))
+  await waitFor(() => expect(sentOf('npcMovement')[0].payload).toEqual({ type: 'npcMovement', choices: { [ROY]: { choice: 'stand', pickup: null } } }))
+})

@@ -6,6 +6,7 @@ import { LubecFightWindowContent } from '../../fight/LubecFightWindowContent'
 import { lubecCombatantFace, lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
 import { clampHandle } from '../engine/attackMath'
 import { combatOpponents } from '../engine/attackParty'
+import { downCards } from '../engine/down'
 import { combatInputModifiers } from '../engine/inputModifiers'
 import type { CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackBar, AttackScale, SegmentRoll } from './AttackBar'
@@ -46,16 +47,18 @@ function aimedNotice(state: CombatState, declarer: Combatant): SlotNotice | null
   }
 }
 
-type NoticeInputs = { state: CombatState; declarer: Combatant; refusal: string | null; evading: boolean; reach: string | null }
+type NoticeInputs = { state: CombatState; declarer: Combatant; refusal: string | null; evading: boolean; down: boolean; reach: string | null }
 
 /** Everything the Declare window has to say, most pressing first, for its one notice line. */
-function declareNotices({ state, declarer, refusal, evading, reach }: NoticeInputs): SlotNotice[] {
+function declareNotices({ state, declarer, refusal, evading, down, reach }: NoticeInputs): SlotNotice[] {
   const rejected = 'The GM rejected your declaration. Choose again.'
   const evasive = 'No attack this round: declare Full Defense against one person.'
+  const grounded = 'No attack from the ground: declare Full Defense against one person.'
   const notices: (SlotNotice | null)[] = [
     refusal ? { key: 'refusal', tone: 'hot', role: 'alert', body: refusal, words: refusal } : null,
     declarer.declarationRejected ? { key: 'rejected', tone: 'hot', role: 'status', body: rejected, words: rejected } : null,
     evading ? { key: 'evading', tone: 'cool', role: 'status', body: <><b>{declarer.name} moved evasively.</b> {evasive}</>, words: `${declarer.name} moved evasively. ${evasive}` } : null,
+    down && !evading ? { key: 'down', tone: 'cool', role: 'status', body: <><b>{declarer.name} is knocked down.</b> {grounded}</>, words: `${declarer.name} is knocked down. ${grounded}` } : null,
     aimedNotice(state, declarer),
     reach ? { key: 'reach', tone: 'cool', role: 'status', body: reach, words: reach } : null,
   ]
@@ -165,8 +168,10 @@ function DeclareBody(body: BodyProps) {
   const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, orderedOpponentKeys(state, declarer, combatOpponents(state, declarer).map((entry) => entry.key))))
   // Evasive Movement used this round's action: Full Defense is all that is left to declare.
   const evading = declarer.movement?.choice === 'evade'
+  // Still knocked down: no attack from the ground, so the same Full Defense only.
+  const down = downCards(sheet, { fightId: body.fightId, round: state.round }).length > 0
   const [fullChosen, setFull] = useState(false)
-  const full = evading || fullChosen
+  const full = evading || down || fullChosen
   const [against, setAgainst] = useState<string | null>(null)
   const run = useCombatRun()
   const model = attackWindowModel({ state, attack: draftAttack(declarer), attacker: declarer, sheet, draft, fightId: body.fightId, roster: body.roster })
@@ -176,7 +181,7 @@ function DeclareBody(body: BodyProps) {
     <>
       <div className="declare-top">
         <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong></div>
-        <NoticeSlot notices={declareNotices({ state, declarer, refusal: run.refusal, evading, reach: full ? null : model.reach })} />
+        <NoticeSlot notices={declareNotices({ state, declarer, refusal: run.refusal, evading, down, reach: full ? null : model.reach })} />
       </div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}

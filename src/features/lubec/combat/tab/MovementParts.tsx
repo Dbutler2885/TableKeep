@@ -85,6 +85,9 @@ export type MoveProps = { state: CombatState; combatant: Combatant; sheet: Lubec
 
 type CardsProps = { down: boolean; shown: Draft; live: boolean; limits: LubecMovementLimits; onChoose: (choice: CombatMovementChoice) => void }
 
+/** Staying down keeps the fighter on the ground, where they cannot attack. */
+const STAY_DOWN_WORDS = 'No attack from the ground this round.'
+
 /** Why a choice is unavailable: knocked down, or the card that forbids Run or Evasive; null when it can be chosen. */
 function blockedWords(choice: CombatMovementChoice, down: boolean, limits: LubecMovementLimits): string | null {
   if (choice !== 'run' && choice !== 'evade') return null
@@ -96,7 +99,7 @@ function MoveCards({ down, shown, live, limits, onChoose }: CardsProps) {
   return (
     <div className="moves" role="radiogroup" aria-label="Movement">
       {CHOICES.filter(([choice]) => choice !== 'stand' || down).map(([choice, name, words]) => (
-        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{down && choice === 'stay' ? 'Stay down' : name}</b><small>{blocked(choice) ?? words}</small></button>
+        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{down && choice === 'stay' ? 'Stay down' : name}</b><small>{blocked(choice) ?? (down && choice === 'stay' ? STAY_DOWN_WORDS : words)}</small></button>
       ))}
     </div>
   )
