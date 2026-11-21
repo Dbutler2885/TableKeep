@@ -48,7 +48,9 @@
 .shell-root[data-theme="lubec"] .ctick { grid-column: 1 / -1; }
 .shell-root[data-theme="lubec"] .ctick .ticker { background: var(--lubec-ink); }
 .shell-root[data-theme="lubec"] .ctick .ticker-list { background: #0f2226; }
-.shell-root[data-theme="lubec"] .ctick { margin-top: .2rem; }
+.shell-root[data-theme="lubec"] .ctick { position: relative; z-index: 60; }
+/* The whole history drops down over the fight below, with its own scroll bar; the window underneath never moves. */
+.shell-root[data-theme="lubec"] .ctick .ticker-list { position: absolute; top: 100%; left: 0; right: 0; max-height: min(60vh, 34rem); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 14px 30px rgba(7, 20, 23, .45); }
 .shell-root[data-theme="lubec"] .yourturn { position: fixed; right: 1rem; bottom: 1rem; z-index: 370; display: grid; gap: .3rem; width: 16rem; padding: .6rem .75rem; color: var(--lubec-ink); background: var(--lubec-cream); border: 2px solid var(--lubec-ink); border-left: 8px solid var(--lubec-rust); box-shadow: 0 10px 28px rgba(7, 20, 23, .4); }
 .shell-root[data-theme="lubec"] .yourturn b { font: 700 1.25rem/1 var(--lubec-condensed); letter-spacing: .1em; text-transform: uppercase; color: var(--lubec-rust); }
 .shell-root[data-theme="lubec"] .yourturn span { font: 700 .7rem/1.4 var(--lubec-type); }

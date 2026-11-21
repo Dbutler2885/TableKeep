@@ -47,10 +47,10 @@ function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle,
     <>
       <CombatHead round={view.round} stage={stage ?? view.stage} pips={view.pips} actions={headerActions} />
       <div className="ct framed" data-crowd={state.combatants.length > CROWD ? 'crowd' : undefined}>
+        <CombatTicker />
         <div className="rail"><TurnOrderPanel state={state} userId={userId} onOut={onOut} effects={effects} /></div>
         <div className="mid">{tools}{middle}</div>
         <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} hands={hands} placement={placement} /></div>
-        <CombatTicker />
       </div>
     </>
   )

@@ -60,7 +60,7 @@
 @container combat (min-width: 1070px) {
 @media (min-height: 640px) {
   .shell-root[data-theme="lubec"] .lubec-combat > .chead:has(+ .ct.framed) { flex: none; margin-bottom: 0.7rem; }
-  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) auto; align-items: stretch; min-height: 0; row-gap: 0.5rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { flex: 1 1 auto; grid-template-rows: auto minmax(0, 1fr); align-items: stretch; min-height: 0; row-gap: 0.5rem; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail { display: flex; flex-direction: column; gap: 0.6rem; min-height: 0; overflow: hidden; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .mid { min-height: 0; }
   .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail > .panel { display: flex; flex-direction: column; min-height: 0; }

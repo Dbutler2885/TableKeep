@@ -1823,9 +1823,15 @@ describe('the dialogs', () => {
     renderTab()
     selectMap('Castle')
     const onMovementFeet = h.args.drag.onMovementFeet as (feet: number) => void
-    act(() => {
-      for (let step = 0; step < 200; step += 1) onMovementFeet(30)
-    })
+    // Every d6 comes up 1, so the second turn's roll finds an encounter rather than leaving it to chance.
+    const dice = vi.spyOn(Math, 'random').mockReturnValue(0)
+    try {
+      act(() => {
+        for (let step = 0; step < 8; step += 1) onMovementFeet(30)
+      })
+    } finally {
+      dice.mockRestore()
+    }
     const alert = screen.getByRole('dialog', { name: 'Encounter alert' })
     expect(alert.textContent).toContain('You encounter a monster!')
     expect(alert.textContent).toContain('Test chance: 1 in 6.')
