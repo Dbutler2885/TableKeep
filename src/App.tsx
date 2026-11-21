@@ -18,6 +18,7 @@ import { AcceptInvite } from './features/invites/AcceptInvite'
 import { DemoEntry } from './features/demo/DemoEntry'
 import { DEMO_VISITOR_USERNAME, demoEntryPath } from './features/demo/demoConstants'
 import { GroupShell } from './features/shell/GroupShell'
+import { useFirestorePausedWhileHidden } from './features/common/useFirestorePausedWhileHidden'
 
 function App() {
   // App reads the path itself, so a client-side navigation into /demo (or into
@@ -29,6 +30,7 @@ function App() {
   const [profileReady, setProfileReady] = useState(false)
   const [profileUid, setProfileUid] = useState<string | null>(null)
   const [, setAuthRefreshVersion] = useState(0)
+  useFirestorePausedWhileHidden(db)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {

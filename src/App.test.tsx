@@ -50,6 +50,8 @@ vi.mock('firebase/auth', () => ({
   signOut: mocks.signOut,
 }))
 vi.mock('firebase/firestore', () => ({
+  disableNetwork: async () => undefined,
+  enableNetwork: async () => undefined,
   doc: (_db: unknown, ...segments: string[]) => ({ path: segments.join('/') }),
   onSnapshot: (_ref: unknown, _options: unknown, next: (snapshot: unknown) => void) => {
     next({
