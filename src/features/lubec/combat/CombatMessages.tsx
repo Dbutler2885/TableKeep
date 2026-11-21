@@ -86,7 +86,7 @@ export function CombatTicker() {
   return (
     <div className="ctick" ref={box} data-open={open ? 'open' : undefined}>
       <button type="button" className="ticker" aria-expanded={open} aria-controls="combat-history" onClick={() => setOpen(!open)}>
-        <span className="label">Table</span><span className="text">{last ? `${combatLogTime(last)} ${combatLogText(last)}` : 'Nothing yet this fight.'}</span><span className="more">All {entries.length}</span>
+        <span className="label">Table</span><span className="text">{last ? `${combatLogTime(last)} ${combatLogText(last)}` : 'Nothing yet this fight.'}</span><span className="more">All {entries.length}</span><span className="chevron" aria-hidden="true" />
       </button>
       <ol className="ticker-list" id="combat-history" aria-label="Combat history" hidden={!open}>{[...entries].reverse().map((entry) => <li key={entry.id}><time>{combatLogTime(entry)}</time><span>{combatLogText(entry)}</span></li>)}</ol>
     </div>
