@@ -50,15 +50,23 @@ function aimedNotice(state: CombatState, declarer: Combatant): SlotNotice | null
 type NoticeInputs = { state: CombatState; declarer: Combatant; refusal: string | null; evading: boolean; down: boolean; reach: string | null }
 
 /** Everything the Declare window has to say, most pressing first, for its one notice line. */
+const EVASIVE = 'No attack this round: declare Full Defense against one person.'
+const GROUNDED = 'Nobody they can attack from the ground: declare Full Defense against one person.'
+
+/** Why this declarer may only guard: they moved evasively, or failing that, they are on the ground. */
+function positionNotice(declarer: Combatant, evading: boolean, down: boolean): SlotNotice | null {
+  if (evading) return { key: 'evading', tone: 'cool', role: 'status', body: <><b>{declarer.name} moved evasively.</b> {EVASIVE}</>, words: `${declarer.name} moved evasively. ${EVASIVE}` }
+  if (down) return { key: 'down', tone: 'cool', role: 'status', body: <><b>{declarer.name} is on the ground.</b> {GROUNDED}</>, words: `${declarer.name} is on the ground. ${GROUNDED}` }
+  return null
+}
+
+const REJECTED = 'The GM rejected your declaration. Choose again.'
+
 function declareNotices({ state, declarer, refusal, evading, down, reach }: NoticeInputs): SlotNotice[] {
-  const rejected = 'The GM rejected your declaration. Choose again.'
-  const evasive = 'No attack this round: declare Full Defense against one person.'
-  const grounded = 'Nobody they can attack from the ground: declare Full Defense against one person.'
   const notices: (SlotNotice | null)[] = [
     refusal ? { key: 'refusal', tone: 'hot', role: 'alert', body: refusal, words: refusal } : null,
-    declarer.declarationRejected ? { key: 'rejected', tone: 'hot', role: 'status', body: rejected, words: rejected } : null,
-    evading ? { key: 'evading', tone: 'cool', role: 'status', body: <><b>{declarer.name} moved evasively.</b> {evasive}</>, words: `${declarer.name} moved evasively. ${evasive}` } : null,
-    down && !evading ? { key: 'down', tone: 'cool', role: 'status', body: <><b>{declarer.name} is on the ground.</b> {grounded}</>, words: `${declarer.name} is on the ground. ${grounded}` } : null,
+    declarer.declarationRejected ? { key: 'rejected', tone: 'hot', role: 'status', body: REJECTED, words: REJECTED } : null,
+    positionNotice(declarer, evading, down),
     aimedNotice(state, declarer),
     reach ? { key: 'reach', tone: 'cool', role: 'status', body: reach, words: reach } : null,
   ]

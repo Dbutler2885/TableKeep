@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { LubecEffect, LubecEffectStep } from './effects'
-import { lubecEffectTrigger, lubecWoundCards, type LubecWoundCardContext, type LubecWoundRolled } from './woundCards'
+import { lubecEffectTrigger, lubecWoundCards, lubecWoundRoundTrigger, type LubecWoundCardContext, type LubecWoundRolled } from './woundCards'
 import type { LubecWoundNow } from './woundTables/outcome'
 
 // The words a stage-losing card shows, and the line under each card naming
@@ -92,5 +92,21 @@ describe('what ends a card\'s current step', () => {
     expect(lubecEffectTrigger(card('long-rest'))).toBe('Step down after 1 Long Rest')
     expect(lubecEffectTrigger(card('whenever'))).toBeNull()
     expect(lubecEffectTrigger({ id: 'c', name: 'Bare', cause: 'test', steps: [] })).toBeNull()
+  })
+})
+
+describe('the round a wound card ends with', () => {
+  const card = (until: string | null, extra: Partial<LubecEffect> = {}): LubecEffect =>
+    ({ id: 'w', name: 'Flinch', cause: '', steps: until === null ? [] : [{ modifiers: [], labels: [], until } as LubecEffectStep], ...extra })
+
+  it('names the round a fight window or countdown ends with, and nothing a table already says', () => {
+    expect(lubecWoundRoundTrigger(card('next-round-end', { combatOrigin: { originatingRound: 2 } } as Partial<LubecEffect>))).toBe('Ends with round 3')
+    expect(lubecWoundRoundTrigger(card('rounds', { combatOrigin: { originatingRound: 2 }, countdown: { rounds: 3, fired: false } } as Partial<LubecEffect>))).toBe('Due at the end of round 5')
+    expect(lubecWoundRoundTrigger(card('long-rest'))).toBeNull()
+    expect(lubecWoundRoundTrigger(card(null))).toBeNull()
+  })
+
+  it('says nothing for a card that lists the rounds it takes', () => {
+    expect(lubecWoundRoundTrigger(card('next-round-end', { combatOrigin: { originatingRound: 2 }, lost: { movement: [3], action: [] } } as Partial<LubecEffect>))).toBeNull()
   })
 })

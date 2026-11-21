@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, renderHook } from '@testing-library/react'
-import type { Firestore } from 'firebase/firestore'
+import { act, cleanup, render, renderHook } from '@testing-library/react'
+import { disableNetwork, enableNetwork, type Firestore } from 'firebase/firestore'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { FIRESTORE_HIDDEN_GRACE_MS, useFirestorePausedWhileHidden } from './useFirestorePausedWhileHidden'
+import { FIRESTORE_HIDDEN_GRACE_MS, FirestorePausedWhileHidden, useFirestorePausedWhileHidden } from './useFirestorePausedWhileHidden'
 
 vi.mock('firebase/firestore', () => ({ disableNetwork: vi.fn(), enableNetwork: vi.fn() }))
 
@@ -51,5 +51,14 @@ describe('pausing Firestore while the page is hidden', () => {
     act(() => { vi.advanceTimersByTime(FIRESTORE_HIDDEN_GRACE_MS * 2) })
     expect(calls.disable).not.toHaveBeenCalled()
     expect(calls.enable).not.toHaveBeenCalled()
+  })
+
+  it('is mounted as a component that drives Firestore\'s own network switch', () => {
+    render(<FirestorePausedWhileHidden firestore={firestore} />)
+    show('hidden')
+    act(() => { vi.advanceTimersByTime(FIRESTORE_HIDDEN_GRACE_MS) })
+    expect(disableNetwork).toHaveBeenCalledWith(firestore)
+    show('visible')
+    expect(enableNetwork).toHaveBeenCalledWith(firestore)
   })
 })

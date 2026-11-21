@@ -36,17 +36,26 @@ const grant: CombatHandler = (command, records, authority, entropy) => {
 }
 
 /** Until it rolls, a granted attack can be called off: by the GM, or by whoever controls the attacker. */
+/** The open Sneak Attack a cancel names, still unrolled; refuses anything else with the reason. */
+function cancellable(state: CombatState, attackId: unknown): CombatAttack {
+  const attack = state.attack
+  if (state.phase !== 'before-initiative' || !attack || attack.closed || attack.grantId === null) throw new Error('There is no Sneak Attack to cancel.')
+  if (attackId !== attack.id) throw new Error('That Sneak Attack has already ended.')
+  if (attack.step !== 'aim') throw new Error('That Sneak Attack has already rolled.')
+  return attack
+}
+
+const cancelWords = (actorKey: string | null, name: string): string =>
+  (actorKey === null ? `The GM cancelled ${name}'s Sneak Attack.` : `${name} called off the Sneak Attack.`)
+
+/** The attacker, or the GM acting as the table, calls off a Sneak Attack before it rolls. */
 const withdraw: CombatHandler = (command, records, authority) => {
   const fight = requireLiveContext(command, records, authority)
   const { state } = fight
-  const attack = state.attack
-  if (state.phase !== 'before-initiative' || !attack || attack.closed || attack.grantId === null) throw new Error('There is no Sneak Attack to cancel.')
-  if (command.payload.attackId !== attack.id) throw new Error('That Sneak Attack has already ended.')
-  if (attack.step !== 'aim') throw new Error('That Sneak Attack has already rolled.')
+  const attack = cancellable(state, command.payload.attackId)
   const { actorKey } = command.envelope
   if (actorKey !== null && actorKey !== attack.attackerKey) throw new Error('Only the attacker or the GM can cancel that Sneak Attack.')
-  const attacker = combatantOf(state, attack.attackerKey)
-  const event = actorKey === null ? `The GM cancelled ${attacker.name}'s Sneak Attack.` : `${attacker.name} called off the Sneak Attack.`
+  const event = cancelWords(actorKey, combatantOf(state, attack.attackerKey).name)
   return { fight: { ...fight, state: { ...state, attack: null, pendingActions: [] } }, items: [], logs: [{ event, actor: actorKey }] }
 }
 

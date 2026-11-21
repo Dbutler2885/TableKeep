@@ -51,16 +51,27 @@ const struck = (combatant: Combatant, declaration: CombatDeclaration): boolean =
 
 type RowProps = { state: CombatState; place: number; combatant: Combatant; declaration: CombatDeclaration; mine: readonly string[] }
 
+/** The row's full words, for its tooltip and screen readers: the declaration, then whether it waits or was stopped. */
+function rowTitle(state: CombatState, declaration: CombatDeclaration, pending: boolean, out: boolean, combatant: Combatant): string {
+  return [declarationText(state, declaration), pending ? 'Awaiting GM approval' : '', out ? stoppedWords(combatant) : ''].filter(Boolean).join(' ')
+}
+
+function RowBadges({ pending, out, combatant }: { pending: boolean; out: boolean; combatant: Combatant }) {
+  return <>{pending ? <span className="badge must">GM?</span> : null}{out ? <span className="badge rust">{stoppedWords(combatant)}</span> : null}</>
+}
+
+const rowClass = (own: boolean, atYou: boolean) => `${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`
+
 function DeclaredRow({ state, place, combatant, declaration, mine }: RowProps) {
   const own = mine.includes(combatant.key)
   const atYou = !own && declaredAt(declaration, mine)
   const out = struck(combatant, declaration)
   // DeclarationRow supplies the proposal only when there is no approved declaration.
   const pending = !combatant.declaration
-  const title = [declarationText(state, declaration), pending ? 'Awaiting GM approval' : '', out ? stoppedWords(combatant) : ''].filter(Boolean).join(' ')
+  const title = rowTitle(state, declaration, pending, out, combatant)
   return (
-    <li className={`${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`} title={title}>
-      <div className="dn"><span>{place} {combatant.name}</span><span className="k">{pending ? <span className="badge must">GM?</span> : null}{out ? <span className="badge rust">{stoppedWords(combatant)}</span> : null}<StageLossNotice state={state} combatantKey={combatant.key} chip />{rowTag(own, atYou)}</span></div>
+    <li className={rowClass(own, atYou)} title={title}>
+      <div className="dn"><span>{place} {combatant.name}</span><span className="k"><RowBadges pending={pending} out={out} combatant={combatant} /><StageLossNotice state={state} combatantKey={combatant.key} chip />{rowTag(own, atYou)}</span></div>
       <div className={`txt ${out ? 'stopped' : ''}`}><span className="short">{declarationShort(state, declaration)}</span><DeclarationMini declaration={declaration} /></div>
       <span className="sr-only">{title}</span>
     </li>

@@ -94,12 +94,23 @@ function blockedWords(choice: CombatMovementChoice, down: boolean, limits: Lubec
   return down ? 'Knocked down: Stay down or Stand.' : limits[choice]
 }
 
+type CardProps = { choice: CombatMovementChoice; name: string; words: string; down: boolean; blocked: string | null; checked: boolean; live: boolean; onChoose: (choice: CombatMovementChoice) => void }
+
+/** One Movement choice; someone on the ground sees Stay as Stay down, with no attack. */
+function MoveCard({ choice, name, words, down, blocked, checked, live, onChoose }: CardProps) {
+  const stayingDown = down && choice === 'stay'
+  return (
+    <button type="button" className="mode" role="radio" aria-checked={checked} disabled={!live || blocked !== null} title={blocked ?? undefined} onClick={() => onChoose(choice)}>
+      <b>{stayingDown ? 'Stay down' : name}</b><small>{blocked ?? (stayingDown ? STAY_DOWN_WORDS : words)}</small>
+    </button>
+  )
+}
+
 function MoveCards({ down, shown, live, limits, onChoose }: CardsProps) {
-  const blocked = (choice: CombatMovementChoice) => blockedWords(choice, down, limits)
   return (
     <div className="moves" role="radiogroup" aria-label="Movement">
       {CHOICES.filter(([choice]) => choice !== 'stand' || down).map(([choice, name, words]) => (
-        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{down && choice === 'stay' ? 'Stay down' : name}</b><small>{blocked(choice) ?? (down && choice === 'stay' ? STAY_DOWN_WORDS : words)}</small></button>
+        <MoveCard key={choice} choice={choice} name={name} words={words} down={down} blocked={blockedWords(choice, down, limits)} checked={shown.choice === choice} live={live} onChoose={onChoose} />
       ))}
     </div>
   )

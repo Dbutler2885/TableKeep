@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDismissOnOutside } from '../../common/useDismissOnOutside'
 import { useCombatLogView } from './CombatLogContext'
 import { combatLogText, combatLogTime, type CombatLogEntry } from './combatLog'
 import type { Role } from '../../../types/app'
@@ -61,19 +62,6 @@ export function CombatRollCards() {
 }
 
 /** Closes an open drop-down on Escape or a press anywhere outside it. */
-function useDropDownClose(open: boolean, close: () => void) {
-  const box = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return undefined
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') close() }
-    const onPress = (event: PointerEvent) => { if (!box.current?.contains(event.target as Node)) close() }
-    document.addEventListener('keydown', onKey)
-    document.addEventListener('pointerdown', onPress)
-    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onPress) }
-  }, [open, close])
-  return box
-}
-
 /**
  * The latest entry stays visible at the top of the fight; the whole immutable log drops down over the window, newest
  * first, scrolling on its own. It stops short of a roll still revealing.
@@ -81,7 +69,9 @@ function useDropDownClose(open: boolean, close: () => void) {
 export function CombatTicker() {
   const entries = revealedEntries(useCombatLogView())
   const [open, setOpen] = useState(false)
-  const box = useDropDownClose(open, () => setOpen(false))
+  const box = useRef<HTMLDivElement>(null)
+  const close = useCallback(() => setOpen(false), [])
+  useDismissOnOutside(box, open, close)
   const last = entries.at(-1)
   return (
     <div className="ctick" ref={box} data-open={open ? 'open' : undefined}>

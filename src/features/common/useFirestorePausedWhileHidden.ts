@@ -33,3 +33,9 @@ export function useFirestorePausedWhileHidden(firestore: Firestore, network: Net
     return () => window.clearTimeout(timer)
   }, [visible, firestore, network])
 }
+
+/** Mounted once beside the app, so the pause covers every page, signed in or not. */
+export function FirestorePausedWhileHidden({ firestore }: { firestore: Firestore }) {
+  useFirestorePausedWhileHidden(firestore)
+  return null
+}
