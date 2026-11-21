@@ -336,6 +336,32 @@ describe('impact maths', () => {
   })
 })
 
+describe('the GM\'s call on a roll', () => {
+  const slash = { targetKey: ROY, weaponItemId: 'knife', attackId: 'slash', defense: null }
+  const called = (mode: unknown, die: number[], records = fight()) => {
+    let current = act(records, { type: 'grant', combatantKey: HERO }).records
+    current = act(current, { type: 'aim', actor: HERO, by: player, aim: slash }).records
+    return act(current, { type: 'roll', actor: HERO, by: player, aim: slash, called: mode, dice: { attack: die, landing: 40, side: 3 } })
+  }
+
+  it('rolls two dice and keeps the better when the roller picks the GM\'s Advantage', () => {
+    const attack = called('advantage', [90, 12]).plan.fight.state.attack!
+    expect(attack.roll).toMatchObject({ roll: 12, hit: true, dice: [90, 12], mode: 'advantage', because: "Advantage from GM's call" })
+  })
+
+  it('cancels against a card\'s Disadvantage rather than stacking', () => {
+    const ribs = { id: 'card', name: 'Broken rib(s)', cause: '', part: 'Ribs', steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls: [{ scope: 'physical', mode: 'disadvantage' }] }] }
+    const hurt = { ...hero(), sheet: { ...hero().sheet, effects: [ribs as never] } }
+    const attack = called('advantage', [12], fight([hurt, roy()])).plan.fight.state.attack!
+    expect(attack.roll).toMatchObject({ roll: 12 })
+    expect(attack.roll!.dice).toBeUndefined()
+  })
+
+  it('refuses anything but Advantage or Disadvantage', () => {
+    expect(() => called('double', [12])).toThrow('A called mode is Advantage or Disadvantage.')
+  })
+})
+
 describe('card-set modes on combat rolls', () => {
   const card = (rolls: object[]) => ({ id: 'card', name: 'Broken rib(s)', cause: '', part: 'Ribs', steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls }] })
   const withCard = (sheet: CombatSheet, rolls: object[]): CombatSheet => ({ ...sheet, sheet: { ...sheet.sheet, effects: [card(rolls) as never] } })

@@ -7,7 +7,7 @@ import { combatInputModifiers } from './inputModifiers'
 import { requireChooseAgain } from './chooseAgain'
 import { isRoundAttack } from './roundAttacks'
 import type { CombatAim, CombatAttack, CombatCommand, Combatant, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
-import { requirePostureAllows } from './posture'
+import { combatMayKick, requirePostureAllows } from './posture'
 
 const isText = (value: unknown): value is string => typeof value === 'string' && value.length > 0
 
@@ -63,10 +63,10 @@ export function freeze(record: CombatSheet, aim: CombatAim, reading: CombatAttac
 const sameUse = (before: CombatAim | null | undefined, after: CombatAim) =>
   before?.targetKey === after.targetKey && before.weaponItemId === after.weaponItemId && before.attackId === after.attackId
 
-export function readingFor(record: CombatSheet, aim: CombatAim, fight: CombatFight, fightId: string): CombatAttackReading {
+export function readingFor(record: CombatSheet, aim: CombatAim, fight: CombatFight, fightId: string, mayKick: boolean): CombatAttackReading {
   const modifiers = combatInputModifiers(record.sheet, { fightId, round: fight.state.round })
-  const reading = combatAttackReading(record.sheet, modifiers, aim.weaponItemId, aim.attackId)
-  if (!reading) throw new Error('That weapon cannot make that attack now. Choose again.')
+  const reading = combatAttackReading(record.sheet, modifiers, aim.weaponItemId, aim.attackId, mayKick)
+  if (!reading) throw new Error(aim.attackId === 'kick' && !mayKick ? 'Kicking takes Scrapping or Boxing, or a target on the ground.' : 'That weapon cannot make that attack now. Choose again.')
   return reading
 }
 
@@ -87,10 +87,10 @@ function requestedAim(state: CombatState, attack: CombatAttack, attacker: Combat
 }
 
 /** Fresh numbers from the sheet; in a round only what has gone may change, and the declared split stays with the new use. */
-function frozenAim(fight: CombatFight, attack: CombatAttack, record: CombatSheet, next: CombatAim, fightId: string): CombatFrozenAim {
+function frozenAim(fight: CombatFight, attack: CombatAttack, record: CombatSheet, next: CombatAim, fightId: string, mayKick: boolean): CombatFrozenAim {
   const round = isRoundAttack(fight.state, attack)
   if (round) requireChooseAgain(fight.state, attack, record, next)
-  const fresh = freeze(record, next, readingFor(record, next, fight, fightId))
+  const fresh = freeze(record, next, readingFor(record, next, fight, fightId, mayKick))
   return round ? { ...attack.frozen!, choice: fresh.choice, weaponName: fresh.weaponName, ranges: fresh.ranges } : fresh
 }
 
@@ -104,7 +104,8 @@ const aim: CombatHandler = (command, records, authority) => {
   const record = combatSheetOf(records, attacker)
   const repair = attackRepair(attacker, record)
   if (repair) return repairPlan(fight, attack, attacker, repair)
-  const frozen = frozenAim(fight, attack, record!, next, command.envelope.fightId)
+  const mayKick = combatMayKick(records, fight.state, record!.sheet, next.targetKey, { fightId: command.envelope.fightId, round: fight.state.round })
+  const frozen = frozenAim(fight, attack, record!, next, command.envelope.fightId, mayKick)
   const range = sameUse(attack.aim, next) ? attack.range ?? null : null
   return { fight: withAttack(fight, { ...attack, aim: next, frozen, range, repair: null }), items: [], logs: [] }
 }

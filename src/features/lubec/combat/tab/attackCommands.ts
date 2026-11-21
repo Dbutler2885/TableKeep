@@ -3,6 +3,7 @@ import type { LubecRangeBand } from '../../../ruleSets/lubec/gear/gearRecord'
 import { actorEnvelope, attackCommandKey, gmEnvelope } from '../combatEnvelopes'
 import type { LubecLiveFight } from '../combatWatch'
 import { createCombatCommand } from '../commandJournal'
+import type { CombatCalled } from '../engine/combatModes'
 import type { CombatAim, CombatCommand, CombatMovementChoice, CombatPickupClaim } from '../engine/types'
 import type { CombatSend } from '../useLubecCombatSend'
 
@@ -14,16 +15,16 @@ export type AttackCommands = {
   /** Call off a granted Sneak Attack before it rolls; null sends it as the GM. */
   withdraw: (actorKey: string | null, attackId: string) => AttackAct
   aim: (actorKey: string, aim: CombatAim) => AttackAct
-  roll: (actorKey: string, aim: CombatAim) => AttackAct
+  roll: (actorKey: string, aim: CombatAim, called?: CombatCalled | null) => AttackAct
   range: (band: LubecRangeBand, modifier: number | null) => AttackAct
   split: (actorKey: string, split: { amount: number; full: boolean }) => AttackAct
-  defend: (actorKey: string, split: { amount: number; full: boolean }) => AttackAct
+  defend: (actorKey: string, split: { amount: number; full: boolean }, called?: CombatCalled | null) => AttackAct
   catchRoll: (actorKey: string) => AttackAct
   land: (actorKey: string, part: string) => AttackAct
-  strength: (actorKey: string) => AttackAct
-  check: (actorKey: string) => AttackAct
+  strength: (actorKey: string, called?: CombatCalled | null) => AttackAct
+  check: (actorKey: string, called?: CombatCalled | null) => AttackAct
   begin: () => AttackAct
-  initiative: (actorKey: string) => AttackAct
+  initiative: (actorKey: string, called?: CombatCalled | null) => AttackAct
   npcInitiative: () => AttackAct
   move: (actorKey: string, movement: MovementPick) => AttackAct
   settleMovement?: () => AttackAct
@@ -48,6 +49,9 @@ export type DeclarePick = { full: false; aim: CombatAim } | { full: true; agains
 
 type Payload = CombatCommand['payload']
 
+/** A roll carries the GM's call only when one was picked, so a plain roll's command is unchanged. */
+const calledOf = (called: CombatCalled | null | undefined) => (called ? { called } : {})
+
 /** The Sneak Attack's commands for this viewer, each resent unchanged until the table answers it. */
 export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send: CombatSend): AttackCommands {
   const act = async (actorKey: string | null, payload: Payload) => {
@@ -59,16 +63,16 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     grant: (combatantKey) => act(null, { type: 'grant', combatantKey }),
     withdraw: (actorKey, attackId) => act(actorKey, { type: 'withdraw', attackId }),
     aim: (actorKey, aim) => act(actorKey, { type: 'aim', aim }),
-    roll: (actorKey, aim) => act(actorKey, { type: 'roll', aim }),
+    roll: (actorKey, aim, called) => act(actorKey, { type: 'roll', aim, ...calledOf(called) }),
     range: (band, modifier) => act(null, { type: 'range', band, ...(modifier === null ? {} : { modifier }) }),
     split: (actorKey, split) => act(actorKey, { type: 'split', split }),
-    defend: (actorKey, split) => act(actorKey, { type: 'defend', split }),
+    defend: (actorKey, split, called) => act(actorKey, { type: 'defend', split, ...calledOf(called) }),
     catchRoll: (actorKey) => act(actorKey, { type: 'catch' }),
     land: (actorKey, part) => act(actorKey, { type: 'land', part }),
-    strength: (actorKey) => act(actorKey, { type: 'strength' }),
-    check: (actorKey) => act(actorKey, { type: 'check' }),
+    strength: (actorKey, called) => act(actorKey, { type: 'strength', ...calledOf(called) }),
+    check: (actorKey, called) => act(actorKey, { type: 'check', ...calledOf(called) }),
     begin: () => act(null, { type: 'begin' }),
-    initiative: (actorKey) => act(actorKey, { type: 'initiative' }),
+    initiative: (actorKey, called) => act(actorKey, { type: 'initiative', ...calledOf(called) }),
     npcInitiative: () => act(null, { type: 'npcInitiative' }),
     move: (actorKey, movement) => act(actorKey, { type: 'move', ...movement }),
     settleMovement: () => act(null, { type: 'settleMovement' }),

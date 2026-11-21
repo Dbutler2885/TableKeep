@@ -121,7 +121,8 @@ afterEach(cleanup)
 
 describe('a declared attack on its turn', () => {
   it('keeps a declared kick selected and rolls it instead of offering an invalid punch', async () => {
-    currentWayne = () => kid('wayne', 'Wayne Gardner', 'wayne-uid', [])
+    // Kicking takes a fighting skill (or a target on the ground), so this Wayne has Scrapping.
+    currentWayne = () => ({ ...kid('wayne', 'Wayne Gardner', 'wayne-uid', []), lubec: { ...kid('wayne', 'Wayne Gardner', 'wayne-uid', []).lubec, skills: { free: 'Scrapping', picked: ['Throwing Arm'] } } })
     mocks.roster.characters = [currentWayne()]
     const kick = { targetKey: ROY, weaponItemId: 'fisticuffs', attackId: 'kick', defense: null }
     const steps: Step[] = [...rolled, { type: 'move', actor: WAYNE, ...stay }, { type: 'npcMovement', choices: { [ROY]: stay } }, { type: 'settleMovement' },

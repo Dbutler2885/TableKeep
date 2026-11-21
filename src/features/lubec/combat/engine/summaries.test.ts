@@ -35,6 +35,15 @@ describe('refreshing public fight summaries', () => {
     expect(plan.logs).toEqual([])
   })
 
+  it('publishes that a fighter is on the ground, and takes it back once they stand', () => {
+    const down = { id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end' as const, restrictions: [{ kind: 'down' as const }] }] }
+    const current = live()
+    const knocked = planCombatCommand(command('refresh'), { ...current, sheets: [roy({ sheet: lubecCharacterSheet({ effects: [down as never] }) })] }, gm).fight
+    expect(knocked.state.combatants[0].prone).toBe(true)
+    const stood = refreshedCombatant(knocked.state.combatants[0], [roy()], knocked.state.phase)
+    expect(stood.prone).toBeUndefined()
+  })
+
   it('refuses when every summary is current, so nothing is written', () => {
     expect(() => planCombatCommand(command('refresh'), live(), gm)).toThrow('Public summaries are current.')
   })

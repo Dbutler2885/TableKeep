@@ -52,9 +52,10 @@ export type CombatAttackReading = {
 export const clampHandle = (value: number): number => Math.max(0, Math.min(100, value))
 
 /** The attack Handle a weapon and use give, or null when the use is not legal now or Handle is a hole. */
-export function combatAttackReading(sheet: LubecCharacterSheet, modifiers: readonly LubecModifier[], weaponItemId: string, attackId: string): CombatAttackReading | null {
+/** `mayKick`: the attacker has a fighting skill or the target is on the ground (see combatMayKick). */
+export function combatAttackReading(sheet: LubecCharacterSheet, modifiers: readonly LubecModifier[], weaponItemId: string, attackId: string, mayKick: boolean): CombatAttackReading | null {
   // A weapon in a hand an active card takes out, or a two-handed one it forbids, has no legal use.
-  const choice = lubecFightAttack(sheet.gear, weaponItemId, combatFightingTraining(sheet), attackId, combatHands(sheet, null))
+  const choice = lubecFightAttack(sheet.gear, weaponItemId, mayKick, attackId, combatHands(sheet, null))
   if (!choice) return null
   const wielder = { strength: lubecCurrentValue(sheet, 'Strength', modifiers), handle: lubecEffectiveHandle(sheet, modifiers) }
   const handle = lubecAttackHandle(wielder, sheet.gear, { weapon: weaponOf(sheet, weaponItemId), hands: attackHands(sheet, weaponItemId) }).total

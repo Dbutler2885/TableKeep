@@ -3,7 +3,7 @@ import type { LubecHands } from '../../ruleSets/lubec/gear/held'
 import { LubecFightWearingContent } from './LubecFightTargetContent'
 import { lubecFightAttacks } from './lubecFightWeapons'
 import { LubecFightHands } from './LubecFightHands'
-import { lubecCombatantFace, lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantHands, lubecCombatantKey, lubecTargetChoices, type LubecFightRequest, type LubecCombatant } from './lubecFightRequest'
+import { lubecCombatantFace, lubecCombatantGear, lubecCombatantHands, lubecCombatantKey, lubecMayKick, lubecTargetChoices, type LubecFightRequest, type LubecCombatant } from './lubecFightRequest'
 import { lubecTargetTiles } from './lubecTargetTiles'
 import './lubecFightWindowContent.css'
 
@@ -72,7 +72,7 @@ function WindowTarget({ request, targets, onTarget, readOnly, targetLocked, targ
 const WEAR_ROWS = 3
 
 function WindowAttacks({ request, onAttack, readOnly, weaponLocked }: WindowProps) {
-  const attacks = lubecFightAttacks(lubecCombatantGear(request.attacker), request.weaponItemId ?? null, lubecCombatantFightingTraining(request.attacker), lubecCombatantHands(request.attacker))
+  const attacks = lubecFightAttacks(lubecCombatantGear(request.attacker), request.weaponItemId ?? null, lubecMayKick(request), lubecCombatantHands(request.attacker))
   return <div>
     <span className="label">Attack</span>
     <div className="modes" role="radiogroup" aria-label="Attack">
@@ -80,7 +80,7 @@ function WindowAttacks({ request, onAttack, readOnly, weaponLocked }: WindowProp
         <b>{attack.name}</b><small>{attackWords(attack)}</small>
       </button>)}
     </div>
-    {!attacks.length ? <p className="note">Choose a weapon or free a hand to use Fisticuffs.</p> : null}
+    {!attacks.length ? <p className="note">Choose a weapon or free a hand to use Fisticuffs. Kicking takes Scrapping or Boxing, or a target on the ground.</p> : null}
   </div>
 }
 

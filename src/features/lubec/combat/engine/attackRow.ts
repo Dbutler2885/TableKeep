@@ -16,6 +16,7 @@ import { requireDue } from './declare'
 import type { CombatAttack, CombatCommand, Combatant, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState, CombatWoundRow } from './types'
 import { checkLog, rollRowCheck } from './woundCheck'
 import { combatHands } from './inputModifiers'
+import { calledSources } from './combatModes'
 
 type Outcome = LubecDodgeballOutcome<LubecDodgeballEffect>
 
@@ -84,7 +85,7 @@ function caughtByRow(attack: CombatAttack, record: CombatSheet, command: CombatC
 
 function checked(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   const row = attack.row!
-  const rolled = rollRowCheck(record, row, command.envelope.fightId, fight.state.round, entropy)
+  const rolled = rollRowCheck(record, row, command.envelope.fightId, fight.state.round, entropy, calledSources(command.payload))
   const located = rowOf(attack).resolution as Extract<LubecLocatedDodgeballRow['resolution'], { kind: 'check' }>
   const outcome = rolled.success ? located.success : located.failure
   const held = outcome.caught ? caughtByRow(attack, record, command) : { attack, sheets: [] }

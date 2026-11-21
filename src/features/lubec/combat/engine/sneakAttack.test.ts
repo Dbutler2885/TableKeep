@@ -286,15 +286,17 @@ describe('a missing input at an owned step', () => {
 describe('reading an attack from a sheet', () => {
   const kickSheet = (picked: string[]) => lubecCharacterSheet({ skills: { free: 'Athletics', picked }, gear: parseLubecGear({ items: [inHand('a', 'Radio', 0, { kind: 'thing' }), inHand('b', 'Radio', 1, { kind: 'thing' })] }) })
 
-  it('lets only a trained fighter Kick with both hands full, adding the fighting skill', () => {
-    expect(combatAttackReading(kickSheet([]), [], 'fisticuffs', 'kick')).toBeNull()
-    expect(combatAttackReading(kickSheet(['Scrapping']), [], 'fisticuffs', 'kick')).toMatchObject({ choice: { id: 'kick' }, skill: { name: 'Scrapping', bonus: 10 } })
-    expect(combatAttackReading(kickSheet(['Scrapping']), [], 'fisticuffs', 'punch')).toBeNull()
+  it('lets only someone who may kick Kick with both hands full, adding the fighting skill', () => {
+    expect(combatAttackReading(kickSheet([]), [], 'fisticuffs', 'kick', false)).toBeNull()
+    // An untrained fighter may kick a target on the ground; the caller says so.
+    expect(combatAttackReading(kickSheet([]), [], 'fisticuffs', 'kick', true)).toMatchObject({ choice: { id: 'kick' }, skill: null })
+    expect(combatAttackReading(kickSheet(['Scrapping']), [], 'fisticuffs', 'kick', true)).toMatchObject({ choice: { id: 'kick' }, skill: { name: 'Scrapping', bonus: 10 } })
+    expect(combatAttackReading(kickSheet(['Scrapping']), [], 'fisticuffs', 'punch', true)).toBeNull()
   })
 
   it('reads nothing while the attack Handle is a hole, and adds no skill the sheet lacks', () => {
     const heavy = lubecCharacterSheet({ base: { ...lubecCharacterSheet().base, Strength: null }, gear: parseLubecGear({ items: [inHand('rock', 'Rock', 0, { mode: 'thrown', minStrength: 40 })] }) })
-    expect(combatAttackReading(heavy, [], 'rock', 'throw')).toBeNull()
+    expect(combatAttackReading(heavy, [], 'rock', 'throw', false)).toBeNull()
     expect(combatAttackSkill(lubecCharacterSheet(), 'shooting')).toBeNull()
   })
 })

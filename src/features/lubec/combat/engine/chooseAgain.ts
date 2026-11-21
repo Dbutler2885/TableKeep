@@ -2,16 +2,15 @@ import { lubecPlaceDetached, lubecTakeDetached } from '../../../ruleSets/lubec/g
 import { lubecNoHandWhy } from '../../../ruleSets/lubec/gear/placement'
 import { lubecFightAttack } from '../../fight/lubecFightWeapons'
 import { closeAttack } from './attackFlow'
-import { combatFightingTraining } from './attackMath'
 import { attackAt, attackRepair, combatantOf, combatSheetOf } from './attackParty'
 import { requireLiveContext } from './context'
 import { isRoundAttack } from './roundAttacks'
 import { combatHands, type CombatInputRound } from './inputModifiers'
 import type { CombatAim, CombatAttack, CombatCommand, CombatFight, CombatHandler, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
 
-/** The weapon and its use are still in a usable hand and still legal for this sheet. */
+/** The weapon and its use are still in a usable hand. Whether this attacker may kick was settled when the attack was aimed. */
 export const weaponInHand = (record: CombatSheet, aim: Pick<CombatAim, 'weaponItemId' | 'attackId'>, context: CombatInputRound | null = null): boolean =>
-  Boolean(lubecFightAttack(record.sheet.gear, aim.weaponItemId, combatFightingTraining(record.sheet), aim.attackId, combatHands(record.sheet, context)))
+  Boolean(lubecFightAttack(record.sheet.gear, aim.weaponItemId, true, aim.attackId, combatHands(record.sheet, context)))
 
 /** What has gone since Declare: the target Out, or the weapon out of hand or out of use. */
 export const goneSinceDeclare = (state: CombatState, attack: CombatAttack, record: CombatSheet) =>

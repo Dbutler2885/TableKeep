@@ -17,6 +17,8 @@ import { combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCheckRoll, CombatCommand, CombatFight, CombatPlan, CombatSheet, CombatState, CombatWoundRow } from './types'
 import { lubecLanded, lubecLandingRolls, lubecRollAmounts, lubecWoundSections } from './woundLanding'
 import { checkLog, checkTarget, landingCheckMode, rollCheck, rollRowCheck } from './woundCheck'
+import type { LubecModeSource } from '../../../ruleSets/lubec/rollModes'
+import { calledSources } from './combatModes'
 
 // Blunt Force, Gunshot, Piercing, Cutting, Thrown Objects and Fisticuffs: the located tables.
 // A final row lands as Effect cards after the Saves and Checks it asks the target for; a
@@ -267,12 +269,12 @@ export function readTableRow(fight: CombatFight, attack: CombatAttack, entropy: 
  * Every landing roll a final row asks for, in order, against the target's sheet as it stands, before this wound;
  * a missed fist catch stops there, and an empty struck hand has nothing to keep hold of.
  */
-function rollLanding(record: CombatSheet, row: CombatWoundRow, part: string, fightId: string, round: number, entropy: CombatEntropy): CombatCheckRoll[] {
+function rollLanding(record: CombatSheet, row: CombatWoundRow, part: string, fightId: string, round: number, entropy: CombatEntropy, called: LubecModeSource[]): CombatCheckRoll[] {
   const modifiers = combatInputModifiers(record.sheet, { fightId, round })
   const checks: CombatCheckRoll[] = []
   for (const spec of row.rolls ?? []) {
     if (emptyRetention(spec.purpose, record, part)) continue
-    const rolled = rollLandingCheck(record, spec, row.name, { fightId, round }, modifiers, entropy)
+    const rolled = rollLandingCheck(record, spec, row.name, { fightId, round }, modifiers, entropy, called)
     checks.push(rolled)
     if (spec.purpose === 'fist-catch' && !rolled.success) break
   }
@@ -282,9 +284,9 @@ function rollLanding(record: CombatSheet, row: CombatWoundRow, part: string, fig
 const emptyRetention = (purpose: string, record: CombatSheet, part: string) =>
   purpose === 'retention' && !lubecHeldIn(record.sheet.gear, lubecStruckHand(part))
 
-function rollLandingCheck(record: CombatSheet, spec: NonNullable<CombatWoundRow['rolls']>[number], name: string, context: { fightId: string; round: number }, modifiers: ReturnType<typeof combatInputModifiers>, entropy: CombatEntropy): CombatCheckRoll {
+function rollLandingCheck(record: CombatSheet, spec: NonNullable<CombatWoundRow['rolls']>[number], name: string, context: { fightId: string; round: number }, modifiers: ReturnType<typeof combatInputModifiers>, entropy: CombatEntropy, called: LubecModeSource[]): CombatCheckRoll {
   const { purpose, ...check } = spec
-  const mode = landingCheckMode(record, check, name, context)
+  const mode = landingCheckMode(record, check, name, context, called)
   const rolled = rollCheck(record, { ...check, advantage: mode.mode }, checkTarget(record, check.against, modifiers), entropy, mode.because)
   // A missed fist catch is "no effect, no wound and no Stress from this Check".
   return { ...rolled, purpose, ...(purpose === 'fist-catch' ? { stress: 0 } : {}) }
@@ -300,11 +302,11 @@ function landingLogs(fight: CombatFight, attack: CombatAttack, checks: readonly 
 /** The target's Saves and Checks pick the row's version; failing a Save adds its Stress too. */
 export function tableChecked(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   if (attack.row!.final) {
-    const checks = rollLanding(record, attack.row!, attack.landing!.part!, command.envelope.fightId, fight.state.round, entropy)
+    const checks = rollLanding(record, attack.row!, attack.landing!.part!, command.envelope.fightId, fight.state.round, entropy, calledSources(command.payload))
     const state = applyFinal(fight.state, { ...attack, repair: null }, checks, entropy, record.sheet.gear)
     return { fight: { ...fight, state }, items: [], logs: landingLogs(fight, attack, checks, record, command.envelope.fightId) }
   }
-  const rolled = rollRowCheck(record, attack.row!, command.envelope.fightId, fight.state.round, entropy)
+  const rolled = rollRowCheck(record, attack.row!, command.envelope.fightId, fight.state.round, entropy, calledSources(command.payload))
   const applied = appliedRow(attack.row!, locatedOf(attack), rolled.success)
   const state = applyProvisional(fight.state, { ...attack, check: rolled, repair: null }, applied, rolled.stress, entropy)
   return { fight: { ...fight, state }, items: [], logs: landingLogs(fight, attack, [rolled], record, command.envelope.fightId) }

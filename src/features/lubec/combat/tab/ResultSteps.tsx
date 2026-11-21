@@ -107,7 +107,7 @@ function DefenseSplit({ state, attack, controls, pool }: SplitProps) {
   const act = useAct()
   const defender = attack.aim!.targetKey
   useSplitSync(attack, split, useCallback((next) => controls.commands.split(defender, next), [controls.commands, defender]))
-  const roll = <SegmentRoll at={half(value)} label={value ? 'Roll Defense' : 'No Defense'} disabled={act.busy} onRoll={() => act.run(() => controls.commands.defend(defender, split))} />
+  const roll = <SegmentRoll at={half(value)} label={value ? 'Roll Defense' : 'No Defense'} call={value > 0} disabled={act.busy} onRoll={(called) => act.run(() => controls.commands.defend(defender, split, called))} />
   return (
     <>
       <Refusal refusal={act.refusal} />
@@ -175,7 +175,7 @@ function RollDeclared({ props, line }: { props: StepProps & { controls: StepCont
   const value = declaredValue(line)
   return (
     <>
-      <SegmentRoll at={half(value)} label="Roll Defense" disabled={act.busy} onRoll={() => act.run(() => props.controls.commands.defend(defender, { amount: line.amount, full: line.full }))} />
+      <SegmentRoll at={half(value)} label="Roll Defense" call disabled={act.busy} onRoll={(called) => act.run(() => props.controls.commands.defend(defender, { amount: line.amount, full: line.full }, called))} />
       <Refusal refusal={act.refusal} />
     </>
   )
@@ -312,7 +312,7 @@ function StrengthControl({ at, ...props }: StepProps & { at: number }) {
   const act = useAct()
   const attacker = props.attack.attackerKey
   if (!working(props, attacker)) return <Waiting state={props.state} controls={props.controls} owner={attacker} what="Strength" />
-  return <><SegmentRoll at={at} label="Roll Strength" disabled={act.busy} onRoll={() => act.run(() => props.controls.commands.strength(attacker))} /><Refusal refusal={act.refusal} /></>
+  return <><SegmentRoll at={at} label="Roll Strength" call disabled={act.busy} onRoll={(called) => act.run(() => props.controls.commands.strength(attacker, called))} /><Refusal refusal={act.refusal} /></>
 }
 
 /** Current Strength, from the roll once made, or from the attacker's sheet as this viewer reads it. */
@@ -373,7 +373,7 @@ function CheckControl({ at, ...props }: StepProps & { at: number }) {
   const target = props.attack.aim!.targetKey
   const what = props.attack.row!.check!.kind === 'save' ? 'Save' : 'Check'
   if (!working(props, target)) return <WaitWords state={props.state} owner={target} what={what} />
-  return <><SegmentRoll at={at} label={`Roll ${what}`} disabled={act.busy} onRoll={() => act.run(() => props.controls.commands.check(target))} /><Refusal refusal={act.refusal} /></>
+  return <><SegmentRoll at={at} label={`Roll ${what}`} call disabled={act.busy} onRoll={(called) => act.run(() => props.controls.commands.check(target, called))} /><Refusal refusal={act.refusal} /></>
 }
 
 function CheckBar(props: StepProps) {

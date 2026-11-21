@@ -7,7 +7,7 @@ import { lubecFightAttack } from '../../fight/lubecFightWeapons'
 import { combatFightingTraining } from '../engine/attackMath'
 import { evasionFor } from '../engine/evasion'
 import { isRoundAttack } from '../engine/roundAttacks'
-import { combatPosture, postureAllowsAttack } from '../engine/posture'
+import { combatPosture, postureAllowsAttack, type CombatPosture } from '../engine/posture'
 import type { CombatAim, CombatAttack, CombatAttackRange, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, completeAim, sameAim, type AttackDraft, type AttackSegments } from './attackDraft'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
@@ -21,15 +21,15 @@ export const heldAim = (attack: CombatAttack, aim: CombatAim | null): boolean =>
 const frozenReading = (frozen: CombatFrozenAim): AttackReading =>
   ({ handle: frozen.handle, skill: frozen.skill, total: frozen.total, ranged: frozen.choice.ranged === true })
 
-function sheetReading(sheet: LubecCharacterSheet, aim: CombatAim, context: { fightId: string; round: number }): AttackReading | null {
-  const reading = combatAttackReading(sheet, combatInputModifiers(sheet, context), aim.weaponItemId, aim.attackId)
+function sheetReading(sheet: LubecCharacterSheet, aim: CombatAim, context: { fightId: string; round: number }, mayKick: boolean): AttackReading | null {
+  const reading = combatAttackReading(sheet, combatInputModifiers(sheet, context), aim.weaponItemId, aim.attackId, mayKick)
   return reading && { handle: reading.handle, skill: reading.skill, total: reading.total, ranged: reading.choice.ranged === true }
 }
 
 /** The frozen numbers once the table holds this exact aim; until then the same reading from the sheet in hand. */
-export function windowReading(attack: CombatAttack, aim: CombatAim | null, sheet: LubecCharacterSheet, context: { fightId: string; round: number }): AttackReading | null {
+export function windowReading(attack: CombatAttack, aim: CombatAim | null, sheet: LubecCharacterSheet, context: { fightId: string; round: number }, mayKick: boolean): AttackReading | null {
   if (!aim) return null
-  return heldAim(attack, aim) ? frozenReading(attack.frozen!) : sheetReading(sheet, aim, context)
+  return heldAim(attack, aim) ? frozenReading(attack.frozen!) : sheetReading(sheet, aim, context, mayKick)
 }
 
 /** A throw or shot rolls only once the GM has ranged the very aim the table holds. */
@@ -63,20 +63,27 @@ export type AttackWindowModel = {
   opponents: Combatant[]
   targets: LubecCombatant[]
   target: LubecCombatant | null
+  /** The chosen target is on the ground, which lets anyone kick. */
+  targetDown: boolean
   /** The out-of-reach reminder for this melee aim, or null. */
   reach: string | null
 }
 
 const readable = (entry: LubecCombatant | null): entry is LubecCombatant => entry !== null
 
-/** The opponents this attacker can attack from their posture and the target's; Defense still names any opponent. */
-export function postureTargets(targets: readonly LubecCombatant[], sheet: LubecCharacterSheet, context: { fightId: string; round: number }): LubecCombatant[] {
-  const mine = combatPosture(sheet, context)
-  return targets.filter((target) => {
-    const theirs = lubecCombatantRecord(target)?.lubec
-    return !theirs || postureAllowsAttack(mine, combatPosture(theirs, context))
-  })
+/** A target's posture: from their sheet when this viewer reads it, otherwise from what the fight publishes. */
+function targetPosture(state: CombatState, target: LubecCombatant, context: { fightId: string; round: number }): CombatPosture {
+  const theirs = lubecCombatantRecord(target)?.lubec
+  if (theirs) return combatPosture(theirs, context)
+  return state.combatants.find((entry) => entry.key === lubecCombatantKey(target))?.prone ? 'prone' : 'standing'
 }
+
+/** The opponents this attacker can attack from their posture and the target's; Defense still names any opponent. */
+export function postureTargets(state: CombatState, targets: readonly LubecCombatant[], sheet: LubecCharacterSheet, context: { fightId: string; round: number }): LubecCombatant[] {
+  const mine = combatPosture(sheet, context)
+  return targets.filter((target) => postureAllowsAttack(mine, targetPosture(state, target, context)))
+}
+
 
 const heldRange = (attack: CombatAttack, held: boolean): CombatAttackRange | null => (held ? attack.range ?? null : null)
 
@@ -96,14 +103,16 @@ const windowTarget = (targets: readonly LubecCombatant[], key: string | null): L
 export function attackWindowModel({ state, fightId, attack, attacker, roster, sheet, draft }: AttackWindowInput): AttackWindowModel {
   const aim = completeAim(draft)
   const held = heldAim(attack, aim)
-  const reading = windowReading(attack, aim, sheet, { fightId, round: state.round })
-  const range = heldRange(attack, held)
+  const context = { fightId, round: state.round }
   const opponents = combatOpponents(state, attacker)
-  const targets = postureTargets(opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable), sheet, { fightId, round: state.round })
+  const targets = postureTargets(state, opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable), sheet, context)
   const target = windowTarget(targets, draft.targetKey)
+  const targetDown = target !== null && targetPosture(state, target, context) === 'prone'
+  const reading = windowReading(attack, aim, sheet, context, combatFightingTraining(sheet) || targetDown)
+  const range = heldRange(attack, held)
   const ready = rollReady(attack, aim, reading) && (!isRoundAttack(state, attack) || held)
   const evasion = heldEvasion(state, attack, held)
-  return { aim, held, reading, range, evasion, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range, evasion), reach: reachReminder(state, attacker.key, draft.targetKey, reading) }
+  return { aim, held, reading, range, evasion, opponents, targets, target, targetDown, ready, split: windowSplit(reading, target, draft, range, evasion), reach: reachReminder(state, attacker.key, draft.targetKey, reading) }
 }
 
 /** The attacker's own last hit knocked this target out of striking reach, and this aim is a melee one: a reminder, never a block. */
@@ -128,5 +137,5 @@ export function attackGone(state: CombatState, attack: CombatAttack, sheet: Lube
   if (!isRoundAttack(state, attack)) return NOTHING_GONE
   const aim = attack.aim!
   const target = state.combatants.find((entry) => entry.key === aim.targetKey)!.outReason !== null
-  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, combatFightingTraining(sheet), aim.attackId, lubecHandLimits(sheet.effects)) }
+  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, true, aim.attackId, lubecHandLimits(sheet.effects)) }
 }

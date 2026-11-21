@@ -103,9 +103,9 @@ describe('the window model', () => {
   it('uses the frozen numbers for the aim the table holds and the sheet for a new one', () => {
     expect(heldAim(attack(), aim)).toBe(true)
     expect(heldAim(attack({ frozen: null }), aim)).toBe(false)
-    expect(windowReading(attack(), aim, record().lubec, { fightId: 'f', round: 0 })).toEqual({ handle: 46, skill: null, total: 46, ranged: true })
-    expect(windowReading(attack(), null, record().lubec, { fightId: 'f', round: 0 })).toBeNull()
-    expect(windowReading(attack(), { ...aim, weaponItemId: 'gone' }, record().lubec, { fightId: 'f', round: 0 })).toBeNull()
+    expect(windowReading(attack(), aim, record().lubec, { fightId: 'f', round: 0 }, false)).toEqual({ handle: 46, skill: null, total: 46, ranged: true })
+    expect(windowReading(attack(), null, record().lubec, { fightId: 'f', round: 0 }, false)).toBeNull()
+    expect(windowReading(attack(), { ...aim, weaponItemId: 'gone' }, record().lubec, { fightId: 'f', round: 0 }, false)).toBeNull()
   })
 
   it('makes a throw rollable only once the GM ranged the held aim; a blow up close at once', () => {
@@ -135,6 +135,13 @@ describe('the window model', () => {
     const fresh = attackWindowModel(input(attack({ range: { band: 'short', modifier: 10 } }), { ...aim, targetKey: 'npc:nobody', defense: null }))
     expect(fresh).toMatchObject({ held: false, range: null, target: null })
     expect(attackWindowModel(input(attack(), { ...aim, attackId: null as unknown as string }))).toMatchObject({ aim: null, reading: null, split: null })
+  })
+
+  it('reads a target on the ground from the fight\'s public summary when the viewer has no sheet for them', () => {
+    const fresh = attack({ frozen: null })
+    expect(attackWindowModel(input(fresh)).targetDown).toBe(false)
+    const downed = { ...input(fresh), state: { ...state(fresh), combatants: [wayne, { ...roy, prone: true as const }] } }
+    expect(attackWindowModel(downed).targetDown).toBe(true)
   })
 })
 

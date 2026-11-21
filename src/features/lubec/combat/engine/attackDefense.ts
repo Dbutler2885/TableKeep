@@ -13,7 +13,7 @@ import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { requireDue } from './declare'
 import { checkSplit } from './splitRepair'
-import { combatRollMode, modeRecord, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
+import { calledSources, combatRollMode, modeRecord, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatHands, combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCommand, Combatant, CombatDefenseRoll, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
@@ -94,7 +94,7 @@ function defended(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const defender = combatantOf(fight.state, defenderOf(attack))
   const split = defenseSplit(fight, attack, record, command)
   if (split.amount === 0) return { fight: { ...fight, state: toLocation(fight.state, { ...attack, defense: null }, attack.roll!.quality!, entropy) }, items: [], logs: [{ event: `${defender.name} kept no Defense.`, actor: defender.key }] }
-  const mode = combatRollMode(record, { kind: 'defense', stat: 'Handle' }, { fightId: command.envelope.fightId, round: fight.state.round })
+  const mode = combatRollMode(record, { kind: 'defense', stat: 'Handle' }, { fightId: command.envelope.fightId, round: fight.state.round }, calledSources(command.payload))
   const defense = rollDefense(split, mode, entropy)
   const net = attack.roll!.quality! - defense.removes
   const state = afterDefense(fight.state, { ...attack, defense, net, repair: null }, record, net, entropy)

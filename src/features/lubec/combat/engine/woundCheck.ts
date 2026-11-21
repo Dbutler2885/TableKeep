@@ -7,6 +7,7 @@ import type { CombatEntropy } from './commandEntropy'
 import { combatRollMode, type CombatMode } from './combatModes'
 import { combatInputModifiers, type CombatInputRound } from './inputModifiers'
 import type { CombatCheckRoll, Combatant, CombatSheet, CombatWoundRow } from './types'
+import type { LubecModeSource } from '../../../ruleSets/lubec/rollModes'
 
 /** An ordinary core roll's number: Handle as the sheet caps it, Body as it stands. */
 export function checkTarget(record: CombatSheet, against: 'Handle' | 'Body', modifiers: ReturnType<typeof combatInputModifiers>): number {
@@ -28,8 +29,8 @@ export function rollCheck(record: CombatSheet, check: NonNullable<CombatWoundRow
  * The target's own Check or Save a wound asks for, at the mode its active cards set, with any mode the row itself
  * fixes ("at Disadvantage") as one more source: they cancel and never stack.
  */
-export function landingCheckMode(record: CombatSheet, check: NonNullable<CombatWoundRow['check']>, rowName: string, context: CombatInputRound): CombatMode {
-  const fixed = check.advantage === 'normal' ? [] : [{ id: 'row', name: rowName, mode: check.advantage }]
+export function landingCheckMode(record: CombatSheet, check: NonNullable<CombatWoundRow['check']>, rowName: string, context: CombatInputRound, called: LubecModeSource[] = []): CombatMode {
+  const fixed = [...(check.advantage === 'normal' ? [] : [{ id: 'row', name: rowName, mode: check.advantage }]), ...called]
   return combatRollMode(record, { kind: check.kind === 'save' ? 'save' : 'check', stat: check.against }, context, fixed)
 }
 
@@ -44,8 +45,8 @@ export function checkLog(target: Combatant, row: CombatWoundRow, rolled: CombatC
 }
 
 /** The target rolls the row's Check or Save against their own sheet as it stands this round, at the mode their cards set. */
-export function rollRowCheck(record: CombatSheet, row: CombatWoundRow, fightId: string, round: number, entropy: CombatEntropy): CombatCheckRoll {
+export function rollRowCheck(record: CombatSheet, row: CombatWoundRow, fightId: string, round: number, entropy: CombatEntropy, called: LubecModeSource[] = []): CombatCheckRoll {
   const modifiers = combatInputModifiers(record.sheet, { fightId, round })
-  const mode = landingCheckMode(record, row.check!, row.name, { fightId, round })
+  const mode = landingCheckMode(record, row.check!, row.name, { fightId, round }, called)
   return rollCheck(record, { ...row.check!, advantage: mode.mode }, checkTarget(record, row.check!.against, modifiers), entropy, mode.because)
 }

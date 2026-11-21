@@ -30,6 +30,19 @@ export function combatRollMode(record: CombatSheet | null, request: LubecRollReq
   return { mode, because: lubecModeReason({ mode, sources }) }
 }
 
+/** Advantage or Disadvantage the GM calls at the table, which the roller picks before rolling. */
+export type CombatCalled = 'advantage' | 'disadvantage'
+
+/** The name a called mode goes by in a roll's reason: "Advantage from GM's call". */
+export const CALLED_NAME = "GM's call"
+
+/** The called mode a roll command carries, as one more source beside the cards; none when it carries none. */
+export function calledSources(payload: Readonly<Record<string, unknown>>): LubecModeSource[] {
+  if (payload.called === undefined) return []
+  if (payload.called !== 'advantage' && payload.called !== 'disadvantage') throw new Error('A called mode is Advantage or Disadvantage.')
+  return [{ id: 'called', name: CALLED_NAME, mode: payload.called }]
+}
+
 /** Task-only penalties on this roll's value ("-20 Handle on ranged actions"), from the roller's active cards. */
 export const combatTaskPenalty = (record: CombatSheet | null, actions: readonly LubecRollAction[], context: CombatInputRound | null, stat: string): number =>
   (record ? lubecTaskModifiers(combatActiveEffects(record.sheet, context), { actions }) : []).filter((modifier) => modifier.target === stat).reduce((sum, modifier) => sum + modifier.amount, 0)

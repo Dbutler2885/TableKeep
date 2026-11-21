@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { CombatCalled } from '../engine/combatModes'
 import { sheetPayload } from '../../../character/characterStore/sheetIntentionEdits'
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecHands } from '../../../ruleSets/lubec/gear/held'
@@ -38,14 +39,14 @@ function useAimSync(attack: CombatAttack, aim: CombatAim | null, send: (aim: Com
 /** Roll: persist the aim first if the table does not hold it yet, then roll once. */
 function useRoll(attack: CombatAttack, attacker: Combatant, aim: CombatAim | null, commands: AttackCommands, refuse: Refuse) {
   const [busy, setBusy] = useState(false)
-  const roll = async (next: CombatAim) => {
+  const roll = async (next: CombatAim, called: CombatCalled | null) => {
     setBusy(true)
     const aimed = sameAim(attack.aim, next) ? null : await commands.aim(attacker.key, next)
-    refuse(aimed ?? await commands.roll(attacker.key, next))
+    refuse(aimed ?? await commands.roll(attacker.key, next, called))
     setBusy(false)
   }
   // Roll shows only over a split, which exists only for a complete aim.
-  return { busy, roll: () => void roll(aim!) }
+  return { busy, roll: (called: CombatCalled | null) => void roll(aim!, called) }
 }
 
 type WindowProps = {
@@ -86,7 +87,7 @@ function WindowChoices({ body, draft, setDraft, model }: ChoicesProps) {
   const gone = attackGone(body.state, body.attack, body.sheet)
   return (
     <LubecFightWindowContent
-      request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
+      request={{ attacker: body.fighter, target: model.target, targetDown: model.targetDown, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
       focusTarget targets={orderedTargets(body.state, body.attacker, model.targets, declaredAtAttacker(body.state, body.attacker))} targetNote={targetNote(body.state)} onInventory={body.onInventory}
       targetLocked={declared && !gone.target} weaponLocked={declared && !gone.weapon}
       onTarget={(key) => setDraft({ ...draft, targetKey: key })}
@@ -109,7 +110,7 @@ function WindowRange({ body, model, refuse }: { body: BodyProps; model: AttackWi
   return <RangeRow attack={body.attack} remembered={body.state.lastRanges?.[body.attacker.key]} onDeclare={rangeDeclare(body, refuse)} />
 }
 
-type SplitProps = { model: AttackWindowModel; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; busy: boolean; onRoll: () => void; state: CombatState; declared: boolean }
+type SplitProps = { model: AttackWindowModel; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; busy: boolean; onRoll: (called: CombatCalled | null) => void; state: CombatState; declared: boolean }
 
 /** A Sneak Attack's split moves and names its line here; a declared split is locked as it was declared. */
 function SplitLine({ model, draft, setDraft, state, declared }: Omit<SplitProps, 'busy' | 'onRoll'>) {
@@ -124,7 +125,7 @@ function WindowSplit(props: SplitProps) {
   if (!model.split) return null
   const { segments, reading, target } = model.split
   const moveDefense = declared ? undefined : (amount: number) => setDraft(withDefense(draft, amount, reading.total, draft.targetKey!))
-  const roll = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Roll" disabled={!model.ready || busy} onRoll={onRoll} />
+  const roll = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Roll" call disabled={!model.ready || busy} onRoll={onRoll} />
   return (
     <>
       <AttackAsk target={target} reading={reading} range={model.range} evasion={model.evasion} segments={segments} />

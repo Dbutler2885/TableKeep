@@ -16,9 +16,10 @@ export function refreshedCombatant(combatant: Combatant, sheets: readonly Combat
   const record = sheets.find((sheet) => combatantKey(sheet) === combatant.key)
   if (!record) return combatant
   const { speed, ...summary } = combatPublicSummary(record)
-  // A cleared condition leaves the summary; it must leave the combatant too.
+  // A cleared condition or a successful Stand leaves the summary; it must leave the combatant too.
   const rest = { ...combatant }
   delete rest.condition
+  delete rest.prone
   return { ...rest, ...summary, speed: speedOf(combatant, speed, phase) }
 }
 

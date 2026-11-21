@@ -414,6 +414,15 @@ describe('standing during Movement', () => {
     const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
     expect(who(act(records, { type: 'declare', actor: HERO, by: player, aim }).records, HERO).proposedDeclaration).toMatchObject({ full: false, aim: { targetKey: ROY } })
   })
+  it('an untrained fighter may kick only a target on the ground', () => {
+    const kick = { targetKey: ROY, weaponItemId: 'fisticuffs', attackId: 'kick', defense: null }
+    const standing = declaring()
+    expect(() => act(standing, { type: 'declare', actor: HERO, by: player, aim: kick })).toThrow('Kicking takes Scrapping or Boxing, or a target on the ground.')
+    const down = declaring()
+    const royRecord = down.sheets.find((sheet) => sheet.sheetId === 'roy')!
+    royRecord.sheet = { ...royRecord.sheet, effects: [downEffect] }
+    expect(who(act(down, { type: 'declare', actor: HERO, by: player, aim: kick }).records, HERO).proposedDeclaration).toMatchObject({ full: false, aim: { attackId: 'kick' } })
+  })
   it('a successful Stand clears the card, so the fighter can attack again', () => {
     const records = downMovement()
     const stood = act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [1] }).records

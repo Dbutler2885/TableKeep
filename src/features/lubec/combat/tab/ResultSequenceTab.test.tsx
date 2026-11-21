@@ -325,6 +325,17 @@ describe('the doll, Strength and the wound', () => {
     expect(button('Hit the waist')).toBeTruthy()
   })
 
+  it('lets Wayne pick the GM\'s call beside Roll Strength, and sends it with the roll', async () => {
+    show('player', 'wayne-uid', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'waist' }))
+    const call = screen.getByRole('group', { name: "GM's call" })
+    fireEvent.click(within(call).getByRole('button', { name: 'Advantage' }))
+    expect(within(call).getByRole('button', { name: 'Advantage' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(call).getByRole('button', { name: 'Disadvantage' }))
+    expect(within(call).getByRole('button', { name: 'Advantage' }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(button('Roll Strength'))
+    await waitFor(() => expect(sentOf('strength')[0].payload).toEqual({ type: 'strength', called: 'disadvantage' }))
+  })
+
   it('offers Wayne the Strength roll on its own bar, then shows Impact built from its parts and the pending Dodgeball row', async () => {
     const placed = [...landed(), { type: 'land', actor: WAYNE, part: 'waist' }]
     show('player', 'wayne-uid', fightAfter(...placed))

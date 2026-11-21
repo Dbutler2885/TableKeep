@@ -10,7 +10,7 @@ import { requireDelivered } from './initiative'
 import { withLostActions } from './stages'
 import { combatantKey } from './inputs'
 import { combatInputModifiers } from './inputModifiers'
-import { requirePostureAllows } from './posture'
+import { requirePostureAllows, combatMayKick } from './posture'
 import type { CombatCommand, Combatant, CombatDeclaration, CombatFight, CombatHandler, CombatRecords, CombatSheet, CombatState } from './types'
 
 /** Run's settled cost: the engine records an empty declaration, with no attack and no Defense. */
@@ -74,7 +74,7 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
 /** The pool Full Defense puts on its one line: the chosen weapon's attack Handle, as the window sums it, otherwise Handle itself. */
 function fullPool(fight: CombatFight, record: CombatSheet, raw: unknown, fightId: string): number {
   const { weaponItemId, attackId } = (raw ?? {}) as Record<string, unknown>
-  if (isText(weaponItemId) && isText(attackId)) return readingFor(record, { targetKey: '', weaponItemId, attackId, defense: null }, fight, fightId).total
+  if (isText(weaponItemId) && isText(attackId)) return readingFor(record, { targetKey: '', weaponItemId, attackId, defense: null }, fight, fightId, true).total
   return clampHandle(lubecEffectiveHandle(record.sheet, combatInputModifiers(record.sheet, { fightId, round: fight.state.round }))!)
 }
 
@@ -93,7 +93,8 @@ function attackDeclaration(fight: CombatFight, declarer: Combatant, record: Comb
   const aim = readCombatAim(command.payload.aim)
   requireAimPeople(fight.state, declarer, aim)
   requirePostureAllows(records, fight.state, declarer, aim.targetKey, { fightId: command.envelope.fightId, round: fight.state.round })
-  const frozen = freeze(record, aim, readingFor(record, aim, fight, command.envelope.fightId))
+  const context = { fightId: command.envelope.fightId, round: fight.state.round }
+  const frozen = freeze(record, aim, readingFor(record, aim, fight, command.envelope.fightId, combatMayKick(records, fight.state, record.sheet, aim.targetKey, context)))
   return { ran: false, full: false, aim, frozen, total: frozen.total, lines: aim.defense ? [aim.defense] : [], sourceRevision: frozen.sourceRevision }
 }
 

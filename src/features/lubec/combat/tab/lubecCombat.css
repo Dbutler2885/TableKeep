@@ -184,6 +184,21 @@
 .shell-root[data-theme="lubec"] .lubec-combat .segment-roll { position: absolute; bottom: .4rem; transform: translateX(-50%); padding: .4rem .65rem; color: var(--lubec-cream); background: var(--lubec-rust); border: 1px solid var(--lubec-rust); font: 800 .6rem/1 var(--lubec-type); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
 .shell-root[data-theme="lubec"] .lubec-combat .segment-roll:hover, .shell-root[data-theme="lubec"] .lubec-combat .segment-roll:focus-visible { background: #b44c31; outline: 2px solid var(--lubec-blue); outline-offset: 2px; }
 .shell-root[data-theme="lubec"] .lubec-combat .segment-roll:disabled { cursor: wait; opacity: .65; }
+/* The GM's call beside a Roll button: Advantage or Disadvantage the GM says at the table, on the far side from the button. */
+.shell-root[data-theme="lubec"] .lubec-combat .called-pick { position: absolute; bottom: .4rem; display: flex; align-items: center; gap: .3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .called-pick.left { left: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .called-pick.right { right: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .called-label { color: var(--lubec-muted); font: 800 .5rem/1 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .called { padding: .32rem .5rem; color: var(--lubec-ink); background: var(--lubec-cream); border: 1.5px solid var(--lubec-ink); font: 800 .55rem/1 var(--lubec-type); letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.shell-root[data-theme="lubec"] .lubec-combat .called:focus-visible { outline: 2px solid var(--lubec-blue); outline-offset: 2px; }
+.shell-root[data-theme="lubec"] .lubec-combat .called.advantage[aria-pressed="true"] { color: var(--lubec-cream); background: var(--lubec-blue); border-color: var(--lubec-blue); }
+.shell-root[data-theme="lubec"] .lubec-combat .called.disadvantage[aria-pressed="true"] { color: var(--lubec-cream); background: var(--lubec-rust); border-color: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .called:disabled { cursor: wait; opacity: .65; }
+/* A phone has no room for both on one line: the call takes its own row over the Roll button. */
+@media (max-width: 640px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .roll-controls:has(.called-pick) { height: 4.6rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .called-pick, .shell-root[data-theme="lubec"] .lubec-combat .called-pick.left, .shell-root[data-theme="lubec"] .lubec-combat .called-pick.right { top: 0; bottom: auto; left: 0; right: auto; }
+}
 .shell-root[data-theme="lubec"] .lubec-combat .quality-call { position: absolute; bottom: .4rem; transform: translateX(-50%); color: var(--lubec-success); font: 800 .95rem/1 var(--lubec-type); white-space: nowrap; }
 .shell-root[data-theme="lubec"] .lubec-combat .quality-call .q { margin-inline: .05em 0; font: 700 2.1rem/.9 var(--lubec-condensed); }
 .shell-root[data-theme="lubec"] .lubec-combat .allocation-scale { display: flex; justify-content: space-between; margin-bottom: .3rem; color: var(--lubec-muted); font: 700 .52rem/1 var(--lubec-type); }

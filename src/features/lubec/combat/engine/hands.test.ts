@@ -25,8 +25,8 @@ describe('combat reads the same hand limits', () => {
   it('refuses a forged aim with a two-handed weapon while two-handed actions are impossible', () => {
     const bat = inHand('bat', 'Bat', 0, { size: 2, wounds: ['blunt'] })
     const sheet = record([bat], [restricted('no-two-handed')]).sheet
-    expect(combatAttackReading(sheet, [], 'bat', 'swing')).toBeNull()
-    expect(combatAttackReading(record([bat]).sheet, [], 'bat', 'swing')).not.toBeNull()
+    expect(combatAttackReading(sheet, [], 'bat', 'swing', false)).toBeNull()
+    expect(combatAttackReading(record([bat]).sheet, [], 'bat', 'swing', false)).not.toBeNull()
   })
 
   it('offers no catch when the only free hand is out of use', () => {

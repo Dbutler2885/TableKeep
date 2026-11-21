@@ -18,7 +18,7 @@ import { declaredLine, isRoundAttack } from './roundAttacks'
 import { weaponInHand } from './chooseAgain'
 import { evasionFor } from './evasion'
 import { checkSplit } from './splitRepair'
-import { betterAttack, combatAttackActions, combatRollMode, combatTaskPenalty, modeRecord, rollWithMode } from './combatModes'
+import { betterAttack, calledSources, combatAttackActions, combatRollMode, combatTaskPenalty, modeRecord, rollWithMode } from './combatModes'
 import type { CombatAttack, CombatCommand, Combatant, CombatEvasion, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Spent = { gear: LubecGear | null; detached: LubecDetachedItem[] }
@@ -154,7 +154,7 @@ function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   // A task-only Handle penalty ("-20 Handle on ranged actions") comes off the attack number for an attack that is that action.
   const task = combatTaskPenalty(record, actions, context, 'Handle')
   const attackNumber = adjustedAttackNumber(attack, evasion) + task
-  const mode = combatRollMode(record, { kind: 'attack', stat: 'Handle', actions }, context)
+  const mode = combatRollMode(record, { kind: 'attack', stat: 'Handle', actions }, context, calledSources(command.payload))
   const rolled = rollWithMode(entropy, 'attack', mode.mode, (die) => combatAttackResult(die, attackNumber), betterAttack)
   const result: CombatAttackResult = { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
   return {

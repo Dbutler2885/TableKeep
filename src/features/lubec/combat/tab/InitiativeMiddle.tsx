@@ -23,7 +23,7 @@ const rollPrompt = (combatant: Combatant, named: boolean): string =>
   (named ? `${combatant.name}: roll initiative.` : 'Roll initiative.')
 
 function RollButton({ combatant, commands, act }: { combatant: Combatant; commands: AttackCommands; act: ReturnType<typeof useRun> }) {
-  return <SegmentRoll at={Math.max(8, combatant.speed / 2)} label="Roll" disabled={act.busy} onRoll={() => act.run(() => commands.initiative(combatant.key))} />
+  return <SegmentRoll at={Math.max(8, combatant.speed / 2)} label="Roll" call disabled={act.busy} onRoll={(called) => act.run(() => commands.initiative(combatant.key, called))} />
 }
 
 /** The player's own roll on their Speed bar: d100 under Speed, once. */

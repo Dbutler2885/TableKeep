@@ -2,6 +2,7 @@ import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecor
 import { downCards } from './down'
 import type { CombatInputRound } from './inputModifiers'
 import { combatantOf, combatSheetOf } from './attackParty'
+import { combatFightingTraining } from './attackMath'
 import type { Combatant, CombatRecords, CombatState } from './types'
 
 /** How a fighter is placed: on their feet, or on the ground (knocked down, until a Stand succeeds). */
@@ -37,4 +38,12 @@ export function requirePostureAllows(records: CombatRecords, state: CombatState,
   if (!attackerSheet || !targetSheet) return
   const refusal = postureRefusal({ name: attacker.name, posture: combatPosture(attackerSheet.sheet, context) }, { name: target.name, posture: combatPosture(targetSheet.sheet, context) })
   if (refusal) throw new Error(refusal)
+}
+
+/** Kick takes a fighting skill (Scrapping or Boxing), or a target on the ground, read from the sheets as they are now. */
+export function combatMayKick(records: CombatRecords, state: CombatState, attackerSheet: LubecCharacterSheet, targetKey: string | null, context: CombatInputRound): boolean {
+  if (combatFightingTraining(attackerSheet)) return true
+  const target = targetKey ? state.combatants.find((entry) => entry.key === targetKey) : undefined
+  const targetSheet = target ? combatSheetOf(records, target) : null
+  return Boolean(targetSheet) && combatPosture(targetSheet!.sheet, context) === 'prone'
 }

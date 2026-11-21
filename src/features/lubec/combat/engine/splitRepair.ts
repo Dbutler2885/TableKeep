@@ -20,7 +20,8 @@ export type CombatSplitRepair = { combatantKey: string; pool: number; was: numbe
 
 /** The Handle pool the declaration draws on now: the declared use's sum, or Handle for Full Defense. */
 function poolNow(fight: CombatFight, declaration: CombatDeclaration, record: CombatSheet, fightId: string): number {
-  if (declaration.aim && !declaration.full) return readingFor(record, declaration.aim, fight, fightId).total
+  // The right to kick was settled when the attack was declared; only the pool can change here.
+  if (declaration.aim && !declaration.full) return readingFor(record, declaration.aim, fight, fightId, true).total
   return clampHandle(lubecEffectiveHandle(record.sheet, combatInputModifiers(record.sheet, { fightId, round: fight.state.round }))!)
 }
 

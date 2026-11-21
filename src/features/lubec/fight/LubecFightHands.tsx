@@ -4,7 +4,7 @@ import { lubecCatchRule } from '../gear/catchLabels'
 import { LubecFightPicture } from './LubecFightPicture'
 import { LubecFightCardWords, LubecFightGlyph } from './LubecFightWeaponContent'
 import { lubecFightCells, lubecFightFists, type LubecFightCell } from './lubecFightWeapons'
-import { LUBEC_FISTICUFFS_ID, lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantHands, lubecCombatantWielder, type LubecFightRequest } from './lubecFightRequest'
+import { LUBEC_FISTICUFFS_ID, lubecCombatantGear, lubecCombatantHands, lubecCombatantWielder, lubecMayKick, type LubecFightRequest } from './lubecFightRequest'
 
 type HandsProps = { request: LubecFightRequest; onInventory: (hands: LubecHands) => void; onWeapon: (id: string) => void; readOnly?: boolean; weaponLocked?: boolean }
 type HandOption = { cell: LubecFightCell; hands: LubecHands; weaponId: string | null }
@@ -39,13 +39,13 @@ function HandCard({ option, selected, readOnly, onPick }: { option: HandOption; 
 }
 
 function EmptyHandWords({ cell }: { cell: LubecFightCell }) {
-  return <span><span className="name">{cell.unusable ? 'Out of use' : 'Empty'}</span><small>{cell.unusable ?? 'Unarmed · Punch or kick'}</small></span>
+  return <span><span className="name">{cell.unusable ? 'Out of use' : 'Empty'}</span><small>{cell.unusable ?? 'Unarmed'}</small></span>
 }
 
-/** A trained fighter's existing Kick remains available even when no hand can select unarmed. */
+/** Kick needs no hand, so it stays available with full hands to anyone who may kick. */
 function FullHandsKick({ request, onWeapon, readOnly, weaponLocked }: Omit<HandsProps, 'onInventory'>) {
   const attacker = request.attacker
-  const fists = lubecFightFists(lubecCombatantGear(attacker), lubecCombatantWielder(attacker), lubecCombatantFightingTraining(attacker), lubecCombatantHands(attacker))
+  const fists = lubecFightFists(lubecCombatantGear(attacker), lubecCombatantWielder(attacker), lubecMayKick(request), lubecCombatantHands(attacker))
   if (!fists.offered || lubecFreeHands(lubecCombatantGear(attacker), lubecCombatantHands(attacker)) > 0) return null
   return <button className="btn line small" type="button" disabled={readOnly || weaponLocked} aria-pressed={request.weaponItemId === LUBEC_FISTICUFFS_ID} onClick={() => onWeapon(LUBEC_FISTICUFFS_ID)}>Kick with full hands</button>
 }

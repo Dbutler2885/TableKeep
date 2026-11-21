@@ -8,7 +8,7 @@ import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { requireDue } from './declare'
 import { lubecPartDistances } from './hitLocation'
-import { combatRollMode, modeRecord, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
+import { calledSources, combatRollMode, modeRecord, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { CombatLog, CombatRoll } from './combatFeedback'
 import type { CombatAttack, CombatCommand, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatStrengthRoll } from './types'
@@ -62,7 +62,7 @@ function strengthLog(attacker: string, key: string, rolled: CombatStrengthRoll, 
 function strengthPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   const context = { fightId: command.envelope.fightId, round: fight.state.round }
   const strength = lubecCurrentValue(record.sheet, 'Strength', combatInputModifiers(record.sheet, context))!
-  const rolled = rollStrength(strength, combatRollMode(record, { kind: 'strength-impact', stat: 'Strength' }, context), entropy)
+  const rolled = rollStrength(strength, combatRollMode(record, { kind: 'strength-impact', stat: 'Strength' }, context, calledSources(command.payload)), entropy)
   const finished = finishImpact(fight, { ...attack, strength: rolled, repair: null }, rolled.bonus, entropy)
   const breakdown = valueBreakdownOf(record, 'Strength', strength, context)
   return { fight: finished, items: [], logs: [strengthLog(record.name, attack.attackerKey, rolled, breakdown), ...impactLog(finished, attack.attackerKey)] }

@@ -1,4 +1,5 @@
-import type { KeyboardEvent, PointerEvent, ReactNode } from 'react'
+import { useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
+import type { CombatCalled } from '../engine/combatModes'
 import type { CombatAttackRoll } from '../engine/types'
 import { barPercent, labelPlace, outcomeClass, rollText, type AttackSegments } from './attackDraft'
 
@@ -96,8 +97,35 @@ export function AttackBar({ segments, roll, onDefense, controls }: BarProps) {
 }
 
 /** The Roll button where the prototype puts it, over the middle of the attack. */
-export function SegmentRoll({ at, label, disabled, onRoll }: { at: number; label: string; disabled: boolean; onRoll: () => void }) {
-  return <button className="segment-roll" type="button" style={{ left: `${at}%` }} disabled={disabled} onClick={onRoll}>{label}</button>
+type SegmentRollProps = {
+  at: number
+  label: string
+  disabled: boolean
+  onRoll: (called: CombatCalled | null) => void
+  /** Offer the GM's call: Advantage or Disadvantage the GM says at the table, picked by whoever rolls. */
+  call?: boolean
+}
+
+const CALLS: readonly { mode: CombatCalled; label: string }[] = [{ mode: 'advantage', label: 'Advantage' }, { mode: 'disadvantage', label: 'Disadvantage' }]
+
+/** "GM's call": Advantage or Disadvantage, or neither; pressing the chosen one again takes it off. */
+function CalledPick({ called, onCall, side, disabled }: { called: CombatCalled | null; onCall: (called: CombatCalled | null) => void; side: 'left' | 'right'; disabled: boolean }) {
+  return (
+    <div className={`called-pick ${side}`} role="group" aria-label="GM's call">
+      <span className="called-label">GM&apos;s call</span>
+      {CALLS.map((call) => (
+        <button key={call.mode} type="button" className={`called ${call.mode}`} aria-pressed={called === call.mode} disabled={disabled} onClick={() => onCall(called === call.mode ? null : call.mode)}>{call.label}</button>
+      ))}
+    </div>
+  )
+}
+
+export function SegmentRoll({ at, label, disabled, onRoll, call = false }: SegmentRollProps) {
+  const [called, setCalled] = useState<CombatCalled | null>(null)
+  const button = <button className="segment-roll" type="button" style={{ left: `${at}%` }} disabled={disabled} onClick={() => onRoll(called)}>{label}</button>
+  if (!call) return button
+  // The pick sits on the far side of the bar from the button, so the two never meet.
+  return <>{button}<CalledPick called={called} onCall={setCalled} side={at > 50 ? 'left' : 'right'} disabled={disabled} /></>
 }
 
 /** A hit's quality, called out over the attack. */

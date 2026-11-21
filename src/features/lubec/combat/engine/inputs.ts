@@ -1,5 +1,6 @@
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import { lubecUnconsciousCards } from '../../../ruleSets/lubec/stageRestrictions'
+import { lubecStepRestrictions } from '../../../ruleSets/lubec/effects'
 import { lubecHoles } from '../../../ruleSets/lubec/holes'
 import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
 import { lubecNpcFightSummary } from '../../fight/lubecNpcFightSummary'
@@ -27,12 +28,17 @@ export function combatSetupIssues(selections: CombatantSelection[], sheets: Comb
   })
 }
 
-export type CombatPublicSummary = Pick<Combatant, 'name' | 'portraitPath' | 'armor' | 'unconscious' | 'condition'> & { speed: number | null }
+export type CombatPublicSummary = Pick<Combatant, 'name' | 'portraitPath' | 'armor' | 'unconscious' | 'condition' | 'prone'> & { speed: number | null }
+
+/** Knocked down: an active down card, which a successful Stand or the fight's end removes. Everyone can see it. */
+const onTheGround = (record: CombatSheet): boolean =>
+  record.sheet.effects.some((effect) => effect.afterCombat === undefined && effect.steps[0] !== undefined && lubecStepRestrictions(effect.steps[0]).some((restriction) => restriction.kind === 'down'))
 
 /** What everyone may see of a combatant's sheet: name, face, current Speed, worn armor and the GM's condition, nothing else. */
 export const combatPublicSummary = (record: CombatSheet): CombatPublicSummary => ({
   unconscious: lubecUnconsciousCards(record.sheet.effects).length > 0,
   ...(record.sheet.condition ? { condition: record.sheet.condition } : {}),
+  ...(onTheGround(record) ? { prone: true as const } : {}),
   name: record.name, portraitPath: record.portraitPath,
   speed: lubecCurrentValue(record.sheet, 'Speed', lubecSheetModifiers(record.sheet)),
   armor: lubecNpcFightSummary(record.sheet).armor,

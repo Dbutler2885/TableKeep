@@ -77,7 +77,7 @@ function DeclareChoices({ body, draft, setDraft, model, full }: ChoicesProps) {
     <div className={full ? 'dim' : ''}>
       <LubecFightWindowContent
         focusTarget
-        request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
+        request={{ attacker: body.fighter, target: model.target, targetDown: model.targetDown, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
         targets={orderedTargets(body.state, body.declarer, model.targets, declaredAtAttacker(body.state, body.declarer))} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
         onTarget={(key) => setDraft({ ...draft, targetKey: key })}
         onWeapon={(id) => setDraft(withWeapon(draft, body.sheet, id))}
@@ -166,7 +166,7 @@ const guardedKey = (picked: string | null, draft: AttackDraft): string => picked
 /** The opponents the declarer can attack from their posture, so the window starts on one of them; else every opponent, for Full Defense. */
 function attackableKeys({ state, declarer, sheet, roster }: BodyProps, context: { fightId: string; round: number }): string[] {
   const fighters = combatOpponents(state, declarer).map((entry) => combatFightCombatant(entry, roster)).filter((entry): entry is LubecCombatant => entry !== null)
-  const attackable = postureTargets(fighters, sheet, context).map(lubecCombatantKey)
+  const attackable = postureTargets(state, fighters, sheet, context).map(lubecCombatantKey)
   // With nobody to attack, Full Defense still guards against someone: start on the first opponent.
   return attackable.length ? attackable : combatOpponents(state, declarer).map((entry) => entry.key)
 }

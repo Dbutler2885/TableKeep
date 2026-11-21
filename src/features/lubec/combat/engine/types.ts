@@ -55,6 +55,8 @@ export type Combatant = CombatantSelection & {
   unconscious?: boolean
   /** The GM's Comatose or Dead condition, published from the sheet; absent for none. */
   condition?: LubecCondition
+  /** On the ground (knocked down), published from the sheet's down card; absent when standing. */
+  prone?: true
   key: string
   ownerUserId: string
   name: string

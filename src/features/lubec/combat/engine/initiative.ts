@@ -7,9 +7,10 @@ import { withMovementRequests } from './movement'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { combatantKey } from './inputs'
-import { betterInitiative, combatRollMode, modeRecord, rollWithMode } from './combatModes'
+import { betterInitiative, calledSources, combatRollMode, modeRecord, rollWithMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { Combatant, CombatCommand, CombatFight, CombatHandler, CombatInitiative, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
+import type { LubecModeSource } from '../../../ruleSets/lubec/rollModes'
 
 const inFight = (state: CombatState): Combatant[] => state.combatants.filter((entry) => entry.outReason === null)
 const unrolled = (state: CombatState): Combatant[] => inFight(state).filter((entry) => !entry.initiative)
@@ -48,8 +49,8 @@ function speedOf(state: CombatState, record: CombatSheet, fightId: string): numb
  * d100 strictly under Speed, frozen with the sheet revision it was read from. Initiative is a Speed Check, so a
  * card's Speed or Physical mode rolls two dice, kept by the order above; it is rolled once a fight.
  */
-function rollInitiative(speed: number, record: CombatSheet, fightId: string, entropy: CombatEntropy): CombatInitiative {
-  const mode = combatRollMode(record, { kind: 'initiative', stat: 'Speed' }, { fightId, round: 1 })
+function rollInitiative(speed: number, record: CombatSheet, fightId: string, entropy: CombatEntropy, called: LubecModeSource[]): CombatInitiative {
+  const mode = combatRollMode(record, { kind: 'initiative', stat: 'Speed' }, { fightId, round: 1 }, called)
   const evaluate = (roll: number): CombatInitiative => ({ roll, speed, success: roll < speed, sourceRevision: record.revision ?? 0, ties: [] })
   const rolled = rollWithMode(entropy, 'initiative', mode.mode, evaluate, betterInitiative)
   return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
@@ -133,7 +134,7 @@ function rollFor(state: CombatState, combatant: Combatant, records: CombatRecord
   const record = combatSheetOf(records, combatant)
   const repair = attackRepair(combatant, record)
   if (repair) throw new Error(repair)
-  const rolled = rollInitiative(speedOf(state, record!, command.envelope.fightId), record!, command.envelope.fightId, entropy)
+  const rolled = rollInitiative(speedOf(state, record!, command.envelope.fightId), record!, command.envelope.fightId, entropy, calledSources(command.payload))
   const breakdown = valueBreakdownOf(record, 'Speed', rolled.speed, { fightId: command.envelope.fightId, round: 1 })
   return { state: withRoll(state, combatant, rolled), logs: [initiativeLog(combatant, rolled, by, breakdown)] }
 }

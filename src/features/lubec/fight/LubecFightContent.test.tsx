@@ -76,8 +76,16 @@ describe('host-neutral content', () => {
     expect(screen.getByText(/free a hand/)).toBeTruthy()
   })
 
-  it('offers Punch and Kick with a free hand and does not select an invalid prior Punch', () => {
+  it('offers only Punch to an untrained fighter, and Kick too once the target is on the ground', () => {
     const view = render(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid(), weaponItemId: LUBEC_FISTICUFFS_ID, attackId: undefined }} />)
+    expect(screen.getByRole('radio', { name: /^Punch/ })).toBeTruthy()
+    expect(screen.queryByRole('radio', { name: /^Kick/ })).toBeNull()
+    view.rerender(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid(), targetDown: true, weaponItemId: LUBEC_FISTICUFFS_ID, attackId: undefined }} />)
+    expect(screen.getByRole('radio', { name: /^Kick/ })).toBeTruthy()
+  })
+
+  it('offers Punch and Kick with a free hand to a trained fighter and does not select an invalid prior Punch', () => {
+    const view = render(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid([], 'Scrapping'), weaponItemId: LUBEC_FISTICUFFS_ID, attackId: undefined }} />)
     expect(screen.queryByRole('button', { name: /Fisticuffs/ })).toBeNull()
     expect(screen.getByRole('radio', { name: /^Punch/ }).getAttribute('aria-checked')).toBe('false')
     expect(screen.getByRole('radio', { name: /^Kick/ }).getAttribute('aria-checked')).toBe('false')

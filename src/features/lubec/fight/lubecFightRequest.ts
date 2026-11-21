@@ -27,6 +27,8 @@ export type LubecFightRequest = {
   weaponItemId?: string
   /** Optional attack use, retained by in-page hosts alongside the weapon. */
   attackId?: string
+  /** The Combat tab says when the target is on the ground, which lets anyone kick. */
+  targetDown?: boolean
 }
 
 export type LubecFightHost = {
@@ -76,6 +78,10 @@ export function lubecCombatantFightingTraining(c: LubecCombatant): boolean {
   if (!skills) return false
   return [skills.free, ...skills.picked].some((name) => name === 'Scrapping' || name === 'Boxing')
 }
+
+/** Kick takes a fighting skill, or a target on the ground. */
+export const lubecMayKick = (request: Pick<LubecFightRequest, 'attacker' | 'targetDown'>): boolean =>
+  lubecCombatantFightingTraining(request.attacker) || request.targetDown === true
 
 /** A row of the "wearing" card: a piece and what it covers, or for a player's NPC target only the parts. */
 export type LubecWornRow = { key: string; name: string; covers: string; armor: LubecArmorNumbers }

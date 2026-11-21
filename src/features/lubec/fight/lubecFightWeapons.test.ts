@@ -79,15 +79,16 @@ it('reads the mock-up Dodgeball line with its catch chance', () => {
 
 describe('shared attack eligibility and chosen-weapon validation', () => {
   it.each([
-    [false, [], ['punch', 'kick']],
+    // Without a fighting skill or a target on the ground there is no Kick, only a Punch with a free hand.
+    [false, [], ['punch']],
     [true, [], ['punch', 'kick']],
-    [false, [held('left', 0)], ['punch', 'kick']],
+    [false, [held('left', 0)], ['punch']],
     [true, [held('left', 0)], ['punch', 'kick']],
     [false, [held('left', 0), held('right', 1)], []],
     [true, [held('left', 0), held('right', 1)], ['kick']],
     [false, [weapon('bat', 0, { size: 2 })], []],
     [true, [weapon('bat', 0, { size: 2 })], ['kick']],
-  ] as const)('offers the same legal uses to cards and validation: trained=%s, hands=%j', (trained, items, uses) => {
+  ] as const)('offers the same legal uses to cards and validation: mayKick=%s, hands=%j', (trained, items, uses) => {
     const gear = gearOf(...items)
     expect(lubecFightAttacks(gear, LUBEC_FISTICUFFS_ID, trained).map((attack) => attack.id)).toEqual(uses)
     expect(lubecFightFists(gear, wielder, trained).offered).toBe(uses.length > 0)
