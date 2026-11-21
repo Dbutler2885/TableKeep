@@ -401,6 +401,7 @@ export function CheckStep(props: StepProps) {
   const target = props.attack.aim!.targetKey
   return (
     <>
+      <p className="check-why"><b>{props.attack.row!.name}.</b> {props.attack.row!.text}</p>
       <p className="say"><b>{nameOf(props.state, target)}</b> rolls a {checkAsk(props.attack.row!.check!)}.</p>
       <CheckBar {...props} />
       <CheckVerdict attack={props.attack} />

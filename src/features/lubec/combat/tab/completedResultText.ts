@@ -18,7 +18,7 @@ const TEXT: Readonly<Record<ResultStep, (attack: CombatAttack) => string>> = {
   defense: (attack) => attack.defense ? `${rollText(attack.defense.roll)} / ${attack.defense.value} · ${attack.defense.success ? 'Holds' : 'Fails'} · ${attack.defense.removes} off Quality` : 'No Defense.',
   catch: (attack) => attack.catch ? `${rollText(attack.catch.roll)} / ${attack.catch.chance} · ${attack.catch.success ? 'Caught' : 'Dropped'}` : 'Not rolled.',
   location: (attack) => attack.landing?.part ? `Hits the ${locName(attack.landing.part).toLowerCase()}${movedWords(attack.landing.moved)}.` : 'Not confirmed.',
-  wound: (attack) => attack.impact ? `Impact ${attack.impact.total} on ${tableName(attack.impact.table)}.${absorbedWords(attack.impact)}` : strengthTitle(attack.strength),
+  wound: (attack) => attack.impact ? `Impact ${attack.impact.total} on ${tableName(attack.impact.table)}${attack.row ? `: ${attack.row.name}` : ''}.${absorbedWords(attack.impact)}` : strengthTitle(attack.strength),
   check: (attack) => attack.check ? `${rollText(attack.check.result)} / ${attack.check.target} · ${attack.check.success ? 'Success' : 'Failure'}` : 'Not rolled.',
 }
 

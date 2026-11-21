@@ -316,6 +316,9 @@
 .shell-root[data-theme="lubec"] .lubec-combat .quality-left .q { margin-inline-start: .05em; font: 700 2.6rem/.9 var(--lubec-condensed); }
 .shell-root[data-theme="lubec"] .lubec-combat .quality-left .armor-here { margin-inline-start: 1.1rem; color: var(--lubec-blue); }
 /* The target's armor under the hit: a small body of what each part stops against this wound, beside what they wear. */
+/* A Check or Save step first quotes the wound row that calls for it, so nobody mistakes it for Defense. */
+.shell-root[data-theme="lubec"] .lubec-combat .check-why { margin: 0 0 .45rem; padding: .45rem .6rem; border-left: 4px solid var(--lubec-rust); background: var(--lubec-paper-deep); font: 600 .9rem/1.35 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .check-why b { font-weight: 800; }
 .shell-root[data-theme="lubec"] .lubec-combat .armor-look { display: grid; grid-template-columns: 5.4rem minmax(0, 1fr); gap: .9rem; align-items: start; margin-top: .8rem; padding-top: .7rem; border-top: 1.5px solid var(--lubec-ink); }
 .shell-root[data-theme="lubec"] .lubec-combat .armor-doll { margin: 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .armor-doll .body-map, .shell-root[data-theme="lubec"] .lubec-combat .ct.framed .doll-step .armor-doll .body-map { width: 100%; height: auto; margin: 0; }

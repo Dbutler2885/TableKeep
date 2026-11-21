@@ -116,6 +116,11 @@ describe('a Dodgeball row\'s Check or Save', () => {
     expect(screen.getByText('Dodgeball · Head and neck · Impact 6')).toBeTruthy()
     expect(screen.getByText('Serious')).toBeTruthy()
     expect(screen.getByText('Trauma +1')).toBeTruthy()
+    // The Save step quotes the row that calls for it, so it cannot be taken for Defense.
+    const row = document.querySelector('.check-why')!.textContent!
+    expect(row.startsWith('Bell rung. ')).toBe(true)
+    expect(row).toContain('Body Save')
+    expect([...document.querySelectorAll('.seq details.completed summary')].some((summary) => summary.textContent!.includes('Impact 6 on Dodgeball: Bell rung.'))).toBe(true)
     expect(screen.getByText(/rolls a Body Save/).closest('p')!.textContent).toBe('Roy Carver rolls a Body Save: at or under Body.')
     fireEvent.click(button('Roll Save'))
     await waitFor(() => expect(sentOf('check')[0]).toMatchObject({ envelope: { actorKey: ROY, step: 'check' } }))
