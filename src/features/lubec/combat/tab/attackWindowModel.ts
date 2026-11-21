@@ -10,6 +10,7 @@ import { isRoundAttack } from '../engine/roundAttacks'
 import type { CombatAim, CombatAttack, CombatAttackRange, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, completeAim, sameAim, type AttackDraft, type AttackSegments } from './attackDraft'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
+import { lubecHandLimits } from '../../../ruleSets/lubec/handLimits'
 
 export type AttackReading = { handle: number; skill: CombatAttackSkill | null; total: number; ranged: boolean }
 
@@ -61,6 +62,8 @@ export type AttackWindowModel = {
   opponents: Combatant[]
   targets: LubecCombatant[]
   target: LubecCombatant | null
+  /** The out-of-reach reminder for this melee aim, or null. */
+  reach: string | null
 }
 
 const readable = (entry: LubecCombatant | null): entry is LubecCombatant => entry !== null
@@ -90,7 +93,19 @@ export function attackWindowModel({ state, fightId, attack, attacker, roster, sh
   const target = windowTarget(targets, draft.targetKey)
   const ready = rollReady(attack, aim, reading) && (!isRoundAttack(state, attack) || held)
   const evasion = heldEvasion(state, attack, held)
-  return { aim, held, reading, range, evasion, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range, evasion) }
+  return { aim, held, reading, range, evasion, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range, evasion), reach: reachReminder(state, attacker.key, draft.targetKey, reading) }
+}
+
+/** The attacker's own last hit knocked this target out of striking reach, and this aim is a melee one: a reminder, never a block. */
+const wasOutOfReach = (state: CombatState, attackerKey: string, targetKey: string) =>
+  state.outOfReach?.some((entry) => entry.attackerKey === attackerKey && entry.targetKey === targetKey)
+
+export function reachReminder(state: CombatState, attackerKey: string, targetKey: string | null, reading: AttackReading | null): string | null {
+  if (!targetKey || !reading || reading.ranged) return null
+  if (!wasOutOfReach(state, attackerKey, targetKey)) return null
+  const target = state.combatants.find((entry) => entry.key === targetKey)
+  const name = target ? target.name : 'Your target'
+  return `${name} is out of striking reach from your last hit; the GM rules whether this attack reaches.`
 }
 
 /** What has gone since Declare, which is all a round's attacker may choose again. */
@@ -103,5 +118,5 @@ export function attackGone(state: CombatState, attack: CombatAttack, sheet: Lube
   if (!isRoundAttack(state, attack)) return NOTHING_GONE
   const aim = attack.aim!
   const target = state.combatants.find((entry) => entry.key === aim.targetKey)!.outReason !== null
-  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, combatFightingTraining(sheet), aim.attackId) }
+  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, combatFightingTraining(sheet), aim.attackId, lubecHandLimits(sheet.effects)) }
 }

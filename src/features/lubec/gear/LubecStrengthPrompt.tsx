@@ -1,3 +1,4 @@
+import { LubecShownRoll } from '../LubecShownRoll'
 import { useState, type KeyboardEvent } from 'react'
 import type { LubecCharacterSheet } from '../../ruleSets/lubec/characterRecord'
 import { readLubecCheckRoll, type LubecCheckRoll } from '../../ruleSets/lubec/checkRoll'
@@ -55,6 +56,7 @@ function StrengthRoll({ sheet, roller, circles, rolled }: RollProps) {
       <div className="strength-roll-side">
         {rolled || !roller ? null : <LubecAdvantageSwitch roller={roller} spin={circles.spin} />}
         <p className="status" role="status" aria-live="polite">{rolled ? circles.status : 'Tap the circle to roll.'}</p>
+        <LubecShownRoll sheet={sheet} roll={circles.shown} />
       </div>
     </div>
   )

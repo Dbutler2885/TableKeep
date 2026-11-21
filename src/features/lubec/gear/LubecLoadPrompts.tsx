@@ -5,6 +5,8 @@ import { lubecLoadInto } from '../../ruleSets/lubec/gear/loading'
 import { lubecCardSheet, type LubecCardSheet, type LubecItemSheetState } from './itemSheet'
 import { lubecLoadIntoAct, lubecReloadAct, lubecReloadAndFireAct, lubecLoadContext, type LubecLoadContext, type LubecLoadResult } from './loadActs'
 import { lubecEmptyText, lubecEmptyTitle, lubecPickRow, lubecPickText } from './loadLabels'
+import { useLubecHands } from './lubecHandsContext'
+import type { LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /** The id of a prompt's title, which names its dialog over the item sheet. */
 const PROMPT_TITLE = 'lubec-gear-prompt-title'
@@ -66,7 +68,7 @@ type CardPromptProps = {
 
 type Answer = CardPromptProps & { item: LubecItem; ctx: LubecLoadContext }
 
-const loadContext = (gear: LubecGear): LubecLoadContext => lubecLoadContext(gear, makeId)
+const loadContext = (gear: LubecGear, hands: LubecHandLimits): LubecLoadContext => lubecLoadContext(gear, makeId, hands)
 
 // A refusal stays on the prompt; otherwise one commit, the prompt closes, and the card shows what B's shows.
 function answered(p: Answer, r: LubecLoadResult) {
@@ -115,8 +117,9 @@ function LoadPicker(p: Answer) {
 
 /** The prompt over the card, while one is open for an item still on the sheet. */
 export function LubecCardPrompt(props: CardPromptProps) {
+  const hands = useLubecHands()
   const item = props.gear.items.find((x) => x.id === props.sheet.itemId)
   if (!props.sheet.prompt || !item) return null
-  const p = { ...props, item, ctx: loadContext(props.gear) }
+  const p = { ...props, item, ctx: loadContext(props.gear, hands) }
   return props.sheet.prompt.kind === 'empty' ? <EmptyPrompt {...p} /> : <LoadPicker {...p} />
 }

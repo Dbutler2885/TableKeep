@@ -75,3 +75,16 @@ font: 700 .74rem/1.3 var(--lubec-type);
 @media (max-width: 760px) {
   .shell-root[data-theme="lubec"] .combat-cards, .shell-root[data-theme="lubec"] .yourturn { width: calc(100vw - 2rem); }
 }
+/* A roll card's dice and target parts, inverted onto the card's ink. */
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-breakdown { justify-items: center; margin: .4rem 0; color: var(--lubec-cream); text-align: center; }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-dice { display: grid; justify-items: center; }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-dice.advantage .lubec-roll-mode strong { color: #8cdbac; }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-dice.disadvantage .lubec-roll-mode strong { color: #ffab94; }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-dice li { border-color: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-dice li.kept { color: var(--lubec-ink); background: var(--lubec-cream); animation-name: combat-die-kept; }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-dice li.set-aside { color: rgba(255, 248, 231, .6); border-color: rgba(255, 248, 231, .45); animation-name: combat-die-set-aside; }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-parts { justify-content: center; }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-parts li { color: var(--lubec-cream); border-color: rgba(255, 248, 231, .35); background: rgba(255, 248, 231, .08); }
+.shell-root[data-theme="lubec"] .rcard .lubec-roll-parts li.total { color: var(--lubec-ink); border-color: var(--lubec-mustard); background: var(--lubec-mustard); }
+@keyframes combat-die-kept { from { color: var(--lubec-cream); background: transparent; transform: scale(.94); } to { color: var(--lubec-ink); background: var(--lubec-cream); transform: none; } }
+@keyframes combat-die-set-aside { from { color: var(--lubec-cream); opacity: 1; transform: none; } to { color: rgba(255, 248, 231, .6); opacity: .7; transform: translateY(.2rem); } }

@@ -1,8 +1,9 @@
-import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue } from '../../../ruleSets/lubec/derivations'
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
-import type { CombatLog } from './combatFeedback'
+import type { CombatLog, CombatRoll } from './combatFeedback'
+import { rollDiceOf } from './rollBreakdown'
 import type { CombatEntropy } from './commandEntropy'
+import { combatRollMode, modeRecord, rollWithMode, successThenHigher } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { Combatant, CombatEvasion, CombatSheet, CombatState } from './types'
 
@@ -10,14 +11,6 @@ import type { Combatant, CombatEvasion, CombatSheet, CombatState } from './types
 // choice that uses the round's action. The evader rolls Speed; only a success counts, and anyone
 // making a ranged attack at them that round takes a Handle penalty of 10 x half its tens digit,
 // rounded down, so 0 to -40. Dodgeballs stay answered by Defense, not Evasive.
-
-const NO_EVASIVE = /no evasive movement/i
-
-/** A wound or effect that says No Evasive Movement stops its bearer choosing it while it lasts. */
-export function evasionBlocked(sheet: LubecCharacterSheet): string | null {
-  const effect = sheet.effects.find((entry) => entry.steps.some((step) => step.labels.some((label) => NO_EVASIVE.test(label))))
-  return effect ? `${effect.name} says No Evasive Movement.` : null
-}
 
 /** 10 x half the successful roll's tens digit, rounded down; a failed roll gives nothing. */
 export const evasionPenalty = (roll: number, success: boolean): number =>
@@ -32,20 +25,25 @@ function speedOf(combatant: Combatant, record: CombatSheet | null, context: { fi
 /** The evader's Speed roll, at or under Speed, as Movement settles. */
 export function rollEvasion(combatant: Combatant, record: CombatSheet | null, context: { fightId: string; round: number }, entropy: CombatEntropy): CombatEvasion {
   const speed = speedOf(combatant, record, context)
-  const roll = entropy.die('evasion', 100)
-  const success = roll <= speed
-  return { roll, speed, success, penalty: evasionPenalty(roll, success) }
+  // A Speed Check: a card's Speed or Physical mode rolls two dice, a success beating a failure and the higher success taking off more.
+  const mode = combatRollMode(record, { kind: 'evasion', stat: 'Speed' }, context)
+  const evaluate = (roll: number) => {
+    const success = roll <= speed
+    return { roll, speed, success, penalty: evasionPenalty(roll, success) }
+  }
+  const rolled = rollWithMode(entropy, 'evasion', mode.mode, evaluate, successThenHigher)
+  return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
 const pad = (value: number): string => String(value).padStart(2, '0')
 
-export function evasionLog(combatant: Combatant, evasion: CombatEvasion): CombatLog {
+export function evasionLog(combatant: Combatant, evasion: CombatEvasion, breakdown: Pick<CombatRoll, 'breakdown'> = {}): CombatLog {
   return {
     event: `${combatant.name} moved evasively.`, actor: combatant.key,
     roll: {
       who: combatant.name, what: 'Evasive Movement · Speed', roll: pad(evasion.roll), target: `under ${evasion.speed}`,
       tone: evasion.success ? 'ok' : 'bad', result: evasion.success ? `Ranged attacks −${evasion.penalty}` : 'No penalty',
-      extra: 'Uses the action: no attack this round.',
+      extra: 'Uses the action: no attack this round.', ...rollDiceOf(evasion), ...breakdown,
     },
   }
 }

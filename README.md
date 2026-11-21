@@ -111,7 +111,8 @@ Groups and campaigns hold everything else.
 
 Everything lives in Firestore and Firebase Storage under `groups/{groupId}/campaigns/{campaignId}/...`, and everything reads through Firestore listeners.
 When the GM erases a patch of fog, moves a token, or publishes an NPC, it is on the players' screens before they look up.
-The player UI is mobile-friendly with drawer navigation; the GM UI is desktop-oriented with a left sidebar.
+A campaign's navigation is a narrow sidebar beside the page; on a phone it becomes a bar across the top that opens the same sidebar as a drawer.
+The player UI is mobile-friendly; the GM UI is desktop-oriented.
 
 ## A guided tour
 
@@ -225,6 +226,22 @@ Item, spell and re-roll requests land in a GM queue with live notifications, and
 The rest: groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, shared notes with a rich-text editor, an in-campaign calendar, and session summaries with an importer, a detail view and a cliffhanger highlight modal.
 Sign-in is Google or email and password, gated on email verification, with a one-time username claim.
 
+Every campaign also has a Handouts tab for original images, page-by-page PDFs, and pasted text extracts.
+The GM organizes handouts in nested folders, while a toggle switches between the folder tree and a list of all handouts.
+Each handout can have an optional description, shown with the handout and in both library views.
+Images and PDF pages fit the viewing area; click one to open a full-size viewer with zoom controls, wheel or pinch zoom, and drag to pan.
+New handouts start hidden; the GM can reveal them to all players or chosen characters, and hide them again.
+Players see only their revealed handouts, with empty folder branches hidden.
+Folder deletion requires moving or deleting its contents first.
+When a character changes owners, save that handout's visibility again to update access.
+
+Lubec 1977 campaigns have a Clocks tab the whole table shares live.
+A clock is a named pie of 1 to 10 pieces with an optional description, what fills it, what empties it, and what happens when it is full and when it is empty.
+Anyone in the campaign can make, edit, fill, empty and delete a clock, with no GM approval step.
+Pieces have no order: click any piece to fill it, and click it again to empty it.
+The count and the results follow how many pieces are filled.
+A full clock shows its full result on a band across the card, and a clock that has been filled and drained again shows its empty result.
+
 ## AI-generated session recaps
 
 The session recaps and the NPC auto-notes above are not typed by hand.
@@ -268,7 +285,7 @@ Vitest for tests, ESLint for linting.
 
 Every pull request, and every push to `main`, runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 The workflow only ever reads the repository, holds no secrets, and deploys nothing.
-It runs seven jobs in parallel, each one a command you can reproduce locally:
+It runs nine jobs in parallel, each one a command you can reproduce locally:
 
 | Check | Command |
 | --- | --- |
@@ -277,10 +294,12 @@ It runs seven jobs in parallel, each one a command you can reproduce locally:
 | Unit tests (web app) | `npm test` |
 | Production build (web app) | `npm run build` |
 | Emulator tests (Firestore + Storage rules) | `npm run test:emulator` |
+| Slow tests (model request timeouts) | `npm run test:slow` |
 | Browser smoke (desktop + mobile) | `npm run test:browser-smoke` |
 | Cloud Functions (lint + build) | `npm run lint` and `npm run build` in `functions/` |
+| Session bot (lint + typecheck + unit tests) | `npm run lint`, `npm run typecheck` and `npm test` in `bot/` |
 
-The web app jobs run on Node 24, matching the prerequisites above.
+The web app, slow test and session bot jobs run on Node 24, matching the prerequisites above.
 The Cloud Functions job runs on Node 22, matching `engines.node` in `functions/package.json` and the deployed function runtime.
 The split is deliberate.
 
@@ -292,6 +311,8 @@ The split is deliberate.
 - **Rules** (`npm run test:emulator`). Every `src/**/*.emulator.test.ts` runs against a live Firestore and Storage emulator with the repository's real `firestore.rules` and `storage.rules` loaded, so the suite exercises authorization as deployed, not as intended.
   The demo sandbox lives or dies here: one suite proves a visitor can read the template and not write it, can reach only their own sandbox, and cannot touch another visitor's or any real user's data; another drives the real clone and expiry code against the emulator.
   Needs JDK 21+.
+- **Slow** (`npm run test:slow`). Every `src/**/*.slow.test.ts` waits out a real timer against a real local socket.
+  The recap's model request is checked here: it has to outlast Node's 300-second fetch limits, so the suite takes over five minutes.
 - **Browser smoke** (`npm run test:browser-smoke`). Puppeteer against local services only.
   It starts Vite inside `firebase emulators:exec`, creates isolated emulator users, completes email verification through the emulator's OOB API, claims a handle, and creates a group at both desktop and mobile viewports.
   It fails on page errors and console errors, and uploads review-only screenshots even when the run fails.
@@ -323,6 +344,7 @@ The split is deliberate.
 | `npm test` | Unit tests |
 | `npm run test:watch` | Unit tests in watch mode |
 | `npm run test:emulator` | Firestore/Storage rules tests against live emulators |
+| `npm run test:slow` | Slow suites, such as the model request outlasting Node's 300-second fetch limits |
 | `npm run test:browser-smoke` | Desktop + mobile Puppeteer smoke flow |
 | `npm run preview` | Build, then preview locally against empty Auth/Firestore/Storage emulators |
 | `npm run demo` | Visitor demo: emulators from the committed snapshot plus the dev server, snapshot never written |

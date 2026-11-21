@@ -1,9 +1,11 @@
+import { rollDiceOf } from './rollBreakdown'
 import { keptLubecRoll, lubecFailedCheckStress, type LubecAdvantage, type LubecCheckKind } from '../../../ruleSets/lubec/checkRoll'
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import { pad } from './attackFlow'
-import type { CombatLog } from './combatFeedback'
+import type { CombatLog, CombatRoll } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
-import { combatInputModifiers } from './inputModifiers'
+import { combatRollMode, type CombatMode } from './combatModes'
+import { combatInputModifiers, type CombatInputRound } from './inputModifiers'
 import type { CombatCheckRoll, Combatant, CombatSheet, CombatWoundRow } from './types'
 
 /** An ordinary core roll's number: Handle as the sheet caps it, Body as it stands. */
@@ -13,26 +15,37 @@ export function checkTarget(record: CombatSheet, against: 'Handle' | 'Body', mod
 
 const failureStress = (record: CombatSheet, kind: LubecCheckKind): number => (kind === 'save' ? 1 : lubecFailedCheckStress(record.sheet))
 
-/** At or under its number, one die, or two kept by Advantage or Disadvantage. */
-export function rollCheck(record: CombatSheet, check: NonNullable<CombatWoundRow['check']>, target: number, entropy: CombatEntropy): CombatCheckRoll {
+/** At or under its number, one die, or two kept by Advantage or Disadvantage as the Core roller keeps them. */
+export function rollCheck(record: CombatSheet, check: NonNullable<CombatWoundRow['check']>, target: number, entropy: CombatEntropy, because: string | null = null): CombatCheckRoll {
   const count = check.advantage === 'normal' ? 1 : 2
   const dice = Array.from({ length: count }, () => entropy.die('check', 100))
   const result = keptLubecRoll(dice, check.advantage as LubecAdvantage)
   const success = result <= target
-  return { ...check, target, dice, result, success, stress: success ? 0 : failureStress(record, check.kind) }
+  return { ...check, target, dice, result, success, stress: success ? 0 : failureStress(record, check.kind), ...(because ? { because } : {}) }
+}
+
+/**
+ * The target's own Check or Save a wound asks for, at the mode its active cards set, with any mode the row itself
+ * fixes ("at Disadvantage") as one more source: they cancel and never stack.
+ */
+export function landingCheckMode(record: CombatSheet, check: NonNullable<CombatWoundRow['check']>, rowName: string, context: CombatInputRound): CombatMode {
+  const fixed = check.advantage === 'normal' ? [] : [{ id: 'row', name: rowName, mode: check.advantage }]
+  return combatRollMode(record, { kind: check.kind === 'save' ? 'save' : 'check', stat: check.against }, context, fixed)
 }
 
 const CHECK_NAMES = { 'stat-check': 'Check', save: 'Save' } as const
 
-export function checkLog(target: Combatant, row: CombatWoundRow, rolled: CombatCheckRoll): CombatLog {
+export function checkLog(target: Combatant, row: CombatWoundRow, rolled: CombatCheckRoll, breakdown: Pick<CombatRoll, 'breakdown'> = {}): CombatLog {
   return {
     event: `${target.name} rolled a ${rolled.against} ${CHECK_NAMES[rolled.kind]}.`, actor: target.key,
-    roll: { who: target.name, what: `${rolled.against} ${CHECK_NAMES[rolled.kind]}`, roll: pad(rolled.result), target: `under ${rolled.target}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? 'Success' : 'Failure', extra: row.name },
+    roll: { who: target.name, what: `${rolled.against} ${CHECK_NAMES[rolled.kind]}`, roll: pad(rolled.result), target: `under ${rolled.target}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? 'Success' : 'Failure', extra: row.name,
+      ...rollDiceOf({ ...rolled, mode: rolled.advantage }), ...breakdown },
   }
 }
 
-/** The target rolls the row's Check or Save against their own sheet as it stands this round. */
+/** The target rolls the row's Check or Save against their own sheet as it stands this round, at the mode their cards set. */
 export function rollRowCheck(record: CombatSheet, row: CombatWoundRow, fightId: string, round: number, entropy: CombatEntropy): CombatCheckRoll {
   const modifiers = combatInputModifiers(record.sheet, { fightId, round })
-  return rollCheck(record, row.check!, checkTarget(record, row.check!.against, modifiers), entropy)
+  const mode = landingCheckMode(record, row.check!, row.name, { fightId, round })
+  return rollCheck(record, { ...row.check!, advantage: mode.mode }, checkTarget(record, row.check!.against, modifiers), entropy, mode.because)
 }

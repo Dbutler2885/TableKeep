@@ -7,7 +7,6 @@ import { stepControls, type MiddleProps } from './stepControls'
 import { BeforeInitiativeGm, CombatWaiting } from './CombatMiddles'
 import { SneakAttackWindow } from './SneakAttackWindow'
 
-
 const openAttack = (state: CombatState): CombatAttack | null => (state.attack && !state.attack.closed ? state.attack : null)
 
 /** The middle while a granted attack waits at aim: the window for whoever controls it, a wait for everyone else. */
@@ -16,15 +15,8 @@ function AimMiddle({ attack, attacker, ...props }: MiddleProps & { attack: Comba
   if (controlsAttacker(attacker, viewer)) {
     return <SneakAttackWindow state={state} fightId={props.fightId} attack={attack} attacker={attacker} roster={props.roster} commands={commands} gm={viewer.role === 'gm'} onInventory={(hands) => props.onInventory(attacker, hands)} />
   }
-  if (viewer.role === 'gm') {
-    // Moment 2 stays in view, its badge on the attacker, above who the grant waits on.
-    return (
-      <>
-        <BeforeInitiativeGm state={state} onGrant={commands.grant} onBegin={commands.begin} />
-        <AttackGmWaiting state={state} attack={attack} attacker={attacker} onRange={(band, modifier) => void commands.range(band, modifier)} onActFor={() => props.onActFor(attacker.key)} />
-      </>
-    )
-  }
+  // One window at a time: while a grant runs the GM sees who it waits on; the grants come back when it ends.
+  if (viewer.role === 'gm') return <AttackGmWaiting state={state} attack={attack} attacker={attacker} onRange={(band, modifier) => void commands.range(band, modifier)} onActFor={() => props.onActFor(attacker.key)} onCancel={() => commands.withdraw(null, attack.id)} />
   return <AttackWaiting state={state} attack={attack} attacker={attacker} />
 }
 

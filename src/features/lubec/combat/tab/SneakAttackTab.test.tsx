@@ -29,7 +29,7 @@ vi.mock('../useLubecCombatSend', () => ({
   },
 }))
 vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => ({ characters: [], npcs: [], items: [], roster: mocks.roster }) }))
-vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => mocks.roster }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ roster: mocks.roster, writer: null }) }))
 
 const { LubecCombat } = await import('./LubecCombat')
 
@@ -110,15 +110,22 @@ describe('moment 2: the GM grants a Sneak Attack', () => {
 })
 
 describe('moment 6: the GM while a player aims', () => {
-  it('waits on the player with no grant offered, and offers to act for them', () => {
+  it('waits on the player in one window with no grant offered, and offers to act for them', () => {
     show('gm', 'gm', granted())
     expect(screen.getByText(/Waiting on Wayne Gardner to roll/)).toBeTruthy()
     expect(screen.getByText('Choosing a target and a weapon.')).toBeTruthy()
-    expect(screen.getAllByRole('button', { name: 'Grant Sneak Attack' }).every((entry) => (entry as HTMLButtonElement).disabled)).toBe(true)
-    expect(within(screen.getByText('Wayne Gardner', { selector: '.row-line' }).closest('li')!).getByText('Attack running on their screen')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Grant Sneak Attack' })).toBeNull()
     fireEvent.click(button('Away from the table? Roll for Wayne Gardner'))
     expect(screen.getByText('Wayne Gardner has a Sneak Attack.')).toBeTruthy()
     expect(screen.getByRole('radiogroup', { name: 'Target' })).toBeTruthy()
+  })
+
+  it('cancels the waiting Sneak Attack as the GM', async () => {
+    const live = granted()
+    show('gm', 'gm', live)
+    fireEvent.click(button('Cancel attack'))
+    await waitFor(() => expect(sentOf('withdraw')).toHaveLength(1))
+    expect(sentOf('withdraw')[0]).toMatchObject({ envelope: { actorKey: null }, payload: { type: 'withdraw', attackId: live.fight.state.attack!.id } })
   })
 
   it('declares the range for a throw: a band with no number asks for one, with 0 filled in', async () => {
@@ -149,6 +156,13 @@ describe('moment 6: the GM while a player aims', () => {
 })
 
 describe('moments 5 and 7: the owner picks, splits and rolls in one window', () => {
+  it('lets the attacker call off their own Sneak Attack before it rolls', async () => {
+    show('player', 'wayne-uid', aimed())
+    fireEvent.click(button('Cancel attack'))
+    await waitFor(() => expect(sentOf('withdraw')).toHaveLength(1))
+    expect(sentOf('withdraw')[0]).toMatchObject({ envelope: { actorKey: 'character:wayne' }, payload: { type: 'withdraw' } })
+  })
+
   it('opens the granted window with the thrower\'s choices and persists the first complete aim', async () => {
     show('player', 'wayne-uid', granted())
     expect(screen.getByText('The GM granted you a Sneak Attack.')).toBeTruthy()

@@ -105,7 +105,7 @@ describe('the Combat tab in the workspace', () => {
 
   it('always gives the GM the tab, even under a saved enabledTabs list that predates it', () => {
     const { result } = renderShell(`${root}/combat`, { role: 'gm', userId: 'gm', enabledTabs: ['character', 'notes'] })
-    expect(result.current.tabs).toEqual(['character', 'combat', 'notes'])
+    expect(result.current.tabs).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
     send(null)
     expect(result.current.path).toBe(`${root}/combat`)
   })
@@ -113,7 +113,7 @@ describe('the Combat tab in the workspace', () => {
   it('keeps a saved enabledTabs list from hiding a live fight from players', () => {
     const { result } = renderShell(`${root}/notes`, { role: 'player', userId: 'marcy', enabledTabs: ['character', 'notes'] })
     send(fight('one'))
-    expect(result.current.tabs).toEqual(['character', 'combat', 'notes'])
+    expect(result.current.tabs).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
   })
 
   it('follows no fight when the gate is off or the campaign is not Lubec', () => {

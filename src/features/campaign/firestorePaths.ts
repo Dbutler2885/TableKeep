@@ -57,3 +57,12 @@ export function characterHiddenCarriersRef(db: Firestore, scope: CampaignScope, 
 export function characterHiddenCarrierRef(db: Firestore, scope: CampaignScope, characterId: string, carrierId: string) {
   return campaignDocRef(db, scope, 'characters', characterId, 'hiddenCarriers', carrierId)
 }
+
+// A Lubec campaign's clocks, which every member of the group may read, make, fill and empty.
+export function campaignClocksRef(db: Firestore, scope: CampaignScope) {
+  return campaignCollectionRef(db, scope, 'clocks')
+}
+
+export function campaignClockRef(db: Firestore, scope: CampaignScope, clockId: string) {
+  return campaignDocRef(db, scope, 'clocks', clockId)
+}

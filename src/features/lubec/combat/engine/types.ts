@@ -8,13 +8,14 @@ import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
 import type { CombatLog, CombatPendingAction } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import type { CombatWound, CombatWoundAcknowledgement } from '../woundTypes'
+import type { LubecCondition } from '../../../ruleSets/lubec/condition'
 
 export type CombatantSelection = { kind: 'character' | 'npc'; sheetId: string }
 export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qty: number }
 /** A combatant's initiative: d100 strictly under Speed, frozen once per fight, with any tie rerolls the app made. */
-export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] }
+export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] } & CombatRollDice
 /** A Movement choice. Moving or staying is the default and needs no thought; Run, Pick up and Leave are the choices. */
-export type CombatMovementChoice = 'stay' | 'run' | 'evade' | 'pickup' | 'leave'
+export type CombatMovementChoice = 'stay' | 'run' | 'evade' | 'pickup' | 'leave' | 'stand'
 /** One exact Floor record and quantity a pickup claims. */
 export type CombatPickupClaim = { itemId: string; qty: number }
 /**
@@ -22,8 +23,9 @@ export type CombatPickupClaim = { itemId: string; qty: number }
  * A Leave is `asked` until the GM confirms it; a refusal clears the choice so the player chooses again.
  */
 /** An evader's Speed roll as Movement settled, and what it takes off ranged attacks at them this round. */
-export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number }
-export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null }
+export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number } & CombatRollDice
+export type CombatStand = { target: number; dice: number[]; result: number; success: boolean; stress: number; mode: 'normal' | 'advantage' | 'disadvantage'; because: string | null }
+export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null; stand?: CombatStand; unconscious?: true; lost?: true }
 /** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
 export type CombatDefenseLine = { against: string; amount: number }
 /**
@@ -40,8 +42,19 @@ export type CombatDeclaration = {
   sourceRevision: number
   /** Its maker went Out after declaring, or came back after Declare: no attack and no Defense from it this round. */
   stopped?: boolean
+  /** Its Defense line has been rolled this round, so that part of the split is spent. */
+  defenseRolled?: boolean
+  /** A sheet change made the frozen split too big for the pool, and it was split again. */
+  repaired?: boolean
+  /** A wound took this round's Action Stage: no attack and no Defense. */
+  lost?: true
+  unconscious?: true
 }
 export type Combatant = CombatantSelection & {
+  /** Public eligibility projection of the sheet's active unconscious cards. */
+  unconscious?: boolean
+  /** The GM's Comatose or Dead condition, published from the sheet; absent for none. */
+  condition?: LubecCondition
   key: string
   ownerUserId: string
   name: string
@@ -81,13 +94,15 @@ export type CombatFrozenAim = {
   sourceRevision: number
 }
 export type CombatAttackRange = { band: LubecRangeBand; modifier: number }
-export type CombatAttackRoll = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null }
+/** Under a card-set mode, both dice and why; absent on a single die. */
+export type CombatRollDice = { dice?: number[]; mode?: 'advantage' | 'disadvantage'; because?: string | null }
+export type CombatAttackRoll = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null } & CombatRollDice
 /** The defender's grant-local split and its roll: what it kept, rolled under, and took off the quality. */
-export type CombatDefenseRoll = { amount: number; full: boolean; value: number; roll: number; success: boolean; removes: number }
+export type CombatDefenseRoll = { amount: number; full: boolean; value: number; roll: number; success: boolean; removes: number } & CombatRollDice
 export type CombatCatchRoll = { chance: number; roll: number; success: boolean }
 /** Where the hit landed (d100 on the start table, d10 for a paired part's side) and where the attacker moved it. */
 export type CombatLanding = { table: string; startRoll: number; sideRoll: number | null; start: string; part: string | null; moved: number }
-export type CombatStrengthRoll = { roll: number; strength: number; success: boolean; bonus: number }
+export type CombatStrengthRoll = { roll: number; strength: number; success: boolean; bonus: number } & CombatRollDice
 /** Impact built from its parts; the table it is read on and what happens next. */
 export type CombatImpact = { quality: number; base: number; strength: number | null; moved: number; armor: number; total: number; table: string }
 /** How a closed or waiting attack ended, for the outcome banner. */
@@ -109,9 +124,18 @@ export type CombatWoundRow = {
   choice?: number | null
   /** The wound puts the target Out (knocked unconscious). */
   out?: boolean
+  /** A final row, landing as cards the app plays; a row without it is a provisional one resolved by hand. */
+  final?: boolean
+  /** Every Save or Check a final row asks the target for, in the order they are rolled; `check` is the first. */
+  rolls?: CombatLandingRollSpec[]
 }
+/** What a landing roll decides. */
+export type CombatLandingPurpose = 'fist-catch' | 'concussion' | 'prevention' | 'retention'
+export type CombatLandingRollSpec = NonNullable<CombatWoundRow['check']> & { purpose: CombatLandingPurpose }
 /** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
-export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number }
+export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number; purpose?: CombatLandingPurpose; because?: string }
+/** One part of a landed final wound's Results: Now, Next round, Recovery or Lasting, each a list of plain lines. */
+export type CombatWoundSection = { label: string; items: string[] }
 export type CombatAttack = {
   id: string
   grantId: string | null
@@ -145,12 +169,25 @@ export type CombatAttack = {
   rowOutcome?: string | null
   /** The Trauma the wound gave, once applied: a passed Body Save can lower the row's. */
   rowTrauma?: number | null
+  /** Every landing Save and Check a final row made, in order; `check` is the first. */
+  checks?: CombatCheckRoll[] | null
+  /** A landed final wound's Results, by when each consequence happens. */
+  rowSections?: CombatWoundSection[] | null
+  /** The Stress the wound's landing rolls charged, and the Minimum Stress it rolled. */
+  rowStress?: number | null
+  rowMinimumStress?: number | null
+  /** The wound this attack queued, so its delivery can say what the struck hand dropped. */
+  woundId?: string | null
   /** A round attack's Results stay on screen until the GM moves the fight on. */
   continued?: boolean
   /** The target's Evasive Movement, when it took a penalty off this ranged attack. */
   evasion?: CombatEvasion | null
+  /** A declared split that no longer fits its pool, held until its owner chooses a new Defense. */
+  splitRepair?: { combatantKey: string; pool: number; was: number; against: string; attackSpent: boolean } | null
 }
 export type CombatState = {
+  /** The roll log entries the command that wrote this state rolled; a viewer shows the state once their cards have revealed them. */
+  revealRolls?: string[]
   round: number
   phase: string
   stageInstanceId: string
@@ -170,6 +207,16 @@ export type CombatState = {
   movementComplete?: boolean
   /** The GM's last range band per attacker, offered again but never applied without a press. */
   lastRanges?: Record<string, LubecRangeBand>
+  /** Per combatant, the last round whose end still has a round window or countdown of theirs from this fight to process. */
+  roundWatch?: Record<string, number>
+  /** Every countdown a wound started this fight and the round whose end it falls due at, for the combat log. */
+  countdowns?: { key: string; wound: string; kind: 'bleed' | 'critical'; dueRound: number }[]
+  /** End has begun: every combatant's closing change is queued, and the fight ends once they are delivered. */
+  closing?: boolean
+  /** A hit that knocked its target out of striking reach: a reminder on that attacker's next melee aim at them, never a reach rule. */
+  outOfReach?: { attackerKey: string; targetKey: string; round: number }[]
+  /** Per combatant, the Movement and Action Stages wounds took, by round, and the latest card's name. */
+  lost?: Record<string, { movement: number[]; action: number[]; reason: string; wound?: string }>
 }
 export type CombatFight = { status: 'live' | 'ended'; participantUserIds: string[]; state: CombatState }
 export type CombatEnvelope = {
@@ -226,5 +273,7 @@ export type CombatPlan = {
   logs: CombatLog[]
   /** Gear the actor's own sheet ends with; written under the sheet revision contract with the command. */
   sheets?: { selection: CombatantSelection; gear: LubecGear }[]
+  /** Keyed card removals and counter changes, committed atomically with the fight and any gear changes. */
+  sheetEffects?: { selection: CombatantSelection; removeEffects: string[]; stressDelta: number }[]
 }
 export type CombatHandler = (command: CombatCommand, records: CombatRecords, authority: CombatAuthority, entropy: CombatEntropy) => CombatPlan

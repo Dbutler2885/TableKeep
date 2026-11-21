@@ -44,9 +44,13 @@ import { useLubecCardGive } from './useLubecCardGive'
 import { lubecOpenWithPicker } from './useLubecPictureUpload'
 import { LubecCardPrompt } from './LubecLoadPrompts'
 import type { LubecSupplyFieldKey } from './LubecSupplyField'
+import { useLubecHands } from './lubecHandsContext'
+import type { LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 type SheetContext = {
   gear: LubecGear
+  /** The hands the sheet's active cards leave usable; every hand when absent. */
+  hands?: LubecHandLimits
   onGearChange: (gear: LubecGear) => void
   onSheet: (sheet: LubecItemSheetState | null) => void
   toast: (text: string) => void
@@ -93,7 +97,7 @@ function countChanged(ctx: SheetContext, sheet: CardSheet, item: LubecItem, r: L
 function moveFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, value: string) {
   const refused = (msg: string) => ctx.onSheet({ ...sheet, error: msg })
   if (ctx.across?.move(item, value, refused)) return
-  const r = lubecAskFirst(ctx.gear, lubecCardMove(ctx.gear, item, value), ctx.onAsk, sheet)
+  const r = lubecAskFirst(ctx.gear, lubecCardMove(ctx.gear, item, value, ctx.hands), ctx.onAsk, sheet, ctx.hands)
   if (!r) return
   if (r.kind === 'drop') return ctx.onDrop(item, refused)
   if (r.kind === 'refused') return refused(r.msg)
@@ -120,7 +124,7 @@ function checkFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, che
   ctx.onGearChange(lubecWithCheck(ctx.gear, item.id, check))
 }
 
-const loadContext = (gear: LubecGear): LubecLoadContext => lubecLoadContext(gear, makeId)
+const loadContext = (gear: LubecGear, hands?: LubecHandLimits): LubecLoadContext => lubecLoadContext(gear, makeId, hands)
 
 // One commit, then the card shows what B's shows after it, with its panels closed; a refusal stays on the card.
 function loaded(ctx: SheetContext, sheet: CardSheet, r: LubecLoadResult) {
@@ -134,7 +138,7 @@ function loaded(ctx: SheetContext, sheet: CardSheet, r: LubecLoadResult) {
 function loadFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, act: LubecLoadAct) {
   if (act.type === 'load-pick') return ctx.onSheet({ ...sheet, error: null, prompt: { kind: 'load-pick', error: null } })
   if (act.type === 'takeout') return ctx.onSheet({ ...sheet, error: null, move: false, give: false, takeout: !sheet.takeout })
-  loaded(ctx, sheet, lubecCardLoadAct(loadContext(ctx.gear), item, act))
+  loaded(ctx, sheet, lubecCardLoadAct(loadContext(ctx.gear, ctx.hands), item, act))
 }
 
 function cardLoad(gear: LubecGear, sheet: CardSheet, item: LubecItem): LubecCardLoad {
@@ -161,7 +165,7 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
     onCheck: (check: LubecCheck) => checkFromCard(ctx, sheet, item, check),
     onAttack: () => attackFromCard(ctx, sheet, item),
     onLoad: (act: LubecLoadAct) => loadFromCard(ctx, sheet, item, act),
-    onTakeOut: (n: number) => loaded(ctx, sheet, lubecTakeOutAct(loadContext(ctx.gear), item, n)),
+    onTakeOut: (n: number) => loaded(ctx, sheet, lubecTakeOutAct(loadContext(ctx.gear, ctx.hands), item, n)),
     onTableSays: (penalty: number | null) => ctx.onGearChange(lubecWithTableSays(ctx.gear, item.id, penalty)),
     onEdit,
     onAddPicture: uploadOf(ctx) ? () => lubecOpenWithPicker(onEdit) : null,
@@ -249,6 +253,7 @@ const sheetClass = (sheet: LubecItemSheetState) => {
 
 /** The item sheet over the Gear page: one dialog, in the sheet's overlay, whose mode is the card, small stuff, the form, the stock picker or "which piece?"; and the card's prompt over it. */
 export function LubecItemSheet(props: SheetProps) {
+  const hands = useLubecHands()
   const closeOnEscape = (e: KeyboardEvent) => {
     if (e.key === 'Escape') props.onSheet(null)
   }
@@ -256,7 +261,7 @@ export function LubecItemSheet(props: SheetProps) {
     <>
       <div className="confirm-overlay lubec-gear-overlay" role="dialog" aria-modal="true" aria-labelledby={LUBEC_SHEET_TITLE} onKeyDown={closeOnEscape}>
         <div className={`item-sheet ${sheetClass(props.sheet)}`}>
-          <SheetBody {...props} />
+          <SheetBody {...props} hands={hands} />
         </div>
       </div>
       {props.sheet.mode === 'view' ? <LubecCardPrompt gear={props.gear} sheet={props.sheet} onGearChange={props.onGearChange} onSheet={props.onSheet} toast={props.toast} /> : null}

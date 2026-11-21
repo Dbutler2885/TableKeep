@@ -3,7 +3,8 @@
  *
  * The text and the action take their look from the classes of whatever they sit
  * beside (`group-subtitle` and `group-link-button` on the group screens,
- * `account-email` and a plain button in the campaign side rail). Only the
+ * `account-email` and a plain button in the Discord dialog a campaign's
+ * sidebar opens). Only the
  * spacing between those lines, and the message under them, is decided here.
  */
 
@@ -32,8 +33,8 @@
   cursor: default;
 }
 
-/* In the side rail the account panel lays its children out itself, so the
-   wrapper steps aside and lets the line and its button be laid out with them. */
+/* In the Discord dialog its body lays the lines out itself, so the wrapper
+   steps aside and lets the line and its button be laid out with them. */
 .discord-connection--panel {
   display: contents;
 }

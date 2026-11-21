@@ -15,6 +15,7 @@ import type { VoicePacket } from '../../src/audio/timeline.ts'
 import { recoverSessions } from '../../src/session/recover.ts'
 import { SessionRecorder, type RecorderOptions } from '../../src/session/recorder.ts'
 import { FirestoreSessionStore } from '../../src/store/sessionStore.ts'
+import { ROOMY_DISK } from './disk.ts'
 import { scriptedSpeech } from './speech.ts'
 import { Voice, Wire } from './synth.ts'
 
@@ -32,6 +33,7 @@ async function main() {
   const app = initializeApp({ projectId })
   const speech = scriptedSpeech()
   const options: RecorderOptions = {
+    ...ROOMY_DISK,
     store: new FirestoreSessionStore(getFirestore(app), getStorage(app).bucket(`${projectId}.firebasestorage.app`)),
     journalDir: journalDir!,
     connectSpeech: speech.connect,

@@ -153,17 +153,3 @@ export async function draftSessionRecap(db, session, dependencies, overrides = {
         },
     };
 }
-/** Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes. */
-export function callOpenAi(apiKey, { fetchImpl = fetch, timeoutMs = 15 * 60 * 1000 } = {}) {
-    return async (request) => {
-        const response = await fetchImpl('https://api.openai.com/v1/responses', {
-            method: 'POST',
-            headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-            body: JSON.stringify(request),
-            signal: AbortSignal.timeout(timeoutMs),
-        });
-        if (!response.ok)
-            throw new Error(`The model request failed (${response.status}): ${(await response.text()).slice(0, 500)}`);
-        return (await response.json());
-    };
-}

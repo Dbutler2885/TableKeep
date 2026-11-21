@@ -42,12 +42,17 @@ function fight(sheets: CombatSheet[] = [hero(), roy()], armor: { locs: string[];
   return { activeFightId: 'fight', fight: plan.fight, sheets, items: new Map() }
 }
 
-type Dice = Partial<Record<'attack' | 'defense' | 'catch' | 'landing' | 'side' | 'strength' | 'wound-choice' | 'check', number>>
+type Dice = Partial<Record<'attack' | 'defense' | 'catch' | 'landing' | 'side' | 'strength' | 'wound-choice' | 'check' | 'timer-bleed', number | number[]>>
 
-/** Command-bound dice with each purpose scripted; an unscripted purpose fails the test. */
+/** Command-bound dice with each purpose scripted, a list giving a purpose's dice in order; an unscripted purpose fails the test. */
 function scripted(command: CombatCommand, values: Dice) {
   const entropy = combatEntropy(command)
-  return { ...entropy, die: (purpose: string) => { const value = values[purpose as keyof Dice]; if (value === undefined) throw new Error(`Unscripted ${purpose} die`); entropy.rolls.push({ purpose, ordinal: 0, value }); return value } }
+  const queues = Object.fromEntries(Object.entries(values).map(([purpose, value]) => [purpose, Array.isArray(value) ? [...value] : value]))
+  const next = (purpose: string) => {
+    const queued = queues[purpose]
+    return Array.isArray(queued) ? queued.shift() : queued
+  }
+  return { ...entropy, die: (purpose: string) => { const value = next(purpose); if (value === undefined) throw new Error(`Unscripted ${purpose} die`); entropy.rolls.push({ purpose, ordinal: 0, value }); return value } }
 }
 
 type Step = { type: string; actor?: string | null; by?: CombatAuthority; dice?: Dice; [key: string]: unknown }
@@ -64,7 +69,7 @@ const state = (records: CombatRecords) => records.fight!.state
 const throwAt = { targetKey: ROY, weaponItemId: 'ball', attackId: 'throw', defense: null }
 
 /** Wayne throws at Roy with Handle 50 + Throwing Arm 15 = 65, range 0, and rolls `die`. */
-function thrown(die: number, records = fight(), aim: object = throwAt, range = true) {
+function thrown(die: number | number[], records = fight(), aim: object = throwAt, range = true) {
   let current = act(records, { type: 'grant', combatantKey: HERO }).records
   current = act(current, { type: 'aim', actor: HERO, by: player, aim }).records
   if (range) current = act(current, { type: 'range', band: 'medium', modifier: 0 }).records
@@ -230,18 +235,21 @@ describe('the landing, Strength and Impact', () => {
     expect(plan.fight.state.floor).toHaveLength(1)
   })
 
-  it('reads a located table and queues its wound, with its Trauma and words, for the target\'s sheet', () => {
+  it('reads a final located table, asks the target for its landing Body Save, and queues its cards for the target\'s sheet', () => {
     const slash = { targetKey: ROY, weaponItemId: 'knife', attackId: 'slash', defense: null }
     // A slash's d100 of 30 lands on the torso.
     const placed = act(defend(thrown(27, fight(), slash, false).records, { amount: 0 }, { landing: 30 }).records, { type: 'land', actor: HERO, by: player, part: 'torso' }).records
-    const { plan } = act(placed, { type: 'strength', actor: HERO, by: player, dice: { strength: 10 } })
-    expect(plan.fight.state.attack).toMatchObject({
-      outcome: 'wounded', closed: true, impact: { total: 4, table: 'cutting' }, rowOutcome: 'Bleeding timer.', rowTrauma: 1,
-      row: { table: 'cutting', group: 'torso', impact: 4, name: 'Long chest cut', severity: 'Serious', trauma: 1, check: null, injury: null, choice: null, out: false },
+    const struck = act(placed, { type: 'strength', actor: HERO, by: player, dice: { strength: 10 } })
+    expect(struck.plan.fight.state.attack).toMatchObject({
+      step: 'check', closed: false, impact: { total: 4, table: 'cutting' },
+      row: { table: 'cutting', group: 'torso', impact: 4, name: 'Long chest cut', severity: 'Serious', trauma: 1, final: true, check: { kind: 'save', against: 'Body' } },
     })
+    expect(struck.plan.fight.state.pendingActions).toEqual([{ combatantKey: ROY, action: 'save' }])
+    const { plan } = act(struck.records, { type: 'check', actor: ROY, by: gm, dice: { check: 99, 'timer-bleed': 2 } })
+    expect(plan.fight.state.attack).toMatchObject({ outcome: 'wounded', closed: true, rowTrauma: 1, rowStress: 1, checks: [{ purpose: 'prevention', success: false }] })
     expect(plan.fight.state.woundOutbox).toEqual([expect.objectContaining({
-      target: { kind: 'npc', sheetId: 'roy' }, traumaDelta: 1, stressDelta: 0,
-      effect: expect.objectContaining({ name: 'Long chest cut', cause: 'Cutting, torso, Impact 4: Serious Long chest cut', struckLocation: 'torso', steps: [{ modifiers: [], labels: ['Bleeding timer.'] }] }),
+      target: { kind: 'npc', sheetId: 'roy' }, traumaDelta: 1, stressDelta: 1,
+      effects: [expect.objectContaining({ name: 'Long chest cut', cardKey: 'bleed', cause: 'Cutting, torso, Impact 4: Serious Long chest cut', struckLocation: 'torso', countdown: { kind: 'bleed', rounds: 2 } })],
     })])
     expect(plan.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBeNull()
     expect(plan.sheets).toBeUndefined()
@@ -261,13 +269,13 @@ describe('the landing, Strength and Impact', () => {
     const records = fight([hero([ball(), revolver]), roy()])
     const { plan } = thrown(13, records, shoot)
     expect(plan.fight.state.attack).toMatchObject({ step: 'location', net: 1, landing: { table: 'firearm', startRoll: 40, start: 'waist' } })
-    const { plan: hit } = act({ ...records, fight: plan.fight }, { type: 'land', actor: HERO, by: player, part: 'waist', dice: { 'wound-choice': 2 } })
-    // Gunshot waist 3 names two wounds; the d2 of 2 is the lodged bullet, which leaves a lasting injury.
+    const { plan: hit } = act({ ...records, fight: plan.fight }, { type: 'land', actor: HERO, by: player, part: 'waist', dice: { 'wound-choice': 1 } })
+    // Gunshot waist 3 rolls a d2; on a 1 there is no bleed, so the wound lands at once without a Save.
     expect(hit.fight.state.attack).toMatchObject({
       outcome: 'wounded', impact: { strength: null, total: 3, table: 'gunshot' },
-      row: { name: 'Lodged bullet', text: '-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', choice: 2, injury: 'Lodged object', severity: 'Serious' },
+      row: { name: 'Bullet through the side muscles', choice: 1, severity: 'Serious', final: true },
     })
-    expect(hit.fight.state.woundOutbox[0].effect.steps).toEqual([{ modifiers: [], labels: ['-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', 'Lasting injury: Lodged object'] }])
+    expect(hit.fight.state.woundOutbox[0].effects!.map((card) => [card.cardKey, card.steps.map((step) => step.until)])).toEqual([['body', ['long-rest', 'long-rest']]])
   })
 
   it('lands a quality 0 hit with no Defense, with no reach to move it', () => {
@@ -325,5 +333,46 @@ describe('impact maths', () => {
   it('builds Impact from quality left, base, Strength, moved steps and armor', () => {
     const attack = { frozen: { choice: { impact: 1, armor: 'blunt', wound: 'thrown' } }, net: 3, landing: { part: 'torso', moved: 1 } } as never
     expect(combatImpact(attack, [{ locs: ['torso'], armor: { blunt: 1, cut: 0, pierce: 0, gun: 0 } }], 2)).toEqual({ quality: 3, base: 1, strength: 2, moved: 1, armor: 1, total: 4, table: 'thrown' })
+  })
+})
+
+describe('card-set modes on combat rolls', () => {
+  const card = (rolls: object[]) => ({ id: 'card', name: 'Broken rib(s)', cause: '', part: 'Ribs', steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls }] })
+  const withCard = (sheet: CombatSheet, rolls: object[]): CombatSheet => ({ ...sheet, sheet: { ...sheet.sheet, effects: [card(rolls) as never] } })
+  const slash = { targetKey: ROY, weaponItemId: 'knife', attackId: 'slash', defense: null }
+  const attackNumber = () => fight().fight!.state && thrown(1, fight(), slash, false).plan.fight.state.attack!.roll!.attackNumber
+
+  it('a disadvantaged attack fails if either die fails, and keeps the lower of two successes', () => {
+    const number = attackNumber()
+    const records = fight([withCard(hero(), [{ scope: 'physical', mode: 'disadvantage' }]), roy()])
+    const miss = thrown([number - 8, number + 9], records, slash, false).plan.fight.state.attack!
+    expect(miss.roll).toMatchObject({ roll: number + 9, hit: false, dice: [number - 8, number + 9], mode: 'disadvantage', because: 'Disadvantage from Broken rib(s)' })
+    expect(miss.outcome).toBe('miss')
+    const low = thrown([number - 8, number - 46], records, slash, false).plan.fight.state.attack!
+    expect(low.roll).toMatchObject({ roll: number - 46, hit: true, dice: [number - 8, number - 46] })
+  })
+
+  it('an attack at Advantage keeps the success, and the higher of two', () => {
+    const number = attackNumber()
+    const records = fight([withCard(hero(), [{ scope: 'attacks', mode: 'advantage' }]), roy()])
+    expect(thrown([number + 9, number - 8], records, slash, false).plan.fight.state.attack!.roll).toMatchObject({ roll: number - 8, hit: true })
+    expect(thrown([number - 46, number - 8], records, slash, false).plan.fight.state.attack!.roll).toMatchObject({ roll: number - 8 })
+  })
+
+  it('an Advantage and a Disadvantage cancel to one die', () => {
+    const number = attackNumber()
+    const records = fight([withCard(hero(), [{ scope: 'physical', mode: 'disadvantage' }, { scope: 'attacks', mode: 'advantage' }]), roy()])
+    const roll = thrown([number - 8], records, slash, false).plan.fight.state.attack!.roll!
+    expect(roll.dice).toBeUndefined()
+    expect(roll.roll).toBe(number - 8)
+  })
+
+  it('Defense at Disadvantage keeps the worse: a failure over a success, the lower of two successes', () => {
+    const records = fight([hero(), withCard(roy(), [{ scope: 'defense', mode: 'disadvantage' }])])
+    const hit = thrown(27, records).records
+    const failed = defend(hit, { amount: 40 }, { defense: [15, 77], landing: 40, side: 3 }).plan.fight.state.attack!.defense!
+    expect(failed).toMatchObject({ roll: 77, success: false, removes: 0, dice: [15, 77] })
+    const low = defend(hit, { amount: 40 }, { defense: [35, 15], landing: 40, side: 3 }).plan.fight.state.attack!.defense!
+    expect(low).toMatchObject({ roll: 15, success: true, removes: 2 })
   })
 })

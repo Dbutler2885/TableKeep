@@ -22,14 +22,13 @@ import { useGroupNavigation } from './useGroupNavigation'
 import { useRootRedirect } from './useRootRedirect'
 import { useSelectedCampaign } from './useSelectedCampaign'
 import { useShellRoute } from './useShellRoute'
-import { listensForApprovals, listensForCharacters, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
+import { listensForApprovals, listensForCharacters, showsClockAlerts, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
 
 // The signed-in app: the group picker, a group's home, or one of its campaigns,
 // chosen by the route.
 export function GroupShell({ user, username, isDemoVisitor }: { user: User, username: string, isDemoVisitor: boolean }) {
   const { pathname, navigate, activeTab, selectedGroupId, selectedCampaignId } = useShellRoute()
   const documentVisible = useDocumentVisibility()
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const { groups, loading, error, createCampaign, createGroup, setActiveCampaign, deactivateCampaign, deleteInactiveCampaign, deleteDraftCampaign, deleteGroup, setError } = useGroupAccess(user)
@@ -44,7 +43,6 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     groups,
     navigate,
     selectedGroupId,
-    setDrawerOpen,
     createGroup,
     createCampaign,
     deleteGroup,
@@ -115,8 +113,6 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
               gameSystem={gameSystem}
               activeTab={activeTab}
               visibleTabs={visibleTabs}
-              drawerOpen={drawerOpen}
-              setDrawerOpen={setDrawerOpen}
               settingsOpen={settingsOpen}
               setSettingsOpen={setSettingsOpen}
               navigate={navigate}
@@ -130,6 +126,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
               onReject={handleReject}
               showTransferNotification={showsTransferNotification(gameSystem, documentVisible, activeTab)}
               cliffhangerEnabled={showsCliffhangerModal(documentVisible, activeTab)}
+              clockAlertsEnabled={showsClockAlerts(gameSystem, documentVisible)}
             />
           </CombatFeedback>
         </LubecCombatContext>

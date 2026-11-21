@@ -8,12 +8,13 @@ import { CombatRollCards, CombatTurnNotice } from './CombatMessages'
 import { useLubecCombat } from './combatWatch'
 import { pendingCombatActions } from './pendingActions'
 import { useCombatLog } from './useCombatLog'
+import { useCombatReveal } from './useCombatReveal'
 import './combatFeedback.css'
 
 type FeedbackProps = { campaign: Campaign | null; role: Role | null; userId: string; activeTab: AppTab; navigate: NavigateFunction; setError: (message: string) => void; children: ReactNode }
 
 function CombatTurnReminder({ campaign, role, userId, activeTab, navigate }: Omit<FeedbackProps, 'children' | 'setError'>) {
-  const { live } = useLubecCombat()
+  const { live } = useCombatReveal()
   const actions = live ? pendingCombatActions(live.fight.state, role, userId) : []
   if (activeTab === 'combat' || !campaign) return null
   const back = () => { void navigate(campaignTabPath(campaign.groupId, campaign.id, 'combat')) }

@@ -8,6 +8,7 @@
 import { LUBEC_PLACE_FIELDS } from './drop'
 import type { LubecGear, LubecItem, LubecSupply } from './gearRecord'
 import { place } from './placement'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../handLimits'
 import type { LubecPlacement } from './stacks'
 
 export const LUBEC_NO_ROOM_TO_ACCEPT = 'Not enough room to accept this item. Make room in your backpack or hands, then accept again.'
@@ -22,8 +23,8 @@ const unplaced = (item: LubecItem): LubecItem =>
 
 // Only the pocket check of `place`: the cells are laid out by the sheet when it draws.
 // An 8-slot thing never fits a backpack, so it goes into both hands when both are empty.
-const arrivalPlace = (gear: LubecGear, item: LubecItem): LubecPlacement =>
-  place(gear, item.size === 8 ? 'hands' : 'backpack', item)
+const arrivalPlace = (gear: LubecGear, item: LubecItem, hands: LubecHandLimits): LubecPlacement =>
+  place(gear, item.size === 8 ? 'hands' : 'backpack', item, null, hands)
 
 /** `item` at the place the placement rule found for it. */
 export const lubecPlacedAt = (item: LubecItem, at: Extract<LubecPlacement, { ok: true }>): LubecItem => ({
@@ -45,9 +46,9 @@ function suppliesFor(item: LubecItem, own: readonly LubecSupply[], offered: read
  * is asked. Its `id` and quantity stay. A made supply it names comes along from
  * `offered`, the sender's made supplies.
  */
-export function lubecReceive(gear: LubecGear, item: LubecItem, offered: readonly LubecSupply[] = []): LubecArrival {
+export function lubecReceive(gear: LubecGear, item: LubecItem, offered: readonly LubecSupply[] = [], hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecArrival {
   const arriving = unplaced(item)
-  const at = arrivalPlace(gear, arriving)
+  const at = arrivalPlace(gear, arriving, hands)
   if (!at.ok) return { ok: false, msg: LUBEC_NO_ROOM_TO_ACCEPT }
   const landed = lubecPlacedAt(arriving, at)
   return {

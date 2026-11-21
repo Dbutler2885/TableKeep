@@ -12,8 +12,8 @@ import { DEMO_SESSION_TTL_MS } from './demoConstants.js';
  * The campaign subcollections a clone copies.
  *
  * This mirrors `CAMPAIGN_SUBCOLLECTIONS` in
- * `src/features/campaign/deleteCampaignDeep.ts`, minus the three that hold
- * nothing worth carrying into a fresh sandbox:
+ * `src/features/campaign/deleteCampaignDeep.ts`, minus what holds nothing
+ * worth carrying into a fresh sandbox:
  *
  * - `userState` is per-user UI scratch (which character you had selected, which
  *   cliffhanger you have seen). The template's belongs to accounts the visitor
@@ -21,6 +21,10 @@ import { DEMO_SESSION_TTL_MS } from './demoConstants.js';
  * - `itemApprovals` and `pendingTransfers` are in-flight requests between two
  *   players. A pristine template has none, and a copied one would address users
  *   who are not at this table.
+ * - `combatControl` and `combats` are the table's fights. The template carries
+ *   none, and a fight names players who are not at this table.
+ * - A sheet's `writeReceipts` record edits already made to the template's own
+ *   sheets, so neither a character nor an NPC sheet brings them along.
  *
  * Everything else - characters, maps and their tokens/annotations/fog chunks,
  * NPCs (public and private), items, monsters, tables and their roll history,
@@ -62,6 +66,9 @@ export const DEMO_CLONED_SUBCOLLECTIONS = [
     { name: 'tables', children: [{ name: 'history' }] },
     { name: 'images' },
     { name: 'referenceDocs' },
+    { name: 'handouts' },
+    { name: 'handoutFolders' },
+    { name: 'clocks' },
     { name: 'sessionSummaries' },
     { name: 'sharedNotes' },
 ];

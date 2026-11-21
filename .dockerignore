@@ -5,3 +5,9 @@
 !bot/src/**
 !bot/assets/**
 !functions/src/firestorePaths.ts
+!functions/src/characterSchemaVersions.ts
+!docs/lubec/rules.md
+!docs/rules/ose-classic/corpus.json
+!docs/rules/ose-classic/monsters.json
+!docs/rules/ose-classic/spells-and-items.json
+!docs/rules/ose-classic/OGL.txt

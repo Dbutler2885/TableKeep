@@ -5,6 +5,8 @@ import type { LubecGearAdd, LubecGearOpen } from './LubecGearPack'
 import { LubecEmptySlot, LubecItemBox, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
 import { LUBEC_HANDS_MARK } from './dragGeometry'
 import { useLubecDropClass } from './lubecDragMarks'
+import { useLubecHands } from './lubecHandsContext'
+import { lubecHandUnusable } from '../../ruleSets/lubec/handLimits'
 
 type RowId = 'hands' | 'body'
 
@@ -23,9 +25,20 @@ function ItemSlot({ item, where, drop, className = '', supplyName, onOpen }: Ite
 }
 
 function SlotAt({ gear, id, supplyName, onAdd, onOpen, k }: RowProps & { k: 0 | 1 }) {
+  const hands = useLubecHands()
   const item = itemsIn(gear, id).find((x) => x.slot === k)
   const name = SLOT_NAMES[id][k]
-  if (item) return <ItemSlot item={item} where={name} drop={`${id}#${k}`} supplyName={supplyName} onOpen={onOpen} />
+  // A hand an active card takes out holds nothing more, even empty; whatever it held stays until it is dropped or moved.
+  const unusable = id === 'hands' ? lubecHandUnusable(hands, k) : null
+  if (item) return <ItemSlot item={item} where={unusable ? `${name} · out of use` : name} drop={`${id}#${k}`} supplyName={supplyName} onOpen={onOpen} />
+  if (unusable) {
+    return (
+      <LubecEmptySlot drop={`${id}#${k}`} label={`${name}, out of use: ${unusable}`} onAdd={null}>
+        <span className="where">{name} · out of use</span>
+        <small className="slot-why">{unusable}</small>
+      </LubecEmptySlot>
+    )
+  }
   return (
     <LubecEmptySlot drop={`${id}#${k}`} label={`${name}, empty, add an item`} onAdd={onAdd ? () => onAdd(`${id}#${k}`) : null}>
       <span className="where">{name}</span>

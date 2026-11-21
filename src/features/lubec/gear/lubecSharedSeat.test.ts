@@ -11,7 +11,7 @@ const wayne = hero('wayne', 'Wayne Gardner', 'p1')
 const second = hero('second', 'Second', 'p1')
 const stephen = hero('stephen', 'Stephen Moody', 'p2')
 const carrier = (ownerCharacterId: string) => ({ id: 'skiff', name: 'Skiff', type: 'skiff', pockets: [], ownerCharacterId, items: [] }) as LubecSharedCarrier
-const store = { updateCharacterNow: vi.fn(), hasPendingWrite: () => false }
+const store = { settleSaves: vi.fn(async () => undefined) }
 const records = { db: {} as Firestore, scope: { groupId: 'g', campaignId: 'c' }, sheet: { kind: 'character', characterId: 'second' } as const }
 
 const seat = (over: Partial<LubecSharedSeatOptions> = {}) => lubecSharedSeat({

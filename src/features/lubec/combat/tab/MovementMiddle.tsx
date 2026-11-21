@@ -1,3 +1,5 @@
+import { allUnconscious } from '../engine/stages'
+import { useCombatRun } from './useCombatRun'
 import type { Combatant, CombatState } from '../engine/types'
 import { controlsAttacker } from './attackWords'
 import { PhaseStepper } from './CombatMiddles'
@@ -9,13 +11,28 @@ import { MoveWindow, type MovementProps } from './MovementParts'
 const inFight = (state: CombatState) => state.combatants.filter((entry) => entry.outReason === null)
 
 /** Everyone's choices are in: the stage waits only for the GM's workspace to settle it. */
-function SettleWaiting({ state }: { state: CombatState }) {
+function SettleWaiting({ state, commands, viewer }: MovementProps) {
+  const run = useCombatRun()
+  const asleep = allUnconscious(state)
+  if (asleep) {
+    const advance = viewer.role === 'gm'
+      ? <button type="button" className="btn rust" disabled={run.busy || !commands.settleMovement} onClick={() => run.run(() => commands.settleMovement!())}>Advance skipped round</button>
+      : null
+    return (
+      <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={advance}>
+        <div className="bigwait">
+          <h3>{state.combatants.some((entry) => entry.condition) ? 'Everyone’s stages are skipped' : 'Everyone is unconscious'}</h3>
+          {run.refusal ? <p role="alert">{run.refusal}</p> : null}
+        </div>
+      </CombatWindow>
+    )
+  }
   return (
-    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<span className="note">Declaring starts by itself once Movement is settled.</span>}>
+    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />}>
       <div className="bigwait">
         <span className="label">Round {state.round} · Stage 1 · Movement</span>
         <h3>Waiting for the GM to settle Movement<span className="dots" /></h3>
-        <p>Everyone has confirmed. Pickups go to the fastest first.</p>
+        <p>Everyone has confirmed.</p>
       </div>
     </CombatWindow>
   )
@@ -25,7 +42,7 @@ function SettleWaiting({ state }: { state: CombatState }) {
 function MovementWaiting({ state }: { state: CombatState }) {
   const waiting = inFight(state).filter((entry) => !entry.movement).map((entry) => entry.name)
   return (
-    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<span className="note">Choices stay private until the stage closes.</span>}>
+    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />}>
       <div className="bigwait">
         <span className="label">Round {state.round} · Stage 1 · Movement</span>
         <h3>Waiting for everyone to confirm<span className="dots" /></h3>
@@ -44,7 +61,7 @@ function PlayerMovement({ owned, ...props }: MovementProps & { owned: Combatant[
 /** Moment 4: the viewer's own choices, the GM's list, or a wait. */
 export function MovementMiddle(props: MovementProps) {
   const { state, viewer } = props
-  if (state.movementComplete) return <SettleWaiting state={state} />
+  if (state.movementComplete) return <SettleWaiting {...props} />
   if (viewer.role === 'gm') return <GmMovement {...props} />
   const owned = inFight(state).filter((entry) => entry.kind === 'character' && controlsAttacker(entry, viewer))
   return owned.length ? <PlayerMovement {...props} owned={owned} /> : <MovementWaiting state={state} />

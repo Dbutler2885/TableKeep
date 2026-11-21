@@ -27,7 +27,7 @@ function defenderGone(state: CombatState, attack: CombatAttack, entropy: CombatE
 }
 
 /** Out stops a pending attack at once and settles its object; a defender who goes Out stops defending. */
-function stopAttack(state: CombatState, key: string, entropy: CombatEntropy): CombatState {
+export function stopAttack(state: CombatState, key: string, entropy: CombatEntropy): CombatState {
   const attack = openAttack(state)
   if (!attack) return state
   if (attack.attackerKey === key) return closeAttack(state, attack, 'interrupted')

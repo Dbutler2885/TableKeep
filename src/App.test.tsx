@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   user: null as Record<string, unknown> | null,
   username: 'gmhandle' as string | null,
   visible: true,
+  discordOutcome: null as string | null,
   access: {} as Record<string, unknown>,
   characters: {} as Record<string, unknown>,
   approvals: {} as Record<string, unknown>,
@@ -81,6 +82,7 @@ vi.mock('./features/demo/demoSandboxState', () => ({
 vi.mock('./features/auth/AuthPanel', () => ({ AuthPanel: stub('AuthPanel') }))
 vi.mock('./features/auth/DiscordConnection', () => ({ DiscordConnection: stub('DiscordConnection') }))
 vi.mock('./features/auth/DiscordReturnNotice', () => ({ DiscordReturnNotice: stub('DiscordReturnNotice') }))
+vi.mock('./features/auth/discordReturnOutcome', () => ({ pendingDiscordOutcome: () => mocks.discordOutcome }))
 vi.mock('./features/auth/UsernameSetup', () => ({ UsernameSetup: stub('UsernameSetup') }))
 vi.mock('./features/auth/VerifyEmailGate', () => ({ VerifyEmailGate: stub('VerifyEmailGate') }))
 vi.mock('./features/character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
@@ -171,6 +173,20 @@ const navLinks = () => Array.from(document.querySelectorAll('.nav-list > *')).ma
 const sideNav = () => document.querySelector('nav') as HTMLElement
 const contentPanel = () => document.querySelector('section.content-panel') as HTMLElement
 const shellTheme = () => document.querySelector('main.shell-root')?.getAttribute('data-theme')
+const accountIdentity = () => document.querySelector('.account-identity')?.textContent
+
+// A phone-width window: the sidebar becomes a bar that opens it as a drawer.
+// jsdom has neither media queries nor a modal dialog, so both are stood in for.
+const asPhone = () => {
+  vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => undefined, removeEventListener: () => undefined }))
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) { this.setAttribute('open', '') }
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    if (!this.hasAttribute('open')) return
+    this.removeAttribute('open')
+    this.dispatchEvent(new Event('close'))
+  }
+}
+const drawer = () => document.querySelector('dialog.side-drawer') as HTMLDialogElement
 const markup = (element: Element) => prettyDOM(element, Infinity, { highlight: false })
 
 const deferred = () => {
@@ -186,6 +202,7 @@ beforeEach(() => {
   mocks.useCharactersCalls = []
   mocks.useItemApprovalsCalls = []
   mocks.visible = true
+  mocks.discordOutcome = null
   mocks.username = 'gmhandle'
   asUser(GM)
   mocks.access = {
@@ -305,7 +322,7 @@ describe('GroupShell routes', () => {
     expect(screen.getByRole('heading', { name: 'No Active Campaign' })).toBeTruthy()
     expect(screen.getByText('This group does not have an active campaign yet.')).toBeTruthy()
     expect(sideNav()).toBeNull()
-    expect(screen.getByRole('button', { name: 'Open navigation' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
     expect(screen.queryByTestId('CliffhangerModal')).toBeNull()
     expect(screen.queryByTestId('TransferNotification')).toBeNull()
     expect(shellTheme()).toBe('default')
@@ -504,10 +521,10 @@ describe('GroupShell demo visitor', () => {
     asDemoVisitor()
     await renderAt('/groups/g1/campaigns/c1/character')
 
+    expect(screen.queryByRole('button', { name: 'Discord' })).toBeNull()
     expect(screen.queryByTestId('DiscordConnection')).toBeNull()
     expect(screen.queryByTestId('DiscordReturnNotice')).toBeNull()
-    expect(screen.getByText('Username: Visitor')).toBeTruthy()
-    expect(screen.getByText('Role: player')).toBeTruthy()
+    expect(accountIdentity()).toBe('Username: Visitor, role: player')
     expect(screen.getByTestId('DemoBanner')).toBeTruthy()
   })
 
@@ -524,7 +541,8 @@ describe('GroupShell side navigation', () => {
 
     expect(markup(sideNav())).toMatchInlineSnapshot(`
       "<nav
-        class="side-nav "
+        aria-label="Campaign"
+        class="side-nav"
       >
         <h1
           class="side-title"
@@ -585,7 +603,12 @@ describe('GroupShell side navigation', () => {
             data-discover="true"
             href="/groups/g1/campaigns/c1/character"
           >
-            Characters
+            <span
+              class="tab-label"
+              data-label="Characters"
+            >
+              Characters
+            </span>
           </a>
           <a
             aria-current="page"
@@ -593,49 +616,96 @@ describe('GroupShell side navigation', () => {
             data-discover="true"
             href="/groups/g1/campaigns/c1/maps"
           >
-            Maps
+            <span
+              class="tab-label"
+              data-label="Maps"
+            >
+              Maps
+            </span>
           </a>
           <a
             class="tab-button"
             data-discover="true"
             href="/groups/g1/campaigns/c1/monsters"
           >
-            Monsters
+            <span
+              class="tab-label"
+              data-label="Monsters"
+            >
+              Monsters
+            </span>
           </a>
           <a
             class="tab-button"
             data-discover="true"
             href="/groups/g1/campaigns/c1/items"
           >
-            Items
+            <span
+              class="tab-label"
+              data-label="Items"
+            >
+              Items
+            </span>
           </a>
           <a
             class="tab-button"
             data-discover="true"
             href="/groups/g1/campaigns/c1/npcs"
           >
-            NPCs
+            <span
+              class="tab-label"
+              data-label="NPCs"
+            >
+              NPCs
+            </span>
           </a>
           <a
             class="tab-button"
             data-discover="true"
             href="/groups/g1/campaigns/c1/tables"
           >
-            Tables
+            <span
+              class="tab-label"
+              data-label="Tables"
+            >
+              Tables
+            </span>
           </a>
           <a
             class="tab-button"
             data-discover="true"
             href="/groups/g1/campaigns/c1/notes"
           >
-            Notes
+            <span
+              class="tab-label"
+              data-label="Notes"
+            >
+              Notes
+            </span>
+          </a>
+          <a
+            class="tab-button"
+            data-discover="true"
+            href="/groups/g1/campaigns/c1/handouts"
+          >
+            <span
+              class="tab-label"
+              data-label="Handouts"
+            >
+              Handouts
+            </span>
           </a>
           <a
             class="tab-button"
             data-discover="true"
             href="/groups/g1/campaigns/c1/calendar"
           >
-            Calendar
+            <span
+              class="tab-label"
+              data-label="Calendar"
+            >
+              Calendar
+            </span>
           </a>
           <a
             class="tab-button"
@@ -643,70 +713,135 @@ describe('GroupShell side navigation', () => {
             rel="noreferrer noopener"
             target="_blank"
           >
-            OSE SRD
+            <span
+              class="tab-label"
+              data-label="OSE SRD"
+            >
+              OSE SRD
+            </span>
           </a>
         </div>
         <div
           class="account-panel"
         >
           <p
-            class="account-email account-username"
+            class="account-email account-identity"
           >
-            Username: 
-            gmhandle
-          </p>
-          <p
-            class="account-email"
-          >
-            Role: 
-            gm
-          </p>
-          <div
-            data-testid="DiscordConnection"
-          />
-          <div
-            data-testid="DiscordReturnNotice"
-          />
-          <button
-            class="side-settings-button"
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              class="lucide lucide-settings"
-              fill="none"
-              height="14"
-              stroke="currentColor"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              viewBox="0 0 24 24"
-              width="14"
-              xmlns="http://www.w3.org/2000/svg"
+            <span
+              class="sr-only"
             >
-              <path
-                d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
-              />
-              <circle
-                cx="12"
-                cy="12"
-                r="3"
-              />
-            </svg>
-            <span>
-              Campaign settings
+              Username: 
             </span>
-          </button>
-          <button
-            type="button"
+            <span
+              class="account-username"
+            >
+              gmhandle
+            </span>
+            <span
+              class="sr-only"
+            >
+              , role: 
+            </span>
+            <span
+              class="account-role"
+            >
+              gm
+            </span>
+          </p>
+          <div
+            class="account-actions"
           >
-            Sign Out
-          </button>
+            <button
+              aria-label="Discord"
+              class="account-action"
+              title="Discord"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-messages-square"
+                fill="none"
+                height="16"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
+                />
+                <path
+                  d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1"
+                />
+              </svg>
+            </button>
+            <button
+              aria-label="Campaign settings"
+              class="account-action"
+              title="Campaign settings"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-settings"
+                fill="none"
+                height="16"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="3"
+                />
+              </svg>
+            </button>
+            <button
+              aria-label="Sign out"
+              class="account-action"
+              title="Sign out"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                class="lucide lucide-log-out"
+                fill="none"
+                height="16"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                viewBox="0 0 24 24"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="m16 17 5-5-5-5"
+                />
+                <path
+                  d="M21 12H9"
+                />
+                <path
+                  d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
       </nav>"
     `)
-    expect(props('DiscordConnection')).toEqual({ userId: GM, variant: 'panel' })
-    expect(props('DiscordReturnNotice')).toEqual({ variant: 'panel' })
+    expect(screen.queryByTestId('DiscordConnection')).toBeNull()
   })
 
   it('hides the GM-only OSE tabs from a player and labels the sheet in the singular', async () => {
@@ -718,10 +853,11 @@ describe('GroupShell side navigation', () => {
       ['Maps', '/groups/g1/campaigns/c1/maps', 'tab-button'],
       ['NPCs', '/groups/g1/campaigns/c1/npcs', 'tab-button'],
       ['Notes', '/groups/g1/campaigns/c1/notes', 'tab-button'],
+      ['Handouts', '/groups/g1/campaigns/c1/handouts', 'tab-button'],
       ['Calendar', '/groups/g1/campaigns/c1/calendar', 'tab-button'],
       ['OSE SRD', SRD, 'tab-button'],
     ])
-    expect(screen.getByText('Role: player')).toBeTruthy()
+    expect(accountIdentity()).toBe('Username: gmhandle, role: player')
     expect(screen.queryByRole('button', { name: 'Campaign settings' })).toBeNull()
   })
 
@@ -730,21 +866,21 @@ describe('GroupShell side navigation', () => {
     mocks.access.groups = [vtmGroup()]
     await renderAt('/groups/g1/campaigns/c1/character')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['Character', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Calendar'])
+    expect(navLinks().map(([label]) => label)).toEqual(['Character', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Handouts', 'Calendar'])
   })
 
   it('shows the VtM tabs to the GM', async () => {
     mocks.access.groups = [vtmGroup()]
     await renderAt('/groups/g1/campaigns/c1/character')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['Characters', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Calendar'])
+    expect(navLinks().map(([label]) => label)).toEqual(['Characters', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Handouts', 'Calendar'])
   })
 
   it('shows only the enabled tabs, in system order', async () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ enabledTabs: ['rules', 'notes', 'items', 'maps'] }) })]
     await renderAt('/groups/g1/campaigns/c1/notes')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['Maps', 'Items', 'Notes', 'OSE SRD'])
+    expect(navLinks().map(([label]) => label)).toEqual(['Maps', 'Items', 'Notes', 'Handouts', 'OSE SRD'])
   })
 
   it('applies the player filter after the enabled tabs', async () => {
@@ -752,62 +888,121 @@ describe('GroupShell side navigation', () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ enabledTabs: ['items', 'tables', 'npcs'] }) })]
     await renderAt('/groups/g1/campaigns/c1/npcs')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['NPCs'])
+    expect(navLinks().map(([label]) => label)).toEqual(['NPCs', 'Handouts'])
   })
 
   it('drops enabled tabs the VtM system does not have', async () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ system: 'vtm', enabledTabs: ['items', 'rules', 'npcs'] }) })]
     await renderAt('/groups/g1/campaigns/c1/npcs')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['NPCs'])
+    expect(navLinks().map(([label]) => label)).toEqual(['NPCs', 'Handouts'])
   })
 
-  it('shows no tabs for an empty enabled list', async () => {
+  it('keeps the required Handouts tab for an empty enabled list', async () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ enabledTabs: [] }) })]
     await renderAt('/groups/g1/campaigns/c1/notes')
 
-    expect(navLinks()).toEqual([])
+    expect(navLinks()).toEqual([['Handouts', '/groups/g1/campaigns/c1/handouts', 'tab-button']])
   })
 
-  it('opens and closes the drawer from the menu toggle and the backdrop', async () => {
+  it('keeps the sidebar beside the page, with no toggle or backdrop', async () => {
     await renderAt('/groups/g1/campaigns/c1/maps')
-    const toggle = screen.getByRole('button', { name: 'Open navigation' })
 
-    expect(sideNav().className).toBe('side-nav ')
-    expect(document.querySelector('.drawer-backdrop')).toBeNull()
-
-    fireEvent.click(toggle)
-    expect(sideNav().className).toBe('side-nav open')
-    expect(document.querySelector('.drawer-backdrop')).toBeTruthy()
-
-    fireEvent.click(toggle)
-    expect(sideNav().className).toBe('side-nav ')
-
-    fireEvent.click(toggle)
-    fireEvent.click(document.querySelector('.drawer-backdrop') as Element)
-    expect(sideNav().className).toBe('side-nav ')
-    expect(document.querySelector('.drawer-backdrop')).toBeNull()
+    const layout = Array.from(document.querySelector('.shell-layout')?.children ?? []).map((child) => child.tagName.toLowerCase())
+    expect(layout).toEqual(['nav', 'section'])
+    expect(sideNav().className).toBe('side-nav')
+    expect(screen.queryByRole('button', { name: 'Open navigation' })).toBeNull()
+    expect(document.querySelector('.phone-nav-bar, .side-drawer, .drawer-backdrop')).toBeNull()
   })
 
-  it('closes the drawer and moves to the tab when a tab is chosen', async () => {
+  it('keeps the sidebar and moves to the tab when a tab is chosen', async () => {
     await renderAt('/groups/g1/campaigns/c1/maps')
-    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
     fireEvent.click(screen.getByRole('link', { name: 'Notes' }))
 
     expect(probe.location).toBe('/groups/g1/campaigns/c1/notes')
-    expect(sideNav().className).toBe('side-nav ')
+    expect(sideNav().className).toBe('side-nav')
     expect(screen.getByRole('link', { name: 'Notes' }).className).toBe('tab-button active')
   })
 
-  it('closes the drawer when the rules link is chosen', async () => {
+  it('keeps the page and the sidebar when the rules link is chosen', async () => {
     await renderAt('/groups/g1/campaigns/c1/maps')
-    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
     const rules = screen.getByRole('link', { name: 'OSE SRD' })
     rules.addEventListener('click', (event) => event.preventDefault())
     fireEvent.click(rules)
 
-    expect(sideNav().className).toBe('side-nav ')
+    expect(sideNav().className).toBe('side-nav')
     expect(probe.location).toBe('/groups/g1/campaigns/c1/maps')
+  })
+
+  describe('on a phone', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('shows a bar with the open tab instead of the sidebar', async () => {
+      asPhone()
+      await renderAt('/groups/g1/campaigns/c1/maps')
+
+      const layout = Array.from(document.querySelector('.shell-layout')?.children ?? []).map((child) => child.className)
+      expect(layout).toEqual(['phone-nav-bar', 'side-drawer', contentPanel().className])
+      expect(document.querySelector('.phone-nav-title')?.textContent).toBe('Maps')
+      expect(drawer().open).toBe(false)
+      expect(screen.getByRole('button', { name: 'Open navigation' }).getAttribute('aria-expanded')).toBe('false')
+    })
+
+    it('opens the drawer from the bar and closes it from its close button and its backdrop', async () => {
+      asPhone()
+      await renderAt('/groups/g1/campaigns/c1/maps')
+      const toggle = screen.getByRole('button', { name: 'Open navigation' })
+
+      fireEvent.click(toggle)
+      expect(drawer().open).toBe(true)
+      expect(toggle.getAttribute('aria-expanded')).toBe('true')
+      expect(within(drawer()).getByRole('navigation', { name: 'Campaign' })).toBeTruthy()
+
+      fireEvent.click(within(drawer()).getByRole('button', { name: 'Close navigation' }))
+      expect(drawer().open).toBe(false)
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+
+      fireEvent.click(toggle)
+      fireEvent.click(within(drawer()).getByRole('navigation', { name: 'Campaign' }))
+      expect(drawer().open).toBe(true)
+      fireEvent.click(drawer())
+      expect(drawer().open).toBe(false)
+    })
+
+    it('closes the drawer and moves to the tab when a tab is chosen', async () => {
+      asPhone()
+      await renderAt('/groups/g1/campaigns/c1/maps')
+      fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+      fireEvent.click(within(drawer()).getByRole('link', { name: 'Notes' }))
+
+      expect(probe.location).toBe('/groups/g1/campaigns/c1/notes')
+      expect(drawer().open).toBe(false)
+      expect(document.querySelector('.phone-nav-title')?.textContent).toBe('Notes')
+    })
+
+    it('closes the drawer when the rules link is chosen', async () => {
+      asPhone()
+      await renderAt('/groups/g1/campaigns/c1/maps')
+      fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+      const rules = within(drawer()).getByRole('link', { name: 'OSE SRD' })
+      rules.addEventListener('click', (event) => event.preventDefault())
+      fireEvent.click(rules)
+
+      expect(drawer().open).toBe(false)
+      expect(probe.location).toBe('/groups/g1/campaigns/c1/maps')
+    })
+
+    it('closes the drawer before opening the campaign settings', async () => {
+      asPhone()
+      await renderAt('/groups/g1/campaigns/c1/maps')
+      fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
+      fireEvent.click(within(drawer()).getByRole('button', { name: 'Campaign settings' }))
+
+      expect(drawer().open).toBe(false)
+      expect(screen.getByTestId('CampaignSettingsModal')).toBeTruthy()
+    })
   })
 
   it('goes back to the group home from the campaign name', async () => {
@@ -819,20 +1014,51 @@ describe('GroupShell side navigation', () => {
 
   it('opens and closes the campaign settings for the GM', async () => {
     await renderAt('/groups/g1/campaigns/c1/maps')
-    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }))
     expect(screen.queryByTestId('CampaignSettingsModal')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Campaign settings' }))
-    expect(sideNav().className).toBe('side-nav ')
     expect(props('CampaignSettingsModal')).toMatchObject({ groupId: 'g1', campaign: (mocks.access.groups as GroupRecord[])[0].activeCampaign })
 
     await call('CampaignSettingsModal', 'onClose')
     expect(screen.queryByTestId('CampaignSettingsModal')).toBeNull()
   })
 
+  it('opens the Discord connection from the sidebar and closes it again', async () => {
+    await renderAt('/groups/g1/campaigns/c1/maps')
+    expect(screen.queryByRole('heading', { name: 'Discord' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discord' }))
+    expect(screen.getByRole('heading', { name: 'Discord' })).toBeTruthy()
+    expect(props('DiscordConnection')).toEqual({ userId: GM, variant: 'panel' })
+    expect(props('DiscordReturnNotice')).toEqual({ variant: 'panel' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('heading', { name: 'Discord' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discord' }))
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByTestId('DiscordConnection')).toBeNull()
+  })
+
+  it('opens the Discord connection by itself for someone just back from Discord', async () => {
+    mocks.discordOutcome = 'connected'
+    await renderAt('/groups/g1/campaigns/c1/maps')
+
+    expect(screen.getByRole('heading', { name: 'Discord' })).toBeTruthy()
+    expect(screen.getByTestId('DiscordReturnNotice')).toBeTruthy()
+  })
+
+  it('never opens the Discord connection for a demo visitor', async () => {
+    mocks.discordOutcome = 'connected'
+    asDemoVisitor()
+    await renderAt('/groups/g1/campaigns/c1/maps')
+
+    expect(screen.queryByRole('heading', { name: 'Discord' })).toBeNull()
+  })
+
   it('signs out from the side navigation', async () => {
     await renderAt('/groups/g1/campaigns/c1/maps')
-    fireEvent.click(screen.getByRole('button', { name: 'Sign Out' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
     expect(mocks.forgetDemoExpiry).toHaveBeenCalledTimes(1)
     expect(mocks.signOut).toHaveBeenCalledTimes(1)
@@ -1083,7 +1309,7 @@ describe('GroupShell subscriptions', () => {
     const order = Array.from(document.querySelector('main.shell-root')?.children ?? []).map((child) => (
       child.getAttribute('data-testid') ?? child.className
     ))
-    expect(order).toEqual(['menu-toggle', 'shell-layout', 'confirm-overlay', 'TransferNotification', 'CliffhangerModal', 'CampaignSettingsModal'])
+    expect(order).toEqual(['shell-layout', 'confirm-overlay', 'TransferNotification', 'CliffhangerModal', 'CampaignSettingsModal'])
     expect(document.querySelector('.combat-cards')).toBeNull()
   })
 })

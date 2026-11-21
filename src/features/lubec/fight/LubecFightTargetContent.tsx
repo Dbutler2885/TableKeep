@@ -1,3 +1,4 @@
+import { OverPop } from './OverPop'
 import './lubecFight.css'
 import { WOUND_KINDS, WOUND_SHORT } from '../gear/itemLabels'
 import { LubecPortrait } from '../LubecPortrait'
@@ -25,7 +26,7 @@ function TargetCard({ target }: { target: LubecCombatant }) {
 // What the row stops, as the Gear page's armor reads it: the numbers are a piece's own, and they add up on a part it shares.
 function WornRow({ row }: { row: LubecWornRow }) {
   return (
-    <div className="wear-row">
+    <div className="wear-row" title={row.covers ? `${row.name}: ${row.covers}` : row.name}>
       <span><b>{row.name}</b>{row.covers ? <small>{row.covers}</small> : null}</span>
       <span className="nums">
         {WOUND_KINDS.map((w) => <i key={w}><small>{WOUND_SHORT[w]}</small>{row.armor[w]}</i>)}
@@ -35,13 +36,22 @@ function WornRow({ row }: { row: LubecWornRow }) {
 }
 
 // B's wearingCard. A sheet the viewer cannot read says so rather than say they wear nothing.
-export function LubecFightWearingContent({ target }: { target: LubecCombatant }) {
+// With a limit the card keeps one size: that many lines, and the rest open over it rather than grow it.
+export function LubecFightWearingContent({ target, limit }: { target: LubecCombatant; limit?: number }) {
   const worn = lubecCombatantWorn(target)
   const nothing = worn ? 'Nothing that stops a wound.' : 'No sheet to read here. The GM says what they are wearing.'
+  const name = lubecCombatantFace(target).name
+  const shown = worn && limit !== undefined && worn.length > limit ? worn.slice(0, limit - 1) : worn
+  const rest = worn && shown ? worn.slice(shown.length) : []
   return (
     <div className="wearing">
-      <div className="wear-head"><span>{lubecCombatantFace(target).name} is wearing</span></div>
-      {worn?.length ? worn.map((row) => <WornRow key={row.key} row={row} />) : <p className="none">{nothing}</p>}
+      <div className="wear-head"><span>{name} is wearing</span></div>
+      {shown?.length ? shown.map((row) => <WornRow key={row.key} row={row} />) : <p className="none">{nothing}</p>}
+      {rest.length ? (
+        <OverPop className="wear-more" summary={`+${rest.length} more`}>
+          <div className="wear-pop" role="group" aria-label={`Everything ${name} is wearing`}>{worn!.map((row) => <WornRow key={row.key} row={row} />)}</div>
+        </OverPop>
+      ) : null}
     </div>
   )
 }

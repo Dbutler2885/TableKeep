@@ -1,3 +1,5 @@
+import { rollDiceOf } from './rollBreakdown'
+import { combatSkipsStages, combatIncapacity } from './inputs'
 import { lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import type { LubecArrival } from '../../../ruleSets/lubec/gear/arrival'
 import { lubecPlaceDetached, type LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
@@ -9,7 +11,10 @@ import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from '
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
-import { combatInputModifiers } from './inputModifiers'
+import { requireDue } from './declare'
+import { checkSplit } from './splitRepair'
+import { combatRollMode, modeRecord, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
+import { combatHands, combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCommand, Combatant, CombatDefenseRoll, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Split = { amount: number; full: boolean }
@@ -25,12 +30,18 @@ function readSplit(raw: unknown, pool: number): Split {
   return { amount, full: false }
 }
 
-/** Strictly under its number; a success takes off its tens digit plus 1, a failure nothing. Full Defense adds 10, capped at 100. */
-function rollDefense(split: Split, entropy: CombatEntropy): CombatDefenseRoll {
+/**
+ * Strictly under its number; a success takes off its tens digit plus 1, a failure nothing. Full Defense adds 10, capped at 100.
+ * Under a card-set mode two dice are rolled: a success beats a failure, and the higher success takes off more.
+ */
+function rollDefense(split: Split, mode: CombatMode, entropy: CombatEntropy): CombatDefenseRoll {
   const value = split.full ? Math.min(100, split.amount + 10) : split.amount
-  const roll = entropy.die('defense', 100)
-  const success = roll < value
-  return { ...split, value, roll, success, removes: success ? tens(roll) + 1 : 0 }
+  const evaluate = (roll: number) => {
+    const success = roll < value
+    return { ...split, value, roll, success, removes: success ? tens(roll) + 1 : 0 }
+  }
+  const rolled = rollWithMode(entropy, 'defense', mode.mode, evaluate, successThenHigher)
+  return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
 const caughtItem = (attack: CombatAttack): LubecItem | null => (attack.detached[0]?.item as LubecItem | undefined) ?? null
@@ -43,7 +54,7 @@ const catchable = (attack: CombatAttack): LubecItem | null => {
 
 export function catchChance(attack: CombatAttack, sheet: CombatSheet, net: number): number {
   const item = catchable(attack)
-  if (!item || !place(sheet.sheet.gear, 'hands', item).ok) return 0
+  if (!item || !place(sheet.sheet.gear, 'hands', item, null, combatHands(sheet.sheet, null)).ok) return 0
   return Math.min(100, item.catchChance! + 10 * -net)
 }
 
@@ -52,7 +63,8 @@ function defenseLog(defender: Combatant, attack: CombatAttack, defense: CombatDe
     event: `${defender.name} defended.`, actor: defender.key,
     roll: {
       who: defender.name, what: 'Defense roll', roll: pad(defense.roll), target: `under ${defense.value}`, tone: defense.success ? 'bad' as const : 'ok' as const,
-      result: defense.success ? `Holds · takes off ${defense.removes}` : 'Fails · takes off nothing', extra: `Quality ${attack.roll!.quality} − ${defense.removes} = ${net}`,
+      result: defense.success ? `Holds · takes off ${defense.removes}` : 'Fails · takes off nothing',
+      extra: `Quality ${attack.roll!.quality} − ${defense.removes} = ${net}`, ...rollDiceOf(defense),
     },
   }
 }
@@ -82,7 +94,8 @@ function defended(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const defender = combatantOf(fight.state, defenderOf(attack))
   const split = defenseSplit(fight, attack, record, command)
   if (split.amount === 0) return { fight: { ...fight, state: toLocation(fight.state, { ...attack, defense: null }, attack.roll!.quality!, entropy) }, items: [], logs: [{ event: `${defender.name} kept no Defense.`, actor: defender.key }] }
-  const defense = rollDefense(split, entropy)
+  const mode = combatRollMode(record, { kind: 'defense', stat: 'Handle' }, { fightId: command.envelope.fightId, round: fight.state.round })
+  const defense = rollDefense(split, mode, entropy)
   const net = attack.roll!.quality! - defense.removes
   const state = afterDefense(fight.state, { ...attack, defense, net, repair: null }, record, net, entropy)
   return { fight: { ...fight, state }, items: [], logs: [defenseLog(defender, attack, defense, net)] }
@@ -97,10 +110,36 @@ const defend: CombatHandler = (command, records, authority, entropy) => {
   const attack = attackAt(fight.state, command, 'defense', defenderOf)
   const defender = combatantOf(fight.state, defenderOf(attack))
   const record = combatSheetOf(records, defender)
+  if (combatSkipsStages(defender)) throw new Error(`${defender.name} is ${combatIncapacity(defender)} and cannot defend or catch.`)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
-  return defended(fight, attack, record!, command, entropy)
+  requireDue(fight.state, defender, record!)
+  if (attack.splitRepair) throw new Error('Waiting for the split to be repaired.')
+  if (!isRoundAttack(fight.state, attack) || !declaredLine(fight.state, attack)) return defended(fight, attack, record!, command, entropy)
+  return defendDeclared(fight, attack, defender, record!, records, command, entropy)
 }
+
+/** A declared Defense is repaired and spent as one transition; an exhausted line lets the hit continue undefended. */
+function defendDeclared(fight: CombatFight, attack: CombatAttack, defender: Combatant, record: CombatSheet, records: Parameters<CombatHandler>[1], command: CombatCommand, entropy: CombatEntropy): CombatPlan {
+  // A declared Defense line rolls only once the split it came from still fits the pool, or has been split again.
+  const split = checkSplit(fight, defender.key, records, command.envelope.fightId)
+  if (split.kind === 'choose') return { fight: { ...fight, state: split.state }, items: [], logs: [split.log] }
+  const current = split.kind === 'repaired' ? { ...fight, state: split.state } : fight
+  // A repair that leaves no Defense: the hit goes on undefended.
+  if (!declaredLine(current.state, current.state.attack!)) {
+    const state = toLocation(current.state, { ...current.state.attack!, defense: null }, attack.roll!.quality!, entropy)
+    return { fight: { ...current, state }, items: [], logs: [...(split.kind === 'repaired' ? [split.log] : []), { event: `${defender.name} has no Defense left.`, actor: defender.key }] }
+  }
+  const plan = defended(current, current.state.attack!, record, command, entropy)
+  const spent = markDefenseRolled(plan.fight.state, defender.key)
+  return { ...plan, fight: { ...plan.fight, state: spent }, logs: split.kind === 'repaired' ? [split.log, ...plan.logs] : plan.logs }
+}
+
+/** A declared Defense line once rolled is a spent part of the split. */
+const markDefenseRolled = (state: CombatState, key: string): CombatState => ({
+  ...state,
+  combatants: state.combatants.map((entry) => (entry.key === key && entry.declaration ? { ...entry, declaration: { ...entry.declaration, defenseRolled: true } } : entry)),
+})
 
 function catchLog(defender: Combatant, attack: CombatAttack, chance: number, roll: number, success: boolean) {
   const below = -attack.net!
@@ -119,7 +158,7 @@ const outOnCatch = (state: CombatState, attack: CombatAttack, item: LubecItem) =
 /** A success puts the object in the catcher's first free hand, and the thrower Out when the item says so. */
 function caught(fight: CombatFight, attack: CombatAttack, record: CombatSheet, detached: LubecDetachedItem, command: CombatCommand): CombatPlan {
   // The free hand was checked in this same transaction before the roll, so the placement succeeds.
-  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands') as Extract<LubecArrival, { ok: true }>
+  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands', combatHands(record.sheet, null)) as Extract<LubecArrival, { ok: true }>
   const item = detached.item as LubecItem
   const state = closeAttack({ ...fight.state, combatants: outOnCatch(fight.state, attack, item) }, { ...attack, detached: [] }, 'caught')
   return { fight: { ...fight, state }, items: [], logs: [], sheets: [{ selection: { kind: record.kind, sheetId: record.sheetId }, gear: arrival.gear }] }
@@ -133,7 +172,7 @@ function handsFull(fight: CombatFight, attack: CombatAttack, defender: Combatant
 
 function caughtOrDropped(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   const defender = combatantOf(fight.state, defenderOf(attack))
-  if (!place(record.sheet.gear, 'hands', caughtItem(attack)!).ok) return handsFull(fight, attack, defender)
+  if (!place(record.sheet.gear, 'hands', caughtItem(attack)!, null, combatHands(record.sheet, null)).ok) return handsFull(fight, attack, defender)
   const chance = attack.catchChance!
   const roll = entropy.die('catch', 100)
   const rolled = { ...attack, catch: { chance, roll, success: roll < chance }, repair: null }
@@ -148,6 +187,7 @@ const catchRoll: CombatHandler = (command, records, authority, entropy) => {
   const attack = attackAt(fight.state, command, 'catch', defenderOf)
   const defender = combatantOf(fight.state, defenderOf(attack))
   const record = combatSheetOf(records, defender)
+  if (combatSkipsStages(defender)) throw new Error(`${defender.name} is ${combatIncapacity(defender)} and cannot defend or catch.`)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
   return caughtOrDropped(fight, attack, record!, command, entropy)
@@ -159,6 +199,7 @@ const split: CombatHandler = (command, records, authority) => {
   const attack = attackAt(fight.state, command, 'defense', defenderOf)
   const defender = combatantOf(fight.state, defenderOf(attack))
   const record = combatSheetOf(records, defender)
+  if (combatSkipsStages(defender)) throw new Error(`${defender.name} is ${combatIncapacity(defender)} and cannot defend or catch.`)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
   const defenseSplit = readSplit(command.payload.split, handlePool(fight, record!, command))

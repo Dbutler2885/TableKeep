@@ -199,8 +199,13 @@ describe('commands on a live fight', () => {
     const live = fight()
     const thrown = lubecDetachedItem(parseLubecGmItem({ ...ball, qty: 1 }, 'thrown'), [])
     put('combats/fight-start', { ...live, state: { ...live.state, attack: { id: 'a', grantId: null, attackerKey: 'character:hero', step: 'catch', detached: [thrown], closed: false } } })
-    events.length = 0
-    expect(await commit(action('end'))).toMatchObject({ ok: true })
+    const delivered = vi.fn(async (fightId: string) => {
+      const current = read(`combats/${fightId}`) as unknown as CombatFight
+      put(`combats/${fightId}`, { ...current, state: { ...current.state, woundOutbox: [] } })
+      events.length = 0
+    })
+    expect(await commit(action('end'), options('gm', { drainWounds: delivered }))).toMatchObject({ ok: true })
+    expect(delivered).toHaveBeenCalledOnce()
     expect(events.filter((event) => event.includes('gmItems/') && event.startsWith('get'))).toEqual([`get ${root}/gmItems/item:start:floor%3Aball:0`, `get ${root}/gmItems/thrown`])
     expect(writesBeforeLastRead()).toBe(false)
     expect(read('combatControl/current')).toEqual({ activeFightId: null })

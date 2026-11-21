@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AppTab } from '../../types/app'
-import { hasApprovals, listensForApprovals, listensForCharacters, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
+import { hasApprovals, listensForApprovals, listensForCharacters, showsClockAlerts, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
 
 const ALL_TABS: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules']
 const tabsWhere = (test: (tab: AppTab) => boolean) => ALL_TABS.filter(test)
@@ -45,6 +45,15 @@ describe('showsTransferNotification', () => {
 
   it('never shows for VtM', () => {
     expect(tabsWhere((tab) => showsTransferNotification('vtm', true, tab))).toEqual([])
+  })
+})
+
+describe('showsClockAlerts', () => {
+  it('shows clock changes only for a rule set with clocks, and only while visible', () => {
+    expect(showsClockAlerts('lubec', true)).toBe(true)
+    expect(showsClockAlerts('lubec', false)).toBe(false)
+    expect(showsClockAlerts('ose', true)).toBe(false)
+    expect(showsClockAlerts('vtm', true)).toBe(false)
   })
 })
 

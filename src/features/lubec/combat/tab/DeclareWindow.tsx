@@ -6,6 +6,7 @@ import { LubecFightWindowContent } from '../../fight/LubecFightWindowContent'
 import { lubecCombatantFace, lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
 import { clampHandle } from '../engine/attackMath'
 import { combatOpponents } from '../engine/attackParty'
+import { downCards } from '../engine/down'
 import { combatInputModifiers } from '../engine/inputModifiers'
 import type { CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackBar, AttackScale, SegmentRoll } from './AttackBar'
@@ -14,10 +15,10 @@ import { attackSum, initialDraft, labelPlace, segmentMiddle, withDefense, withWe
 import { attackWindowModel, type AttackReading, type AttackWindowModel } from './attackWindowModel'
 import { AttackDefenseLine, DefenseLineSelect } from './AttackWindowParts'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
-import { CombatStepper, CombatWindow } from './CombatParts'
-import { CombatRefusal } from './CombatParts'
+import { CombatStepper, CombatWindow, NoticeSlot, type SlotNotice } from './CombatParts'
 import { useCombatRun, type CombatRun } from './useCombatRun'
 import { aimedText, attackBadge, declaredAt } from './declarationsModel'
+import { declaredAtAttacker, orderedOpponentKeys, orderedTargets } from './targetOrder'
 
 type WindowProps = {
   state: CombatState
@@ -35,14 +36,33 @@ type BodyProps = WindowProps & { fighter: LubecCombatant; sheet: LubecCharacterS
 const draftAttack = (declarer: Combatant): CombatAttack => ({ id: 'declare', grantId: null, attackerKey: declarer.key, step: 'aim', detached: [], closed: false })
 
 /** Who has declared at, or against, this declarer: they can answer with Full Defense. */
-function AimedNotice({ state, declarer }: { state: CombatState; declarer: Combatant }) {
+function aimedNotice(state: CombatState, declarer: Combatant): SlotNotice | null {
   const aimed = state.combatants.filter((entry) => entry.declaration && !entry.declaration.ran && declaredAt(entry.declaration, [declarer.key]))
   if (!aimed.length) return null
-  return (
-    <div className="notice hot">
-      <span>{aimed.map((entry) => <span key={entry.key}><b>{entry.name}</b> {aimedText(state, entry.declaration!, declarer.key)} </span>)}You can answer with Full Defense below, or attack and defend with what is left.</span>
-    </div>
-  )
+  const tail = 'You can answer with Full Defense below, or attack and defend with what is left.'
+  return {
+    key: 'aimed', tone: 'hot',
+    body: <>{aimed.map((entry) => <span key={entry.key}><b>{entry.name}</b> {aimedText(state, entry.declaration!, declarer.key)} </span>)}{tail}</>,
+    words: `${aimed.map((entry) => `${entry.name} ${aimedText(state, entry.declaration!, declarer.key)}`).join(' ')} ${tail}`,
+  }
+}
+
+type NoticeInputs = { state: CombatState; declarer: Combatant; refusal: string | null; evading: boolean; down: boolean; reach: string | null }
+
+/** Everything the Declare window has to say, most pressing first, for its one notice line. */
+function declareNotices({ state, declarer, refusal, evading, down, reach }: NoticeInputs): SlotNotice[] {
+  const rejected = 'The GM rejected your declaration. Choose again.'
+  const evasive = 'No attack this round: declare Full Defense against one person.'
+  const grounded = 'No attack from the ground: declare Full Defense against one person.'
+  const notices: (SlotNotice | null)[] = [
+    refusal ? { key: 'refusal', tone: 'hot', role: 'alert', body: refusal, words: refusal } : null,
+    declarer.declarationRejected ? { key: 'rejected', tone: 'hot', role: 'status', body: rejected, words: rejected } : null,
+    evading ? { key: 'evading', tone: 'cool', role: 'status', body: <><b>{declarer.name} moved evasively.</b> {evasive}</>, words: `${declarer.name} moved evasively. ${evasive}` } : null,
+    down && !evading ? { key: 'down', tone: 'cool', role: 'status', body: <><b>{declarer.name} is knocked down.</b> {grounded}</>, words: `${declarer.name} is knocked down. ${grounded}` } : null,
+    aimedNotice(state, declarer),
+    reach ? { key: 'reach', tone: 'cool', role: 'status', body: reach, words: reach } : null,
+  ]
+  return notices.filter((notice): notice is SlotNotice => notice !== null)
 }
 
 const targetNote = (state: CombatState) => (target: LubecCombatant): string => {
@@ -58,7 +78,7 @@ function DeclareChoices({ body, draft, setDraft, model, full }: ChoicesProps) {
       <LubecFightWindowContent
         focusTarget
         request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
-        targets={model.targets} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
+        targets={orderedTargets(body.state, body.declarer, model.targets, declaredAtAttacker(body.state, body.declarer))} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
         onTarget={(key) => setDraft({ ...draft, targetKey: key })}
         onWeapon={(id) => setDraft(withWeapon(draft, body.sheet, id))}
         onAttack={(id) => setDraft({ ...draft, attackId: id })}
@@ -74,10 +94,12 @@ function fullPool(body: BodyProps, reading: AttackReading | null): AttackReading
   return { handle, skill: null, total: handle, ranged: false }
 }
 
-function DeclareAsk({ words, reading }: { words: string; reading: AttackReading }) {
+/** The ask, the Full Defense switch and the pool's sum on one line, so the bar stays on the same screen as the choices. */
+function DeclareAsk({ words, reading, check }: { words: string; reading: AttackReading; check: ReactNode }) {
   return (
     <div className="ask-row">
       <p className="ask">{words}</p>
+      {check}
       <span className="effective"><span className="sum">{attackSum(reading, null)} <b>{reading.total}</b></span></span>
     </div>
   )
@@ -114,8 +136,7 @@ function FullDefense({ body, model, run, onFull, against, onAgainst }: FullProps
   const declare = <SegmentRoll at={Math.max(8, Math.min(92, reading.total / 2))} label="Declare Full Defense" disabled={run.busy} onRoll={() => run.run(() => body.commands.declare(body.declarer.key, pick))} />
   return (
     <>
-      <DeclareAsk words="Full Defense: put all of your Handle on Defense." reading={reading} />
-      <FullCheck full onFull={onFull} />
+      <DeclareAsk words="Put all of your Handle on Defense." reading={reading} check={<FullCheck full onFull={onFull} />} />
       <FullDefenseBar total={reading.total} controls={declare} />
       <DefenseLineSelect against={against} opponents={model.opponents} onAgainst={onAgainst} />
     </>
@@ -129,8 +150,7 @@ function Split({ body, draft, setDraft, model, run, onFull }: PartProps) {
   const declare = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Declare" disabled={run.busy} onRoll={() => run.run(() => body.commands.declare(body.declarer.key, { full: false, aim: model.aim! }))} />
   return (
     <>
-      <DeclareAsk words={`Split your Handle against ${lubecCombatantFace(target).name}.`} reading={reading} />
-      <FullCheck full={false} onFull={onFull} />
+      <DeclareAsk words={`Split your Handle against ${lubecCombatantFace(target).name}.`} reading={reading} check={<FullCheck full={false} onFull={onFull} />} />
       <AttackBar segments={segments} onDefense={(amount) => setDraft(withDefense(draft, amount, reading.total, draft.targetKey!))} controls={declare} />
       <AttackDefenseLine draft={draft} segments={segments} opponents={model.opponents} total={reading.total} onDraft={setDraft} />
     </>
@@ -145,11 +165,13 @@ const guardedKey = (picked: string | null, draft: AttackDraft): string => picked
 
 function DeclareBody(body: BodyProps) {
   const { state, declarer, sheet } = body
-  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, combatOpponents(state, declarer).map((entry) => entry.key)))
+  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, orderedOpponentKeys(state, declarer, combatOpponents(state, declarer).map((entry) => entry.key))))
   // Evasive Movement used this round's action: Full Defense is all that is left to declare.
   const evading = declarer.movement?.choice === 'evade'
+  // Still knocked down: no attack from the ground, so the same Full Defense only.
+  const down = downCards(sheet, { fightId: body.fightId, round: state.round }).length > 0
   const [fullChosen, setFull] = useState(false)
-  const full = evading || fullChosen
+  const full = evading || down || fullChosen
   const [against, setAgainst] = useState<string | null>(null)
   const run = useCombatRun()
   const model = attackWindowModel({ state, attack: draftAttack(declarer), attacker: declarer, sheet, draft, fightId: body.fightId, roster: body.roster })
@@ -157,11 +179,10 @@ function DeclareBody(body: BodyProps) {
   const guarded = guardedKey(against, draft)
   return (
     <>
-      <AimedNotice state={state} declarer={declarer} />
-      {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again; it is still your turn to declare.</span></div> : null}
-      <CombatRefusal refusal={run.refusal} />
-      {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> That uses the action, so there is no attack this round: declare Full Defense against one person.</span></div> : null}
-      <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
+      <div className="declare-top">
+        <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong></div>
+        <NoticeSlot notices={declareNotices({ state, declarer, refusal: run.refusal, evading, down, reach: full ? null : model.reach })} />
+      </div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}
     </>
@@ -172,11 +193,8 @@ function DeclareBody(body: BodyProps) {
 export function DeclareWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.declarer, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
-  const foot = props.declarer.kind === 'npc'
-    ? 'Your NPC declaration takes effect when submitted. The next turn begins automatically.'
-    : 'Submit your choice for GM approval. The next person waits until it is approved.'
   return (
-    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">{foot}</span>}>
+    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />}>
       {sheet ? <DeclareBody key={props.state.stageInstanceId} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.declarer.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

@@ -17,6 +17,7 @@ vi.mock('../../../character/characterStore/useCharacterStore', () => ({
 }))
 vi.mock('../../../npcs/hooks/useNpcDocuments', () => ({ useNpcDocuments: () => ({ npcs: mocks.npcs }) }))
 vi.mock('../../items/useLubecGmItems', () => ({ useLubecGmItems: () => mocks.items }))
+vi.mock('./combatSheetWriter', () => ({ combatSheetWriter: (_store: unknown, collection: string, scope: unknown) => ({ collection, scope }) }))
 
 const { useCombatGmData } = await import('./useCombatGmData')
 
@@ -32,6 +33,10 @@ describe('what the GM sets a fight up from', () => {
     expect(result.current.npcs.map(({ npc, sheet }) => [npc.id, sheet?.name ?? null, sheet?.portraitPath ?? null])).toEqual([['roy', 'Roy Carver', 'roy-face'], ['coach', null, null]])
     expect(result.current.items.map((item) => item.id)).toEqual(['old', 'new'])
     expect(mocks.stores.map((options) => [options.collection, options.role, options.enabled])).toContainEqual(['npcSheets', 'gm', true])
+    expect(result.current.writers).toEqual({
+      characters: { collection: 'characters', scope: { campaignId: 'gym', groupId: 'school' } },
+      npcSheets: { collection: 'npcSheets', scope: { campaignId: 'gym', groupId: 'school' } },
+    })
   })
 
   it('has no items while they load, and an NPC with no portrait shows none', () => {

@@ -1,3 +1,4 @@
+import { valueBreakdownOf } from './rollBreakdown'
 import type { LubecDodgeballOutcome } from '../../../ruleSets/lubec/dodgeballTable'
 import { lubecDodgeballRow, type LubecDodgeballEffect, type LubecLocatedDodgeballRow } from '../../../ruleSets/lubec/dodgeballWound'
 import type { LubecArrival } from '../../../ruleSets/lubec/gear/arrival'
@@ -11,8 +12,10 @@ import { tableChecked } from './attackTableRow'
 import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from './attackParty'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
+import { requireDue } from './declare'
 import type { CombatAttack, CombatCommand, Combatant, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState, CombatWoundRow } from './types'
 import { checkLog, rollRowCheck } from './woundCheck'
+import { combatHands } from './inputModifiers'
 
 type Outcome = LubecDodgeballOutcome<LubecDodgeballEffect>
 
@@ -72,9 +75,10 @@ export function readDodgeballRow(fight: CombatFight, attack: CombatAttack, entro
 /** A row's catch success puts the ball in the target's first free hand; with none free it lands on the Floor. */
 function caughtByRow(attack: CombatAttack, record: CombatSheet, command: CombatCommand) {
   const detached = attack.detached[0]
-  if (!detached || !place(record.sheet.gear, 'hands', detached.item as LubecItem).ok) return { attack, sheets: [] }
+  const hands = combatHands(record.sheet, null)
+  if (!detached || !place(record.sheet.gear, 'hands', detached.item as LubecItem, null, hands).ok) return { attack, sheets: [] }
   // The free hand was checked just above, in this same transaction, so the placement succeeds.
-  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands') as Extract<LubecArrival, { ok: true }>
+  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands', hands) as Extract<LubecArrival, { ok: true }>
   return { attack: { ...attack, detached: [] }, sheets: [{ selection: { kind: record.kind, sheetId: record.sheetId }, gear: arrival.gear }] }
 }
 
@@ -85,7 +89,8 @@ function checked(fight: CombatFight, attack: CombatAttack, record: CombatSheet, 
   const outcome = rolled.success ? located.success : located.failure
   const held = outcome.caught ? caughtByRow(attack, record, command) : { attack, sheets: [] }
   const state = applyRow(fight.state, { ...held.attack, check: rolled, repair: null }, outcome, outcome.stress + rolled.stress, entropy)
-  return { fight: { ...fight, state }, items: [], logs: [checkLog(combatantOf(fight.state, defenderOf(attack)), row, rolled)], sheets: held.sheets }
+  const breakdown = valueBreakdownOf(record, rolled.against, rolled.target, { fightId: command.envelope.fightId, round: fight.state.round })
+  return { fight: { ...fight, state }, items: [], logs: [checkLog(combatantOf(fight.state, defenderOf(attack)), row, rolled, breakdown)], sheets: held.sheets }
 }
 
 /** The target rolls the row's Check or Save themselves: an ordinary core roll at or under its number. */
@@ -96,6 +101,8 @@ const check: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, target)
   const repair = attackRepair(target, record, true)
   if (repair) return repairPlan(fight, attack, target, repair)
+  // An earlier wound on the target must be on their sheet before this wound's Save or Check reads it.
+  requireDue(fight.state, target, record!)
   return attack.row!.table ? tableChecked(fight, attack, record!, command, entropy) : checked(fight, attack, record!, command, entropy)
 }
 

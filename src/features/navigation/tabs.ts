@@ -12,6 +12,8 @@ export const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'npcs', label: 'NPCs' },
   { id: 'tables', label: 'Tables' },
   { id: 'notes', label: 'Notes' },
+  { id: 'handouts', label: 'Handouts' },
+  { id: 'clocks', label: 'Clocks' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'rules', label: 'Rules' },
 ]
@@ -25,9 +27,16 @@ export const tabPaths: Record<AppTab, string> = {
   npcs: '/npcs',
   tables: '/tables',
   notes: '/notes',
+  handouts: '/handouts',
+  clocks: '/clocks',
   calendar: '/calendar',
   rules: '/rules',
 }
+
+// Tabs every campaign whose rule set has them shows, whatever its saved tab
+// settings say. A saved list cannot tell a tab the GM turned off from one that
+// did not exist yet when it was saved, so a tab added later is on for good.
+export const requiredTabs: readonly AppTab[] = ['handouts', 'clocks']
 
 export const tabFromPathname = (pathname: string): AppTab => {
   const matched = tabs.find((tab) => pathname.endsWith(tabPaths[tab.id]) || pathname.includes(`${tabPaths[tab.id]}/`))

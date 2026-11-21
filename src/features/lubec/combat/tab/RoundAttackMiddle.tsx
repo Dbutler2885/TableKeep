@@ -11,6 +11,7 @@ import { CombatWindow } from './CombatParts'
 import { OwnDeclarations } from './DeclareMiddle'
 import { viewerKeys } from './declarationsModel'
 import { SneakAttackWindow } from './SneakAttackWindow'
+import { SplitRepairPanel } from './SplitRepairPanel'
 import { stepControls, type MiddleProps } from './stepControls'
 
 /** Who attacks after the one whose turn it is. */
@@ -29,7 +30,7 @@ type WaitProps = { state: CombatState; attack: CombatAttack; attacker: Combatant
 /** Moment 6 during Attack: who the fight waits on, with this viewer's own declaration in view. */
 function AttackTurnWaiting({ state, attack, attacker, viewer }: WaitProps) {
   return (
-    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">Declarations and the Floor stay in view on either side.</span>}>
+    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />}>
       <AttackMatchup attacker={attacker.name} target={combatantName(state, attack.aim!.targetKey)} />
       <div className="bigwait">
         <span className="label">Stage 3, Attack, fastest first</span>
@@ -65,6 +66,15 @@ export function LastResult({ state }: { state: CombatState }): ReactNode {
 export function RoundAttackMiddle(props: MiddleProps) {
   // During Attack the engine always opens the next turn, or begins the next round, after every command.
   const attack = props.state.attack!
+  // A split that no longer fits holds the roll until its owner chooses again.
+  if (attack.splitRepair) {
+    return (
+      <>
+        <LastResult state={props.state} />
+        <SplitRepairPanel state={props.state} repair={attack.splitRepair} controls={stepControls(props)} />
+      </>
+    )
+  }
   // While an attack's Results are up they are the whole story; the one before it gives way.
   return (
     <>

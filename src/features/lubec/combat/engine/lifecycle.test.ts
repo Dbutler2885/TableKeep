@@ -16,10 +16,11 @@ const command = (type = 'start', payload = {}): CombatCommand => ({
   seed: 'fixed-entropy', payload: { type, combatants: [{ kind: 'character', sheetId: 'hero' }], floor: [{ itemId: 'ball', status: 'dropped', qty: 2 }], dodgeball: true, ...payload },
 })
 const records = (): CombatRecords => ({ activeFightId: null, fight: null, sheets: [sheet()], items: new Map([['ball', ball()]]) })
+/** A live fight already closed, ready to end: its closing changes are delivered. */
 function live(): CombatRecords {
   const initial = records()
   const started = planCombatCommand(command(), initial, gm)
-  return { ...initial, activeFightId: 'fight', fight: started.fight, items: new Map() }
+  return { ...initial, activeFightId: 'fight', fight: { ...started.fight, state: { ...started.fight.state, closing: true } }, items: new Map() }
 }
 const stateOf = (record: CombatRecords): CombatState => record.fight!.state
 const rival = () => sheet({ sheetId: 'rival', name: 'Rival', ownerUserId: 'other' })
@@ -37,7 +38,7 @@ describe('atomic lifecycle intentions', () => {
     const plan = planCombatCommand(command(), source, gm)
     expect(plan.control).toBe('fight')
     expect(plan.fight).toMatchObject({ status: 'live', participantUserIds: ['player'], state: { round: 0, phase: 'before-initiative', stageInstanceId: 'command:stage:0', attack: null, woundOutbox: [], woundAcknowledgements: [] } })
-    expect(plan.fight.state.combatants).toEqual([{ key: 'character:hero', kind: 'character', sheetId: 'hero', name: 'Tommy', ownerUserId: 'player', portraitPath: 'art/hero', speed: 56, armor: [], interactionSequence: 0, outReason: null }])
+    expect(plan.fight.state.combatants).toEqual([{ unconscious: false, key: 'character:hero', kind: 'character', sheetId: 'hero', name: 'Tommy', ownerUserId: 'player', portraitPath: 'art/hero', speed: 56, armor: [], interactionSequence: 0, outReason: null }])
     expect(plan.items).toEqual([{ id: 'ball', value: { ...ball(), qty: 4 } }])
     expect(plan.fight.state.floor[0].item).toMatchObject({ id: 'item:command:floor%3Aball:0', qty: 2, impact: 2, future: { preserved: true } })
     expect(source.items.get('ball')?.qty).toBe(6)
@@ -129,6 +130,19 @@ describe('atomic lifecycle intentions', () => {
     expect(plan.fight.state.attack).toMatchObject({ closed: true, detached: [], step })
     expect(plan.items.map((write) => [write.id, write.value?.qty, write.value?.status])).toEqual([['item:command:floor%3Aball:0', 2, 'dropped'], ['thrown', 1, 'dropped']])
     expect(plan.logs).toEqual([{ actor: null, event: 'Combat ended. Floor returned to GM Items.' }])
+  })
+
+  it('closes once: one identified closing change per combatant, and End waits for them', () => {
+    const open = live()
+    stateOf(open).closing = undefined
+    expect(() => act('end', open)).toThrow('Close the fight before it ends.')
+    const closed = act('close', open)
+    expect(closed.fight.status).toBe('live')
+    expect(closed.fight.state.closing).toBe(true)
+    expect(closed.fight.state.woundOutbox.map((entry) => [entry.kind, entry.id, entry.tickRound])).toEqual([['close', 'close:character:hero', 0]])
+    const again = act('close', { ...open, fight: closed.fight })
+    expect(again.fight.state.woundOutbox).toHaveLength(1)
+    expect(() => act('end', { ...open, fight: closed.fight })).toThrow('Wounds must be delivered')
   })
 
   it('ends with no current attack and exports only the Floor', () => {

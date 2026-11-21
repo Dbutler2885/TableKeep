@@ -1,47 +1,18 @@
 import { lubecCombatantFace, type LubecCombatant } from '../../fight/lubecFightRequest'
-import type { CombatAttack, CombatAttackRange, Combatant } from '../engine/types'
+import type { CombatAttackRange, Combatant } from '../engine/types'
 import { attackSum, withDefense, type AttackDraft, type AttackSegments, type AttackSum } from './attackDraft'
-import type { AttackGone } from './attackWindowModel'
 import { AttackMatchup } from './AttackMatchup'
+import { NoticeSlot, type SlotNotice } from './CombatParts'
 
-type NoticeProps = { attacker: Combatant; attack: CombatAttack; refusal: string | null; gm: boolean }
-
-/** Why this attack runs now, what it waits on, and what the table refused. */
-export function AttackNotices({ attacker, attack, refusal, gm }: NoticeProps) {
-  const granted = gm ? `${attacker.name} has a Sneak Attack.` : 'The GM granted you a Sneak Attack.'
+/** The current matchup above the choices, on one line with the window's notices: the top bar already names the round and stage. */
+export function AttackTrail({ attacker, target, notices }: { attacker: Combatant; target: string | null; notices: readonly SlotNotice[] }) {
   return (
-    <>
-      <div className="notice cool"><span><b>{granted}</b> This attack runs now, before initiative. Pick, split and Roll in one go.</span></div>
-      <RepairNotice attack={attack} />
-      {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
-    </>
+    <div className="attack-top">
+      <AttackMatchup attacker={attacker.name} target={target} compact />
+      <NoticeSlot notices={notices} />
+    </div>
   )
 }
-
-/** The current matchup above the choices, with round metadata kept secondary. */
-export function AttackTrail({ attacker, target, round }: { attacker: Combatant; target: string | null; round: number }) {
-  return <>
-    <AttackMatchup attacker={attacker.name} target={target} />
-    <p className="matchup-context">{round ? `Round ${round} · Stage 3, Attack` : 'Before initiative'}</p>
-  </>
-}
-
-type RoundNoticeProps = { attack: CombatAttack; targetName: string; gone: AttackGone; refusal: string | null }
-
-/** What has gone before this declared attack's turn, and that choosing again wastes nothing. */
-export function RoundNotices({ attack, targetName, gone, refusal }: RoundNoticeProps) {
-  return (
-    <>
-      {gone.target ? <div className="notice hot"><span><b>{targetName} is Out.</b> Your target has gone before your turn. Choose again; your declared split stays and nothing is wasted.</span></div> : null}
-      {gone.weapon ? <div className="notice hot"><span><b>The {attack.frozen!.weaponName.toLowerCase()} is no longer in your hand.</b> Choose a weapon again; your declared split stays and nothing is wasted.</span></div> : null}
-      <RepairNotice attack={attack} />
-      {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
-    </>
-  )
-}
-
-const RepairNotice = ({ attack }: { attack: CombatAttack }) =>
-  (attack.repair ? <div className="notice hot" role="alert"><span><b>Waiting for a repair.</b> {attack.repair} Nothing has been spent or rolled.</span></div> : null)
 
 /** A declared line on the locked split: who it guards against, named, not chosen. */
 export function LockedDefenseLine({ against }: { against: string | null }) {

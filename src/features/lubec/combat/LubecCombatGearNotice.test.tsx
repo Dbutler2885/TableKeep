@@ -20,7 +20,7 @@ describe('the Gear page\'s way back to Combat', () => {
   it('says combat is running and goes back to the same fight', () => {
     const openCombat = vi.fn()
     show(live(['wayne']), openCombat)
-    expect(screen.getByText(/You opened your inventory from the Combat tab/)).toBeTruthy()
+    expect(screen.getByText('Combat is running.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Back to Combat' }))
     expect(openCombat).toHaveBeenCalledOnce()
   })

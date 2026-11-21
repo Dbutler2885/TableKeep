@@ -17,20 +17,15 @@ export type LubecGearRecords = { db: Firestore; scope: CampaignScope; sheet: Lub
 
 /** The shared store's saving, as the move needs it. */
 export type LubecGearDropStore = {
-  updateCharacterNow: (characterId: string, updates: object) => void
-  hasPendingWrite: (characterId: string) => boolean
+  /** Sends the character's waiting save now, and resolves once every save of it has settled. */
+  settleSaves: (characterId: string) => Promise<void>
 }
 
 /** Who drops it: the sheet, by id and name, and the person at the keyboard. */
 export type LubecGearDropper = { characterId: string; characterName: string; userId: string }
 
-/** The shared store as a move needs it: it sends a sheet's waiting save at once when given an empty edit. */
-export const lubecMoveStoreOf = (store: LubecGearDropStore): LubecMoveStore => ({
-  sendSaveNow: (id) => {
-    if (store.hasPendingWrite(id)) store.updateCharacterNow(id, {})
-  },
-  hasPendingWrite: store.hasPendingWrite,
-})
+/** The shared store as a move needs it. */
+export const lubecMoveStoreOf = (store: LubecGearDropStore): LubecMoveStore => ({ settleSaves: store.settleSaves })
 
 /** The drop for a sheet's records, made by `dropper`. */
 export function lubecGearDrop(records: LubecGearRecords, store: LubecGearDropStore, dropper: LubecGearDropper): Exclude<LubecGearDrop, null> {

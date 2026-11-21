@@ -1,3 +1,5 @@
+import { downCards } from '../engine/down'
+import { StageLossNotice } from './StageLossNotice'
 import { useState } from 'react'
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { Combatant, CombatMovementChoice, CombatState } from '../engine/types'
@@ -5,7 +7,8 @@ import type { AttackCommands, MovementPick } from './attackCommands'
 import type { CombatViewer } from './attackWords'
 import type { CombatRosterRecords } from './combatFightCombatants'
 import { pickupBlocked } from './movementModel'
-import { evasionBlocked } from '../engine/evasion'
+import { combatMovementLimits } from '../engine/inputModifiers'
+import { LUBEC_FREE_MOVEMENT, type LubecMovementLimits } from '../../../ruleSets/lubec/movementLimits'
 import { combatCatchLine, combatFloorRows, type CombatFloorRow } from './combatFloorRows'
 import { PhaseStepper } from './CombatMiddles'
 import { CombatFloorIcon, CombatWindow } from './CombatParts'
@@ -14,7 +17,8 @@ import { useCombatRun, type CombatRun } from './useCombatRun'
 
 /** Each choice's name and what it costs. Run's words follow the settled rule: it costs the attack and Defense. */
 const CHOICES: readonly (readonly [CombatMovementChoice, string, string])[] = [
-  ['stay', 'Move or stay', 'Nothing to choose. The GM describes where everyone is in words; it is not tracked.'],
+  ['stay', 'Move or stay', ''],
+  ['stand', 'Stand', 'Roll Speed. Success spends Movement only; failure also loses Action and Defense.'],
   ['run', 'Run', 'Costs your attack and your Defense this round.'],
   ['evade', 'Evasive', 'Uses your action: no attack this round. Roll Speed; a success makes ranged attacks at you harder.'],
   ['pickup', 'Pick up', 'Uses your movement.'],
@@ -64,7 +68,7 @@ const canConfirm = (draft: Draft): boolean => draft.choice !== 'pickup' || draft
 
 function confirmedNote(combatant: Combatant): string {
   if (combatant.movement?.leave === 'asked') return 'Waiting for the GM to say whether you can get away.'
-  return 'Waiting for everyone to confirm. Declaring starts by itself when they have.'
+  return 'Waiting for everyone to confirm.'
 }
 
 type FootProps = { combatant: Combatant; draft: Draft; run: CombatRun; onConfirm: () => void }
@@ -79,14 +83,23 @@ export type MovementProps = { state: CombatState; viewer: CombatViewer; roster: 
 
 export type MoveProps = { state: CombatState; combatant: Combatant; sheet: LubecCharacterSheet | null; commands: AttackCommands; named: boolean }
 
-type CardsProps = { shown: Draft; live: boolean; evadeBlocked: string | null; onChoose: (choice: CombatMovementChoice) => void }
+type CardsProps = { down: boolean; shown: Draft; live: boolean; limits: LubecMovementLimits; onChoose: (choice: CombatMovementChoice) => void }
 
-function MoveCards({ shown, live, evadeBlocked, onChoose }: CardsProps) {
-  const blocked = (choice: CombatMovementChoice) => (choice === 'evade' ? evadeBlocked : null)
+/** Staying down keeps the fighter on the ground, where they cannot attack. */
+const STAY_DOWN_WORDS = 'No attack from the ground this round.'
+
+/** Why a choice is unavailable: knocked down, or the card that forbids Run or Evasive; null when it can be chosen. */
+function blockedWords(choice: CombatMovementChoice, down: boolean, limits: LubecMovementLimits): string | null {
+  if (choice !== 'run' && choice !== 'evade') return null
+  return down ? 'Knocked down: Stay down or Stand.' : limits[choice]
+}
+
+function MoveCards({ down, shown, live, limits, onChoose }: CardsProps) {
+  const blocked = (choice: CombatMovementChoice) => blockedWords(choice, down, limits)
   return (
     <div className="moves" role="radiogroup" aria-label="Movement">
-      {CHOICES.map(([choice, name, words]) => (
-        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{name}</b><small>{blocked(choice) ?? words}</small></button>
+      {CHOICES.filter(([choice]) => choice !== 'stand' || down).map(([choice, name, words]) => (
+        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{down && choice === 'stay' ? 'Stay down' : name}</b><small>{blocked(choice) ?? (down && choice === 'stay' ? STAY_DOWN_WORDS : words)}</small></button>
       ))}
     </div>
   )
@@ -116,17 +129,26 @@ function FloorPicks({ state, shown, draft, live, sheet, onDraft }: FloorPickProp
 const shownChoice = (combatant: Combatant, draft: Draft): Draft =>
   (combatant.movement ? { choice: combatant.movement.choice, picked: combatant.movement.pickup?.itemId ?? null } : draft)
 
+function StandResult({ combatant }: { combatant: Combatant }) {
+  const stand = combatant.movement?.stand
+  if (!stand) return null
+  return <p role="status">{stand.success ? 'Standing: Movement spent.' : 'Still down: Movement, Action and Defense spent.'} Speed {stand.target}, rolled {stand.dice.join(', ')}.</p>
+}
+
 /** Moment 4 for one combatant this viewer moves: the four cards, the Floor with its Pick up buttons, and Confirm. */
 export function MoveWindow({ state, combatant, sheet, commands, named }: MoveProps) {
   const [draft, setDraft] = useState<Draft>({ choice: 'stay', picked: null })
   const run = useCombatRun()
   const live = !combatant.movement
   const shown = shownChoice(combatant, draft)
+  const down = Boolean(sheet && downCards(sheet, null).length)
   return (
     <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<MoveFoot combatant={combatant} draft={draft} run={run} onConfirm={() => run.run(() => commands.move(combatant.key, pickOf(draft)))} />}>
       <CombatRefusal refusal={run.refusal} />
+      <StageLossNotice state={state} combatantKey={combatant.key} />
       <p className="ask">{askWords(combatant, named)}</p>
-      <MoveCards shown={shown} live={live} evadeBlocked={sheet ? evasionBlocked(sheet) : null} onChoose={(choice) => setDraft({ choice, picked: null })} />
+      <StandResult combatant={combatant} />
+      <MoveCards down={down} shown={shown} live={live} limits={sheet ? combatMovementLimits(sheet, null) : LUBEC_FREE_MOVEMENT} onChoose={(choice) => setDraft({ choice, picked: null })} />
       <span className="label">On the Floor</span>
       <FloorPicks state={state} shown={shown} draft={draft} live={live} sheet={sheet} onDraft={setDraft} />
     </CombatWindow>

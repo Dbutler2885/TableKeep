@@ -11,7 +11,7 @@ import { LUBEC_FISTICUFFS_ID } from '../../fight/lubecFightRequest'
 import type { CombatAttack, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, attackSum, barPercent, completeAim, defaultAttack, defaultWeapon, initialDraft, labelPlace, outcomeClass, rollText, sameAim, segmentMiddle, withDefense, withWeapon } from './attackDraft'
 import { attackWindowModel, heldAim, rollReady, windowReading } from './attackWindowModel'
-import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, missWords, pairWords, pressedBand, resultFoot, waitsOnGm } from './attackWords'
+import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, missWords, pairWords, pressedBand, waitsOnGm } from './attackWords'
 import { combatFightCombatant, NO_ROSTER } from './combatFightCombatants'
 
 const inHand = (id: string, slot: number, extra: Record<string, unknown> = {}) =>
@@ -171,7 +171,6 @@ describe('the words', () => {
     expect(attackVerdict({ roll: 90, attackNumber: 36, hit: false, critical: false, quality: null })).toBe('A miss: 90 is not under 36.')
     expect(missWords('Wayne', punch)).toBe("Wayne's attack misses.")
     expect(missWords('Wayne', frozen())).toBe("Wayne's throw goes wide. The dodgeball left the hand at the Roll and lands on the Floor.")
-    expect([resultFoot(attack({ closed: true }), 0), resultFoot(attack({ closed: true }), 1), resultFoot(attack(), 1)]).toEqual(['The GM may grant another Sneak Attack, or roll initiative.', 'The GM moves the fight on from here.', 'Every roll lands on every screen as a card, then settles into the ticker.'])
   })
 })
 

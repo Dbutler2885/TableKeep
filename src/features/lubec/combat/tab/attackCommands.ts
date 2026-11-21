@@ -11,6 +11,8 @@ export type AttackAct = Promise<string | null>
 
 export type AttackCommands = {
   grant: (combatantKey: string) => AttackAct
+  /** Call off a granted Sneak Attack before it rolls; null sends it as the GM. */
+  withdraw: (actorKey: string | null, attackId: string) => AttackAct
   aim: (actorKey: string, aim: CombatAim) => AttackAct
   roll: (actorKey: string, aim: CombatAim) => AttackAct
   range: (band: LubecRangeBand, modifier: number | null) => AttackAct
@@ -24,6 +26,7 @@ export type AttackCommands = {
   initiative: (actorKey: string) => AttackAct
   npcInitiative: () => AttackAct
   move: (actorKey: string, movement: MovementPick) => AttackAct
+  settleMovement?: () => AttackAct
   npcMovement: (choices: Record<string, MovementPick>) => AttackAct
   answerLeave: (combatantKey: string, confirm: boolean) => AttackAct
   declare: (actorKey: string, declaration: DeclarePick) => AttackAct
@@ -34,6 +37,8 @@ export type AttackCommands = {
   returnIn: (combatantKey: string) => AttackAct
   /** The GM moves the fight on from an attack's Results. */
   continueResults: () => AttackAct
+  /** The owner (the GM for an NPC) chooses a new Defense for a split that no longer fits its pool. */
+  repairSplit: (actorKey: string, defense: number) => AttackAct
 }
 
 /** A Movement choice as sent: Pick up names the exact Floor record and quantity it claims. */
@@ -52,6 +57,7 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
   }
   return {
     grant: (combatantKey) => act(null, { type: 'grant', combatantKey }),
+    withdraw: (actorKey, attackId) => act(actorKey, { type: 'withdraw', attackId }),
     aim: (actorKey, aim) => act(actorKey, { type: 'aim', aim }),
     roll: (actorKey, aim) => act(actorKey, { type: 'roll', aim }),
     range: (band, modifier) => act(null, { type: 'range', band, ...(modifier === null ? {} : { modifier }) }),
@@ -65,6 +71,7 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     initiative: (actorKey) => act(actorKey, { type: 'initiative' }),
     npcInitiative: () => act(null, { type: 'npcInitiative' }),
     move: (actorKey, movement) => act(actorKey, { type: 'move', ...movement }),
+    settleMovement: () => act(null, { type: 'settleMovement' }),
     npcMovement: (choices) => act(null, { type: 'npcMovement', choices }),
     answerLeave: (combatantKey, confirm) => act(null, { type: 'answerLeave', combatantKey, confirm }),
     declare: (actorKey, declaration) => act(actorKey, { type: 'declare', ...declaration }),
@@ -74,5 +81,6 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     takeOut: (combatantKey) => act(null, { type: 'takeOut', combatantKey }),
     returnIn: (combatantKey) => act(null, { type: 'return', combatantKey }),
     continueResults: () => act(null, { type: 'continue' }),
+    repairSplit: (actorKey, defense) => act(actorKey, { type: 'repairSplit', defense }),
   }
 }

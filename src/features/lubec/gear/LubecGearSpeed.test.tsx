@@ -353,13 +353,13 @@ describe('an 8-slot thing and a full inventory', () => {
   })
 })
 
-describe('Speed at 0', () => {
-  it('reads immobile, with one part that adds up where the floor clips', async () => {
+describe('Speed at the floor', () => {
+  it('stops at 10, the Stat floor, gear included, with one part that adds up where the floor clips', async () => {
     database = { [TOMMY]: withGear([anvil], { effects: [ankle] }) }
     mountTab('player', 'player-1')
     openTommy()
-    expect(speedTarget()).toBe('Roll Speed at or under 0')
-    expect(speedNote()).toBe('51 +5 class -36 effect -20 gear, immobile')
+    expect(speedTarget()).toBe('Roll Speed at or under 10')
+    expect(speedNote()).toBe('51 +5 class -46 effect and gear')
 
     cleanup()
     database = { [TOMMY]: withGear([anvil, T('b', 'hands', 0, 'Buster', { size: 8 })], { effects: [ankle] }) }
@@ -367,6 +367,6 @@ describe('Speed at 0', () => {
     await act(async () => {})
     act(() => emitCharacters())
     openTommy()
-    expect(speedNote()).toBe('51 +5 class -56 effect and gear, immobile')
+    expect(speedNote()).toBe('51 +5 class -46 effect and gear')
   })
 })

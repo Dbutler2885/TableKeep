@@ -24,7 +24,7 @@ vi.mock('../useLubecCombatSend', () => ({
   },
 }))
 vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => mocks.data }))
-vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ characters: [], npcs: [] }) }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ roster: { characters: [], npcs: [] }, writer: null }) }))
 
 const { LubecCombat } = await import('./LubecCombat')
 
@@ -165,7 +165,7 @@ describe('GM setup, moment 1', () => {
 describe('the live fight, moment 2', () => {
   it('gives the GM every combatant beside Grant Sneak Attack, initiative ready to begin, and the grouped Floor', () => {
     show('gm', 'gm', live())
-    expect(screen.getByText("Grant a Sneak Attack and that person's attack runs at once.")).toBeTruthy()
+    expect(screen.queryByText(/that person's attack runs at once/)).toBeNull()
     const grants = screen.getAllByRole('button', { name: 'Grant Sneak Attack' })
     expect(grants).toHaveLength(2)
     expect(grants.every((grant) => !(grant as HTMLButtonElement).disabled)).toBe(true)
@@ -241,7 +241,7 @@ describe('ending a fight, moment 12', () => {
     expect(mocks.sent.map((command) => command.payload)).toEqual([{ type: 'end' }])
     view.rerender(tree('gm', 'gm', idle))
     expect(screen.getByText('Combat ended')).toBeTruthy()
-    expect(document.querySelector('.outcome p')?.textContent).toBe('Players were returned to their sheets. 3 dodgeballs from the Floor are now in your Items as dropped.')
+    expect(document.querySelector('.outcome p')?.textContent).toBe('3 dodgeballs from the Floor are now in your Items as dropped.')
   })
 
   it('goes from the ended fight back to setting up a new one without a reload', async () => {
@@ -264,7 +264,7 @@ describe('ending a fight, moment 12', () => {
     fireEvent.click(within(document.querySelector('.step-foot') as HTMLElement).getByRole('button', { name: 'End combat' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Combat is still running. Wounds must be delivered before combat can end.')
     fireEvent.click(button('+ Place an item'))
-    expect(screen.getByText("Grant a Sneak Attack and that person's attack runs at once.")).toBeTruthy()
+    expect(screen.queryByText(/that person's attack runs at once/)).toBeNull()
   })
 })
 
@@ -295,14 +295,14 @@ describe('less common states', () => {
     fireEvent.click(button('End combat'))
     expect(screen.getByText('Left on the Floor').nextElementSibling?.textContent).toBe('Nothing')
     fireEvent.click(within(document.querySelector('.step-foot') as HTMLElement).getByRole('button', { name: 'End combat' }))
-    await waitFor(() => expect(document.querySelector('.outcome p')?.textContent).toBe('Players were returned to their sheets. Nothing was left on the Floor.'))
+    await waitFor(() => expect(document.querySelector('.outcome p')?.textContent).toBe('Nothing was left on the Floor.'))
   })
 
   it('says one dropped item "is" in Items', async () => {
     show('gm', 'gm', live(liveFight([{ itemId: 'rock', status: 'library', qty: 1 }])))
     fireEvent.click(button('End combat'))
     fireEvent.click(within(document.querySelector('.step-foot') as HTMLElement).getByRole('button', { name: 'End combat' }))
-    await waitFor(() => expect(document.querySelector('.outcome p')?.textContent).toBe('Players were returned to their sheets. 1 fist-sized rock from the Floor is now in your Items as dropped.'))
+    await waitFor(() => expect(document.querySelector('.outcome p')?.textContent).toBe('1 fist-sized rock from the Floor is now in your Items as dropped.'))
   })
 
   it('reports a refused placement, and keeps the tools open', async () => {

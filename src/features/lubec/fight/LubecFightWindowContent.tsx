@@ -3,7 +3,8 @@ import type { LubecHands } from '../../ruleSets/lubec/gear/held'
 import { LubecFightWearingContent } from './LubecFightTargetContent'
 import { lubecFightAttacks } from './lubecFightWeapons'
 import { LubecFightHands } from './LubecFightHands'
-import { lubecCombatantFace, lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantKey, lubecTargetChoices, type LubecFightRequest, type LubecCombatant } from './lubecFightRequest'
+import { lubecCombatantFace, lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantHands, lubecCombatantKey, lubecTargetChoices, type LubecFightRequest, type LubecCombatant } from './lubecFightRequest'
+import { lubecTargetTiles } from './lubecTargetTiles'
 import './lubecFightWindowContent.css'
 
 type WindowProps = {
@@ -28,30 +29,50 @@ type WindowProps = {
 
 const kindNote = (target: LubecCombatant): string => (target.kind === 'npc' ? 'NPC' : 'Character')
 
-const TargetBadge = ({ words }: { words: string | null }) => (words ? <span className="badge must">{words}</span> : null)
-
 const noBadge = (): null => null
 
-function WindowTarget({ request, targets, onTarget, readOnly, targetLocked, targetNote = kindNote, targetBadge = noBadge }: WindowProps) {
+function TargetTile({ target, chosen, disabled, onTarget, note, badge }: { target: LubecCombatant; chosen: boolean; disabled: boolean; onTarget: (key: string) => void; note: string; badge: string | null }) {
+  const name = lubecCombatantFace(target).name
+  return <div className="tcell">
+    <button type="button" className="trow" role="radio" aria-checked={chosen} disabled={disabled} title={`${name} · ${note}`} onClick={() => onTarget(lubecCombatantKey(target))}>
+      {/* A tile's badge takes its second line, the more pressing of the two; the note stays in the title. */}
+      <span className="target-words"><b className="target-name">{name}</b>{badge ? <small className="target-badge">{badge}</small> : <small>{note}</small>}</span>
+      <span className="target-status" aria-hidden="true">✓ Selected</span>
+    </button>
+  </div>
+}
+
+function MoreTargets({ rest, disabled, onTarget }: { rest: readonly LubecCombatant[]; disabled: boolean; onTarget: (key: string) => void }) {
+  if (!rest.length) return null
+  return <div className="tcell more">
+    <select aria-label="More targets" value="" disabled={disabled} onChange={(event) => { if (event.target.value) onTarget(event.target.value) }}>
+      <option value="">+{rest.length} more</option>
+      {rest.map((target) => <option key={lubecCombatantKey(target)} value={lubecCombatantKey(target)}>{lubecCombatantFace(target).name}</option>)}
+    </select>
+  </div>
+}
+
+function WindowTarget({ request, targets, onTarget, readOnly, targetLocked, targetNote = kindNote, targetBadge = noBadge, focusTarget }: WindowProps) {
   const choices = lubecTargetChoices(request, targets)
+  const chosen = request.target ? lubecCombatantKey(request.target) : null
+  const { tiles, rest } = focusTarget ? lubecTargetTiles(choices, chosen) : { tiles: choices, rest: [] }
+  const disabled = Boolean(readOnly || targetLocked)
   return <div className="target-section">
     <div className="target-heading"><span className="label">Target</span><p className="target-prompt">Who are you attacking?</p><span className="target-count">{choices.length} available</span></div>
     <div className="target-layout"><div className="tlist" role="radiogroup" aria-label="Target">
-      {choices.map((target) => <div className="tcell" key={lubecCombatantKey(target)}>
-        <button type="button" className="trow" role="radio" aria-checked={request.target !== null && lubecCombatantKey(request.target) === lubecCombatantKey(target)} disabled={readOnly || targetLocked} onClick={() => onTarget(lubecCombatantKey(target))}>
-          <span className="target-words"><b className="target-name">{lubecCombatantFace(target).name}</b><small>{targetNote(target)}</small></span>
-          <span className="target-status" aria-hidden="true">✓ Selected</span>
-          <TargetBadge words={targetBadge(target)} />
-        </button>
-      </div>)}
+      {tiles.map((target) => <TargetTile key={lubecCombatantKey(target)} target={target} chosen={lubecCombatantKey(target) === chosen} disabled={disabled} onTarget={onTarget} note={targetNote(target)} badge={targetBadge(target)} />)}
+      <MoreTargets rest={rest} disabled={disabled} onTarget={onTarget} />
     </div><div className="target-armor" role="region" aria-label="Target armor">
-      {request.target ? <LubecFightWearingContent target={request.target} /> : <p className="note">Choose a target to see armor.</p>}
+      {request.target ? <LubecFightWearingContent target={request.target} limit={focusTarget ? WEAR_ROWS : undefined} /> : <p className="note">Choose a target to see armor.</p>}
     </div></div>
   </div>
 }
 
+/** Armor lines the fixed box has room for; the rest open over it. */
+const WEAR_ROWS = 3
+
 function WindowAttacks({ request, onAttack, readOnly, weaponLocked }: WindowProps) {
-  const attacks = lubecFightAttacks(lubecCombatantGear(request.attacker), request.weaponItemId ?? null, lubecCombatantFightingTraining(request.attacker))
+  const attacks = lubecFightAttacks(lubecCombatantGear(request.attacker), request.weaponItemId ?? null, lubecCombatantFightingTraining(request.attacker), lubecCombatantHands(request.attacker))
   return <div>
     <span className="label">Attack</span>
     <div className="modes" role="radiogroup" aria-label="Attack">

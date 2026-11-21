@@ -14,6 +14,8 @@ import { combatSneakAttackHandlers } from './sneakAttack'
 import { combatChooseAgainHandlers } from './chooseAgain'
 import { combatOutHandlers } from './outReturn'
 import { combatResultsHandlers, withRoundFlow } from './roundAttacks'
+import { combatSplitRepairHandlers } from './splitRepair'
+import type { CombatWound } from '../woundTypes'
 import type { Combatant, CombatCommand, CombatHandler, CombatPlan, CombatRecords, CombatState, StartPayload } from './types'
 
 function requireStartInputs(payload: StartPayload, records: CombatRecords): void {
@@ -53,9 +55,27 @@ const start: CombatHandler = (command, records, authority, entropy) => {
 
 export { settleCombatAttack }
 
+/**
+ * Closing the fight, once: one identified closing change per combatant, which the delivery service turns into each
+ * sheet's after-combat cards and ended rest-of-combat steps. End waits for them; a second close changes nothing.
+ */
+const close: CombatHandler = (command, records, authority) => {
+  requireGm(authority)
+  const fight = requireLiveContext(command, records, authority)
+  if (fight.state.closing) return { fight, items: [], logs: [] }
+  const round = fight.state.round
+  const closings: CombatWound[] = fight.state.combatants.map((entry) => ({
+    kind: 'close', tickRound: round, id: `close:${entry.key}`, target: { kind: entry.kind, sheetId: entry.sheetId },
+    originatingRound: round, effectiveRound: round + 1, traumaDelta: 0, stressDelta: 0,
+  }))
+  const state = { ...fight.state, closing: true, woundOutbox: [...fight.state.woundOutbox, ...closings] }
+  return { fight: { ...fight, state }, items: [], logs: [{ event: 'Closing the fight: rest-of-combat effects end, and running countdowns become after-combat cards.', actor: null }] }
+}
+
 const end: CombatHandler = (command, records, authority) => {
   requireGm(authority)
   const fight = requireLiveContext(command, records, authority)
+  if (!fight.state.closing) throw new Error('Close the fight before it ends.')
   if (fight.state.woundOutbox.length) throw new Error('Wounds must be delivered before combat can end.')
   const state = settleCombatAttack(fight.state)
   const exported = lubecExportDetached(state.floor, records.items)
@@ -83,7 +103,7 @@ const interrupt: CombatHandler = (command, records, authority) => {
   return { fight: { ...fight, state: settleCombatAttack(fight.state) }, items: [], logs: [{ event: 'Attack interrupted: attacker Out.', actor: attacker.key }] }
 }
 
-export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, end, place, interrupt, ...combatSummaryHandlers, ...combatSneakAttackHandlers, ...combatInitiativeHandlers, ...combatMovementHandlers, ...combatMovementSettleHandlers, ...combatDeclareHandlers, ...combatChooseAgainHandlers, ...combatOutHandlers, ...combatResultsHandlers }
+export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, close, end, place, interrupt, ...combatSummaryHandlers, ...combatSneakAttackHandlers, ...combatInitiativeHandlers, ...combatMovementHandlers, ...combatMovementSettleHandlers, ...combatDeclareHandlers, ...combatChooseAgainHandlers, ...combatOutHandlers, ...combatResultsHandlers, ...combatSplitRepairHandlers }
 
 export function planCombatCommand(command: CombatCommand, records: CombatRecords, authority: Parameters<CombatHandler>[2], handlers = combatLifecycleHandlers, entropy = combatEntropy(command)): CombatPlan {
   const handler = handlers[command.payload.type]

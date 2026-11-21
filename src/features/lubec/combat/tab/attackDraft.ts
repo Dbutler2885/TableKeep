@@ -1,6 +1,7 @@
 import { sheetPayload } from '../../../character/characterStore/sheetIntentionEdits'
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
-import { lubecHeld } from '../../../ruleSets/lubec/gear/held'
+import { lubecHeld, lubecHeldUnusable } from '../../../ruleSets/lubec/gear/held'
+import { lubecHandLimits } from '../../../ruleSets/lubec/handLimits'
 import { LUBEC_FISTICUFFS_ID } from '../../fight/lubecFightRequest'
 import { lubecFightAttacks, lubecFightFists } from '../../fight/lubecFightWeapons'
 import { combatFightingTraining, clampHandle, type CombatAttackSkill } from '../engine/attackMath'
@@ -11,15 +12,16 @@ export type AttackDraft = { targetKey: string | null; weaponItemId: string | nul
 
 /** The first held weapon, else Fisticuffs while it is offered, else nothing. */
 export function defaultWeapon(sheet: LubecCharacterSheet): string | null {
-  const weapon = lubecHeld(sheet.gear).find((held) => held.weapon)
+  const hands = lubecHandLimits(sheet.effects)
+  const weapon = lubecHeld(sheet.gear).find((held) => held.weapon && !lubecHeldUnusable(held, hands))
   if (weapon) return weapon.itemId
-  const fists = lubecFightFists(sheet.gear, { strength: null, handle: null }, combatFightingTraining(sheet))
+  const fists = lubecFightFists(sheet.gear, { strength: null, handle: null }, combatFightingTraining(sheet), hands)
   return fists.offered ? LUBEC_FISTICUFFS_ID : null
 }
 
 /** The only use a weapon has is chosen for you; with more than one, nothing is. */
 export function defaultAttack(sheet: LubecCharacterSheet, weaponItemId: string | null): string | null {
-  const attacks = lubecFightAttacks(sheet.gear, weaponItemId, combatFightingTraining(sheet))
+  const attacks = lubecFightAttacks(sheet.gear, weaponItemId, combatFightingTraining(sheet), lubecHandLimits(sheet.effects))
   return attacks.length === 1 ? attacks[0].id : null
 }
 

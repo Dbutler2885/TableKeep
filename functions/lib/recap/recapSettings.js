@@ -7,7 +7,7 @@ export const DEFAULT_RECAP_SETTINGS = {
     promptHeader: null,
     style: 'default',
     sections: [...RECAP_SECTIONS],
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6.1-sol',
     reasoningEffort: 'high',
 };
 /** Fills in anything a stored settings document leaves out. */

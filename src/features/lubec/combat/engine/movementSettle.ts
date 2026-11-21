@@ -1,3 +1,4 @@
+import { valueBreakdownOf } from './rollBreakdown'
 import { lubecPlaceDetached, lubecTakeDetached, type LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import { combatSheetOf } from './attackParty'
 import type { CombatLog } from './combatFeedback'
@@ -6,6 +7,7 @@ import { combatOrdered, RAN, withDeclareRequests } from './declare'
 import type { CombatEntropy } from './commandEntropy'
 import { evasionLog, rollEvasion } from './evasion'
 import type { CombatCommand, Combatant, CombatEvasion, CombatHandler, CombatPlan, CombatRecords, CombatState } from './types'
+import { combatHands } from './inputModifiers'
 
 type Settling = { floor: LubecDetachedItem[]; sheets: NonNullable<CombatPlan['sheets']>; logs: CombatLog[]; evasions: ReadonlyMap<string, CombatEvasion> }
 
@@ -21,13 +23,14 @@ function pickUp(settling: Settling, claimant: Combatant, item: string, records: 
   if (!source || source.item.qty < claim.qty) return lost(settling, claimant, `${claimant.name} reached for the ${item}, but someone faster took it.`)
   const itemCommand = { commandId: command.envelope.id, role: `pickup:${claimant.key}` }
   const taken = lubecTakeDetached(settling.floor, claim.itemId, claim.qty, itemCommand)
-  const arrival = lubecPlaceDetached(record.sheet.gear, taken.detached, itemCommand, 'hands')
+  const arrival = lubecPlaceDetached(record.sheet.gear, taken.detached, itemCommand, 'hands', combatHands(record.sheet, { fightId: command.envelope.fightId, round: command.envelope.round }))
   if (!arrival.ok) return lost(settling, claimant, `${claimant.name} could not pick up the ${item}: no free hand.`)
   const sheets = [...settling.sheets, { selection: { kind: claimant.kind, sheetId: claimant.sheetId }, gear: arrival.gear }]
   return { ...settling, floor: taken.records, sheets, logs: [...settling.logs, { event: `${claimant.name} picked up the ${item}.`, actor: claimant.key }] }
 }
 
 const REVEALED: Readonly<Record<string, (name: string) => string>> = {
+  stand: (name) => `${name} attempted to stand.`,
   stay: (name) => `${name} moved or stayed.`,
   run: (name) => `${name} ran.`,
   leave: (name) => `${name} left the fight.`,
@@ -35,8 +38,11 @@ const REVEALED: Readonly<Record<string, (name: string) => string>> = {
 
 /** An evader rolls Speed as their choice is revealed; the roll sets the penalty to ranged attacks at them this round. */
 function evade(settling: Settling, combatant: Combatant, state: CombatState, records: CombatRecords, context: SettleContext): Settling {
-  const evasion = rollEvasion(combatant, combatSheetOf(records, combatant), { fightId: context.command.envelope.fightId, round: state.round }, context.entropy)
-  return { ...settling, evasions: new Map(settling.evasions).set(combatant.key, evasion), logs: [...settling.logs, evasionLog(combatant, evasion)] }
+  const record = combatSheetOf(records, combatant)
+  const round = { fightId: context.command.envelope.fightId, round: state.round }
+  const evasion = rollEvasion(combatant, record, round, context.entropy)
+  const log = evasionLog(combatant, evasion, valueBreakdownOf(record, 'Speed', evasion.speed, round))
+  return { ...settling, evasions: new Map(settling.evasions).set(combatant.key, evasion), logs: [...settling.logs, log] }
 }
 
 type SettleContext = { command: CombatCommand; entropy: CombatEntropy }

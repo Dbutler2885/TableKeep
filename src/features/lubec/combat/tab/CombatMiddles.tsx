@@ -14,9 +14,8 @@ type GrantRowProps = { combatant: Combatant; running: boolean; open: boolean; bu
 function GrantRow({ combatant, running, open, busy, onGrant }: GrantRowProps) {
   return (
     <li>
-      <span className="row-line">{combatant.name}<br /><small>{combatant.kind === 'npc' ? 'NPC' : 'Player'} · Speed {combatant.speed}</small></span>
-      {running ? <span className="badge must">Attack running on their screen</span> : null}
-      <button type="button" className="btn line small rowbtn" disabled={open || busy} onClick={() => onGrant(combatant.key)}>Grant Sneak Attack</button>
+      <span className="row-line" title={`${combatant.name} · ${combatant.kind === 'npc' ? 'NPC' : 'Player'} · Speed ${combatant.speed}`}>{combatant.name}<br /><small>{combatant.kind === 'npc' ? 'NPC' : 'Player'} · Speed {combatant.speed}</small></span>
+      {running ? <span className="badge must">Attack running on their screen</span> : <button type="button" className="btn line small rowbtn" disabled={open || busy} onClick={() => onGrant(combatant.key)}>Grant Sneak Attack</button>}
     </li>
   )
 }
@@ -47,8 +46,7 @@ export function BeforeInitiativeGm({ state, onGrant, onBegin }: BeforeProps) {
       foot={<><span className="note">Nobody is in the turn order yet.</span><BeginButton state={state} onBegin={onBegin} busy={busy} run={(act) => void run(act)} /></>}
     >
       {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
-      <p className="ask">Grant a Sneak Attack and that person&apos;s attack runs at once.</p>
-      <ul className="roster">
+      <ul className="roster grants">
         {inFight.map((combatant) => <GrantRow key={combatant.key} combatant={combatant} running={open && state.attack?.attackerKey === combatant.key} open={open} busy={busy} onGrant={(key) => void grant(key)} />)}
       </ul>
     </CombatWindow>
@@ -58,11 +56,10 @@ export function BeforeInitiativeGm({ state, onGrant, onBegin }: BeforeProps) {
 /** Before initiative, for anyone the fight is not waiting on: the GM's grants, with the rails still in view. */
 export function CombatWaiting({ state }: { state: CombatState }) {
   return (
-    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">The turn order and the Floor stay in view on either side.</span>}>
+    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />}>
       <div className="bigwait">
         <span className="label">Before initiative</span>
         <h3>The fight is waiting on the GM<span className="dots" /></h3>
-        <p>The GM may grant a Sneak Attack before rolling initiative.</p>
       </div>
     </CombatWindow>
   )

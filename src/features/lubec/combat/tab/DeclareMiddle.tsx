@@ -32,7 +32,7 @@ export function OwnDeclarations({ state, viewer }: { state: CombatState; viewer:
 /** Moment 6 during Declare: who the fight waits on, with this viewer's own declaration in view. */
 function DeclareWaiting({ state, viewer, waiting }: { state: CombatState; viewer: CombatViewer; waiting: readonly Combatant[] }) {
   return (
-    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">Declarations and the Floor stay in view on either side.</span>}>
+    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />}>
       <div className="bigwait">
         <span className="label">Stage 2, Declare, slowest first</span>
         <h3>The fight is waiting on {waiting[0].name}<span className="dots" /></h3>
@@ -47,7 +47,7 @@ function DeclareWaiting({ state, viewer, waiting }: { state: CombatState; viewer
 function GmDeclareWaiting({ state, waiting, onActFor }: { state: CombatState; waiting: readonly Combatant[]; onActFor: (key: string) => void }) {
   const now = waiting[0]
   return (
-    <CombatWindow title="Declare" stepper={<PhaseStepper state={state} />} foot={<span className="note">You can declare for an absent player. NPCs declare in this same window when their turn comes.</span>}>
+    <CombatWindow title="Declare" stepper={<PhaseStepper state={state} />}>
       <div className="bigwait">
         <span className="label">Declaring, slowest first</span>
         <h3>Waiting on {now.name}<span className="dots" /></h3>

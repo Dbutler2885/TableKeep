@@ -19,7 +19,7 @@ const publicNpc = (combatant: Combatant): LubecNpcIdentity => ({
 
 function npcCombatant(combatant: Combatant, records: CombatRosterRecords): LubecCombatant {
   const found = records.npcs.find((entry) => entry.npc.id === combatant.sheetId)
-  return { kind: 'npc', npc: found?.npc ?? publicNpc(combatant), sheet: found?.sheet ?? null, summary: { armor: combatant.armor, woundLevel: null } }
+  return { kind: 'npc', condition: combatant.condition, npc: found?.npc ?? publicNpc(combatant), sheet: found?.sheet ?? null, summary: { armor: combatant.armor, woundLevel: null } }
 }
 
 /** The fight modal's view of a combatant; null for a character whose sheet this viewer cannot read. */

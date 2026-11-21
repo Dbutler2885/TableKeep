@@ -18,6 +18,7 @@ import {
   emptyCharacterStoreSaves,
   isCharacterStoreSaveOutstanding,
   sendCharacterStoreSavesNow,
+  settleCharacterStoreSaves,
   type CharacterStoreCollection,
   type CharacterStoreSaves,
 } from './characterStoreWrites'
@@ -117,5 +118,7 @@ export function useCharacterStore<Character extends CharacterStoreRecord>(option
       syncCharacterStoreCharacterLocal(context, characterId, updates),
     deleteCharacter: (characterId: string, remove?: CharacterStoreRemove) => deleteCharacterStoreCharacter(context, characterId, remove),
     hasPendingWrite: (characterId: string) => isCharacterStoreSaveOutstanding(savesRef.current, characterId),
+    /** Sends the character's waiting save now, and resolves once every save of it has settled. */
+    settleSaves: (characterId: string) => settleCharacterStoreSaves(savesRef.current, characterId),
   }
 }

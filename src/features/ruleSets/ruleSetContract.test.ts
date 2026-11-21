@@ -26,7 +26,7 @@ import type { RuleSetId } from './registry'
 const resolve = (stored: string | null | undefined) =>
   campaignSystem({ id: 'c1', name: 'Campaign', status: 'active', groupId: 'g1', system: stored } as Campaign)
 
-const allTabs: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules']
+const oseTabs: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'handouts', 'calendar', 'rules']
 
 describe('rule-set resolution', () => {
   it.each([
@@ -132,6 +132,7 @@ describe('side nav tabs per role', () => {
       ['npcs', 'NPCs'],
       ['tables', 'Tables'],
       ['notes', 'Notes'],
+      ['handouts', 'Handouts'],
       ['calendar', 'Calendar'],
       ['rules', 'OSE SRD'],
     ]],
@@ -140,6 +141,7 @@ describe('side nav tabs per role', () => {
       ['maps', 'Maps'],
       ['npcs', 'NPCs'],
       ['notes', 'Notes'],
+      ['handouts', 'Handouts'],
       ['calendar', 'Calendar'],
       ['rules', 'OSE SRD'],
     ]],
@@ -149,6 +151,7 @@ describe('side nav tabs per role', () => {
       ['monsters', 'Monsters'],
       ['npcs', 'NPCs'],
       ['notes', 'Notes'],
+      ['handouts', 'Handouts'],
       ['calendar', 'Calendar'],
     ]],
     ['vtm', 'player', [
@@ -157,6 +160,7 @@ describe('side nav tabs per role', () => {
       ['monsters', 'Monsters'],
       ['npcs', 'NPCs'],
       ['notes', 'Notes'],
+      ['handouts', 'Handouts'],
       ['calendar', 'Calendar'],
     ]],
     ['lubec', 'gm', [
@@ -164,14 +168,18 @@ describe('side nav tabs per role', () => {
       ['maps', 'Maps'],
       ['items', 'Items'],
       ['npcs', 'NPCs'],
+      ['clocks', 'Clocks'],
       ['notes', 'Notes'],
+      ['handouts', 'Handouts'],
       ['calendar', 'Calendar'],
     ]],
     ['lubec', 'player', [
       ['character', 'Character'],
       ['maps', 'Maps'],
       ['npcs', 'NPCs'],
+      ['clocks', 'Clocks'],
       ['notes', 'Notes'],
+      ['handouts', 'Handouts'],
       ['calendar', 'Calendar'],
     ]],
   ] as const)('%s %s', (stored, role, expected) => {
@@ -182,33 +190,33 @@ describe('side nav tabs per role', () => {
   it('keeps only the enabled tabs, in the rule set\'s order, and ignores tabs it lacks', () => {
     const enabled: AppTab[] = ['rules', 'items', 'character', 'notes', 'maps']
     expect(campaignNavTabs(resolve('ose'), 'gm', enabled).map((tab) => tab.id))
-      .toEqual(['character', 'maps', 'items', 'notes', 'rules'])
+      .toEqual(['character', 'maps', 'items', 'notes', 'handouts', 'rules'])
     expect(campaignNavTabs(resolve('vtm'), 'gm', enabled).map((tab) => tab.id))
-      .toEqual(['character', 'maps', 'notes'])
+      .toEqual(['character', 'maps', 'notes', 'handouts'])
     expect(campaignNavTabs(resolve('lubec'), 'gm', enabled).map((tab) => tab.id))
-      .toEqual(['character', 'maps', 'items', 'notes'])
+      .toEqual(['character', 'maps', 'items', 'clocks', 'notes', 'handouts'])
   })
 
   it('still hides OSE player tabs that the campaign has enabled', () => {
     expect(campaignNavTabs(resolve('ose'), 'player', ['character', 'items', 'monsters', 'tables', 'notes']).map((tab) => tab.id))
-      .toEqual(['character', 'notes'])
+      .toEqual(['character', 'notes', 'handouts'])
     expect(campaignNavTabs(resolve('vtm'), 'player', ['character', 'monsters']).map((tab) => tab.id))
-      .toEqual(['character', 'monsters'])
+      .toEqual(['character', 'monsters', 'handouts'])
     expect(campaignNavTabs(resolve('lubec'), 'player', ['character', 'items', 'notes']).map((tab) => tab.id))
-      .toEqual(['character', 'notes'])
+      .toEqual(['character', 'clocks', 'notes', 'handouts'])
   })
 
   it('shows every tab with plain labels before the viewer\'s role is known', () => {
     expect(campaignNavTabs(resolve('ose'), null, undefined).map((tab) => tab.label))
-      .toEqual(['Character', 'Maps', 'Monsters', 'Items', 'NPCs', 'Tables', 'Notes', 'Calendar', 'OSE SRD'])
+      .toEqual(['Character', 'Maps', 'Monsters', 'Items', 'NPCs', 'Tables', 'Notes', 'Handouts', 'Calendar', 'OSE SRD'])
   })
 })
 
 describe('route gate', () => {
   it.each([
-    ['ose', allTabs, []],
-    ['vtm', ['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'], ['items', 'tables', 'rules']],
-    ['lubec', ['character', 'maps', 'items', 'npcs', 'notes', 'calendar'], ['monsters', 'tables', 'rules']],
+    ['ose', oseTabs, ['clocks']],
+    ['vtm', ['character', 'maps', 'monsters', 'npcs', 'notes', 'handouts', 'calendar'], ['items', 'tables', 'rules', 'clocks']],
+    ['lubec', ['character', 'maps', 'items', 'npcs', 'clocks', 'notes', 'handouts', 'calendar'], ['monsters', 'tables', 'rules']],
   ] as const)('%s keeps its own tabs and sends the rest to the character tab', (stored, kept, redirected) => {
     for (const tab of kept) expect(routableTab(resolve(stored), tab)).toBe(tab)
     for (const tab of redirected) expect(routableTab(resolve(stored), tab)).toBe('character')
@@ -225,6 +233,7 @@ describe('campaign settings tabs', () => {
       ['npcs', 'NPCs', false],
       ['tables', 'Tables', false],
       ['notes', 'Notes', false],
+      ['handouts', 'Handouts', true],
       ['calendar', 'Calendar', false],
     ]],
     ['vtm', [
@@ -233,6 +242,7 @@ describe('campaign settings tabs', () => {
       ['monsters', 'Monsters', false],
       ['npcs', 'NPCs', false],
       ['notes', 'Notes', false],
+      ['handouts', 'Handouts', true],
       ['calendar', 'Calendar', false],
     ]],
     ['lubec', [
@@ -240,7 +250,9 @@ describe('campaign settings tabs', () => {
       ['maps', 'Maps', false],
       ['items', 'Items', false],
       ['npcs', 'NPCs', false],
+      ['clocks', 'Clocks', true],
       ['notes', 'Notes', false],
+      ['handouts', 'Handouts', true],
       ['calendar', 'Calendar', false],
     ]],
   ] as const)('%s lists only its own tabs', (stored, expected) => {

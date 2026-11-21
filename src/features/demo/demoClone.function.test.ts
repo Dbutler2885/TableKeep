@@ -38,6 +38,15 @@ describe('what a sandbox copies', () => {
     expect(CAMPAIGN_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('sharedCarriers')
   })
 
+  it('carries Lubec clocks into a sandbox, and deletes them with the campaign', () => {
+    expect(DEMO_CLONED_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('clocks')
+    expect(CAMPAIGN_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('clocks')
+  })
+
+  it('carries handouts and their folders into a sandbox', () => {
+    expect(DEMO_CLONED_SUBCOLLECTIONS.map((spec) => spec.name)).toEqual(expect.arrayContaining(['handouts', 'handoutFolders']))
+  })
+
   const nestedIn = (specs: typeof CAMPAIGN_SUBCOLLECTIONS, name: string) =>
     (specs.find((spec) => spec.name === name)?.children ?? []).map((child) => child.name).sort()
 

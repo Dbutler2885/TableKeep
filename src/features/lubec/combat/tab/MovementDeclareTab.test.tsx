@@ -31,7 +31,7 @@ vi.mock('../useLubecCombatSend', () => ({
   },
 }))
 vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => ({ characters: [], npcs: [], items: [], roster: mocks.roster }) }))
-vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => mocks.roster }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ roster: mocks.roster, writer: null }) }))
 
 const { LubecCombat } = await import('./LubecCombat')
 
@@ -127,7 +127,7 @@ describe('Movement for a player', () => {
     fireEvent.click(radio(/^Run/))
     fireEvent.click(button('Confirm movement'))
     await waitFor(() => expect(sentOf('move')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'movement' }, payload: { choice: 'run', pickup: null } }))
-    expect(rail('Declarations').getByText('Nobody has declared. Slowest declares first; everyone sees every split.')).toBeTruthy()
+    expect(rail('Declarations').getByText('Nobody has declared.')).toBeTruthy()
     expect(document.querySelector('.hand')).toBeNull()
   })
 
@@ -162,7 +162,7 @@ describe('Movement for a player', () => {
     expect(screen.getByText('Waiting for the GM to say whether you can get away.')).toBeTruthy()
     cleanup()
     show('player', 'wayne-uid', fightAfter(...rolled, { type: 'move', actor: WAYNE, ...stay }))
-    expect(screen.getByText('Waiting for everyone to confirm. Declaring starts by itself when they have.')).toBeTruthy()
+    expect(screen.getByText('Waiting for everyone to confirm.')).toBeTruthy()
   })
 
   it('shows the table\'s refusal', async () => {
@@ -199,7 +199,7 @@ describe('Movement for a player', () => {
 describe('Movement for the GM', () => {
   it('lists every choice, sets the NPCs\' choices and confirms them together', async () => {
     show('gm', 'gm', fightAfter(...rolled))
-    expect(screen.getByText('Players choose on their own screens. You choose for the NPCs.')).toBeTruthy()
+    expect(screen.queryByText(/Players choose on their own screens/)).toBeNull()
     expect(screen.getByText('Choosing...')).toBeTruthy()
     fireEvent.change(screen.getByRole('combobox', { name: 'Roy Carver movement' }), { target: { value: 'pickup:floor-ball' } })
     fireEvent.click(button("Confirm the NPCs' movement"))
@@ -270,7 +270,7 @@ describe('declaration approval', () => {
   it('gives the GM approve and reject controls for the submitted choice', async () => {
     show('gm', 'gm', fightAfter(...declaring(), proposal))
     expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
-    expect(rail('Declarations').getByText('Awaiting GM approval')).toBeTruthy()
+    expect(rail('Declarations').getByText('GM?').closest('li')!.getAttribute('title')).toMatch(/ Awaiting GM approval$/)
     expect(rail('Turn order').getByText('Now')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
     fireEvent.click(button('Reject declaration'))
@@ -282,7 +282,7 @@ describe('declaration approval', () => {
   it.each(['wayne-uid', 'marcy-uid'])('keeps player %s waiting without declaration or approval controls', (uid) => {
     show('player', uid, fightAfter(...declaring(), proposal))
     expect(screen.getByRole('region', { name: 'Waiting for GM approval' })).toBeTruthy()
-    expect(screen.getByText('The next person declares after the GM approves this choice.')).toBeTruthy()
+    expect(screen.queryByText(/next person declares after the GM approves/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Approve declaration' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Reject declaration' })).toBeNull()
@@ -291,7 +291,7 @@ describe('declaration approval', () => {
   it('returns the choice to the same player after rejection, then holds their revised choice for approval', () => {
     const rejected: Step = { type: 'answerDeclaration', combatantKey: WAYNE, approve: false }
     show('player', 'wayne-uid', fightAfter(...declaring(), proposal, rejected))
-    expect(screen.getByText('The GM rejected your declaration. Choose again; it is still your turn to declare.')).toBeTruthy()
+    expect(screen.getByText('The GM rejected your declaration. Choose again.')).toBeTruthy()
     expect(button('Declare')).toBeTruthy()
     cleanup()
     show('gm', 'gm', fightAfter(...declaring(), proposal, rejected, { type: 'declare', actor: WAYNE, full: true, against: ROY, awaitReview: true }))
@@ -323,9 +323,9 @@ describe('Declare', () => {
   it('opens the attack window with Declare where Roll sits, and sends the split', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
-    expect(screen.getByText('Stage 2, Declare')).toBeTruthy()
-    expect(screen.getByText('Split your Handle against Roy Carver.')).toBeTruthy()
-    expect(screen.getByText('Submit your choice for GM approval. The next person waits until it is approved.')).toBeTruthy()
+    expect(screen.queryByText('Stage 2, Declare')).toBeNull()
+    expect(screen.getByText('Split your Handle against Roy Carver.').closest('.ask-row')!.querySelector('.fdcheck')).toBeTruthy()
+    expect(screen.queryByText(/Submit your choice for GM approval/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add a Defense line' }))
     fireEvent.click(button('Declare'))
     await waitFor(() => expect(sentOf('declare')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'declare' }, payload: { full: false, aim: { ...throwAt, defense: { against: ROY, amount: 20 } } } }))
@@ -335,7 +335,7 @@ describe('Declare', () => {
   it('declares Full Defense: no attack, the whole pool on one named line with its +10 on the bar', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Full Defense' }))
-    expect(screen.getByText('Full Defense: put all of your Handle on Defense.')).toBeTruthy()
+    expect(screen.getByText('Put all of your Handle on Defense.')).toBeTruthy()
     expect(screen.getByText('+10')).toBeTruthy()
     expect(document.querySelector('.dim')).toBeTruthy()
     fireEvent.click(button('Declare Full Defense'))
@@ -352,10 +352,10 @@ describe('Declare', () => {
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
     cleanup()
     show('gm', 'gm', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }))
-    expect(screen.getByText('Your NPC declaration takes effect when submitted. The next turn begins automatically.')).toBeTruthy()
+    expect(screen.queryByText(/takes effect when submitted/)).toBeNull()
     expect(screen.getByText(/Wayne Gardner/, { selector: '.notice b' })).toBeTruthy()
     expect(screen.getByText(/has declared a throw at you \(ATK 61\)/)).toBeTruthy()
-    expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.badge')!.textContent).toBe('Throws at you')
+    expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.target-badge')!.textContent).toBe('Throws at you')
   })
 
   it('shows the waiting declarer their own declaration and everyone every split', () => {
@@ -367,7 +367,9 @@ describe('Declare', () => {
     const declarations = rail('Declarations')
     expect(declarations.getByText('YOU')).toBeTruthy()
     expect(declarations.getByText('Declaring now...')).toBeTruthy()
-    expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Throw with the Dodgeball at Roy Carver. ATK 41; Defense 20 against Roy Carver.')
+    // One line in the rail, the whole sentence in its title.
+    expect(document.querySelector('.decls li.you .short')!.textContent).toBe('→ Roy Carver · ATK 41 · DEF 20')
+    expect(document.querySelector('.decls li.you')!.getAttribute('title')).toBe('Throw with the Dodgeball at Roy Carver. ATK 41; Defense 20 against Roy Carver.')
   })
 
   it('marks a declaration aimed at the viewer, a runner and Full Defense in the rail', () => {
@@ -377,8 +379,10 @@ describe('Declare', () => {
     live.fight.state.phase = 'attack'
     live.fight.state.attack = { id: 'shown', grantId: null, attackerKey: ROY, step: 'done', detached: [], closed: true }
     show('player', 'wayne-uid', live)
-    expect(document.querySelector('.decls li.atyou .txt')!.textContent).toBe('Full Defense: no attack. Defense 46 Full against Wayne Gardner.')
-    expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Ran: no attack and no Defense this round.')
+    expect(document.querySelector('.decls li.atyou .short')!.textContent).toBe('Full Defense vs Wayne Gardner')
+    expect(document.querySelector('.decls li.atyou')!.getAttribute('title')).toBe('Full Defense: no attack. Defense 46 Full against Wayne Gardner.')
+    expect(document.querySelector('.decls li.you .short')!.textContent).toBe('Ran')
+    expect(document.querySelector('.decls li.you')!.getAttribute('title')).toBe('Ran: no attack, no Defense')
     expect(screen.getByText('AT YOU')).toBeTruthy()
   })
 
@@ -439,20 +443,115 @@ describe('Evasive Movement', () => {
     await waitFor(() => expect(sentOf('move')[0].payload).toMatchObject({ choice: 'evade', pickup: null }))
   })
 
-  it('closes Evasive, and says why, while a wound on the sheet says No Evasive Movement', () => {
-    const hurt = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Damaged hip', cause: 'Blunt Force, groin, Impact 5', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement.'] }] }]; return record }
+  it('closes Run and Evasive, and names the card, while a current card says crawl only', () => {
+    const hurt = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Broken leg', cause: 'Blunt Force, thigh, Impact 5', steps: [{ modifiers: [], labels: [], until: 'long-rest', restrictions: [{ kind: 'crawl-only' }] }] }]; return record }
     mocks.roster = { characters: [hurt()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
     show('player', 'wayne-uid', fightAfter(...rolled))
     expect((radio(/^Evasive/) as HTMLButtonElement).disabled).toBe(true)
-    expect(radio(/^Evasive/).textContent).toBe('EvasiveDamaged hip says No Evasive Movement.')
+    expect(radio(/^Evasive/).textContent).toBe('EvasiveCrawl only without help (Broken leg)')
+    expect((radio(/^Run/) as HTMLButtonElement).disabled).toBe(true)
+    expect((radio(/^Move or stay/) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('leaves Evasive open under Speed at Disadvantage alone', () => {
+    const slowed = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Sore leg', cause: '', steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls: [{ scope: 'speed', mode: 'disadvantage' }] }] }]; return record }
+    mocks.roster = { characters: [slowed()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+    show('player', 'wayne-uid', fightAfter(...rolled))
+    expect((radio(/^Evasive/) as HTMLButtonElement).disabled).toBe(false)
+    expect((radio(/^Run/) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('shows the Speed roll in the turn order, and keeps the evader to Full Defense when they declare', () => {
     show('player', 'wayne-uid', fightAfter(...moved(evade), { type: 'settleMovement', dice: { evasion: 47 } }))
     expect(rail('Turn order').getByText(/Evasive −20/)).toBeTruthy()
-    expect(screen.getByText(/That uses the action, so there is no attack this round/)).toBeTruthy()
+    expect(screen.getByText(/No attack this round: declare Full Defense against one person/)).toBeTruthy()
     expect(button('Declare Full Defense')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
   })
 })
 
+
+
+it('offers a down player Stay down and Stand, disables Run/Evasive, and sends the Stand choice', async () => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = [{ id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }]; return record }
+  const live = fightAfter(...rolled)
+  mocks.roster.characters = [currentWayne()]
+  show('player', 'wayne-uid', live)
+  expect(screen.getByRole('radio', { name: /^Stay down/ })).toBeTruthy()
+  expect((screen.getByRole('radio', { name: /^Run/ }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('radio', { name: /^Evasive/ }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('radio', { name: /^Stand/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm movement' }))
+  await waitFor(() => expect(mocks.sent.at(-1)?.payload).toMatchObject({ type: 'move', choice: 'stand' }))
+})
+
+
+it.each([
+  [true, [30], 'Standing: Movement spent. Speed 52, rolled 30.'],
+  [false, [80, 90], 'Still down: Movement, Action and Defense spent. Speed 52, rolled 80, 90.'],
+])('tells a player who tried to stand how it went (stood: %s)', (success, dice, words) => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = [{ id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }]; return record }
+  const live = fightAfter(...rolled)
+  const stand = { target: 52, dice, result: dice.at(-1)!, success, stress: success ? 0 : 1, mode: 'normal' as const, because: null }
+  live.fight.state.combatants.find((entry) => entry.key === WAYNE)!.movement = { choice: 'stand', pickup: null, leave: null, stand }
+  mocks.roster.characters = [currentWayne()]
+  show('player', 'wayne-uid', live)
+  expect(screen.getByText(words)).toBeTruthy()
+})
+
+it('says nothing about standing to a player who has not tried', () => {
+  show('player', 'wayne-uid', fightAfter(...rolled))
+  expect(screen.queryByText(/^(Standing|Still down):/)).toBeNull()
+})
+
+it('lets the GM advance an all-unconscious skipped round explicitly', async () => {
+  const live = fightAfter(...rolled)
+  live.fight.state.combatants.forEach((entry) => { entry.unconscious = true; entry.movement = { choice: 'stay', pickup: null, leave: null, lost: true, unconscious: true } })
+  live.fight.state.movementComplete = true
+  show('gm', 'gm', live)
+  expect(screen.getByText('Everyone is unconscious')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Advance skipped round' }))
+  await waitFor(() => expect(sentOf('settleMovement')).toHaveLength(1))
+})
+
+const downCard = () => [{ id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end' as const, restrictions: [{ kind: 'down' as const }] }] }]
+
+it('says on a down player\'s Stay down that it means no attack from the ground', () => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = downCard(); return record }
+  mocks.roster = { characters: [currentWayne()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+  show('player', 'wayne-uid', fightAfter(...rolled))
+  expect(radio(/^Stay down/).textContent).toBe('Stay downNo attack from the ground this round.')
+})
+
+it('keeps a down fighter who stayed down to Full Defense when they declare', () => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = downCard(); return record }
+  mocks.roster = { characters: [currentWayne()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+  show('player', 'wayne-uid', fightAfter(...declaring()))
+  expect(screen.getByText(/No attack from the ground: declare Full Defense against one person/)).toBeTruthy()
+  expect(button('Declare Full Defense')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+})
+
+it('keeps the GM\'s Stand for a down NPC while the GM chooses for an away player', async () => {
+  const downRoy = () => { const record = royRecord(); record.lubec.effects = downCard(); return record }
+  mocks.roster = { characters: [wayne()], npcs: [{ npc: royNpc, sheet: downRoy() }] }
+  const tree = (live: LubecLiveFight) => (
+    <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
+      <LubecCombatContext value={{ enabled: true, ready: true, live }}>
+        <Routes><Route path="*" element={<LubecCombat campaign={campaign} role="gm" user={{ uid: 'gm' } as User} username="someone" setError={() => undefined} characterTabProps={null} />} /></Routes>
+      </LubecCombatContext>
+    </MemoryRouter>
+  )
+  const view = render(tree(fightAfter(...rolled)))
+  const options = (screen.getByRole('combobox', { name: 'Roy Carver movement' }) as HTMLSelectElement).options
+  expect([...options].map((option) => option.text)).toEqual(['Stay down (no attack)', 'Stand', 'Pick up', 'Leave the fight'])
+  fireEvent.change(screen.getByRole('combobox', { name: 'Roy Carver movement' }), { target: { value: 'stand' } })
+  fireEvent.click(button('Away: choose for Wayne Gardner'))
+  fireEvent.click(radio(/^Move or stay/))
+  fireEvent.click(button('Confirm movement'))
+  await waitFor(() => expect(sentOf('move')).toHaveLength(1))
+  view.rerender(tree(fightAfter(...rolled, { type: 'move', actor: WAYNE, choice: 'stay' })))
+  expect((screen.getByRole('combobox', { name: 'Roy Carver movement' }) as HTMLSelectElement).value).toBe('stand')
+  fireEvent.click(button("Confirm the NPCs' movement"))
+  await waitFor(() => expect(sentOf('npcMovement')[0].payload).toEqual({ type: 'npcMovement', choices: { [ROY]: { choice: 'stand', pickup: null } } }))
+})

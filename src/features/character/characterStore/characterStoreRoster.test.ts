@@ -24,7 +24,7 @@ describe('readCharacterStoreSnapshot', () => {
 
   it.each([
     ['waiting', { pending: { a: { timer: setTimeout(() => undefined, 0), send: () => undefined } }, inFlight: {} }],
-    ['in flight', { pending: {}, inFlight: { a: true } }],
+    ['in flight', { pending: {}, inFlight: { a: new Set([new Promise<void>(() => undefined)]) } }],
   ])('keeps the local copy while its save is %s', (_label, saves) => {
     const localA = character('a', 'user-1', 'Local')
 

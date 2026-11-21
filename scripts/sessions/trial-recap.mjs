@@ -13,7 +13,8 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { parseArgs } from 'node:util'
-import { callOpenAi, writeSessionRecap } from '../../functions/lib/recap/writeRecap.js'
+import { callOpenAi } from '../../functions/lib/recap/modelRequest.js'
+import { writeSessionRecap } from '../../functions/lib/recap/writeRecap.js'
 import { legacyRecapAsSummary, readLegacyFolder, readLegacySession } from './legacyFolder.mjs'
 
 const require = createRequire(new URL('../../functions/package.json', import.meta.url))

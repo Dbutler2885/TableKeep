@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Profiler } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { Role, SessionNote, SessionNoteGeneratedSnapshot } from '../../types/app'
@@ -275,23 +276,178 @@ describe('SessionNoteDetail editing', () => {
   })
 
   it('closes an open editor when a different note is shown, but keeps scenes open', () => {
-    const { rerender } = renderDetail(fullNote())
+    const { rerender, onUpdate } = renderDetail(fullNote())
 
     click('The Gate')
     click('Edit title')
-    rerender(<SessionNoteDetail note={fullNote({ id: 'note-2', title: 'Another' })} role="gm" onUpdate={vi.fn()} />)
+    rerender(<SessionNoteDetail note={fullNote({ id: 'note-2', title: 'Another' })} role="gm" onUpdate={onUpdate} />)
 
     expect(screen.queryByPlaceholderText('Optional custom session title')).toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: 'Another' })).toBeTruthy()
     expect(screen.getByText('A guard answered.')).toBeTruthy()
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 
-  it('keeps an open editor when the same note is updated', () => {
-    const { rerender } = renderDetail(fullNote())
+  it('keeps an open editor and its exact draft when the same note is updated, and saves against the updated note', () => {
+    const { rerender, onUpdate } = renderDetail(fullNote())
 
     click('Edit title')
-    rerender(<SessionNoteDetail note={fullNote({ overallSummary: 'Updated elsewhere' })} role="gm" onUpdate={vi.fn()} />)
+    type(screen.getByPlaceholderText('Optional custom session title'), 'Unsaved draft title')
+    const updated = fullNote({ overallSummary: 'Updated elsewhere', cliffhangers: ['Changed elsewhere'] })
+    rerender(<SessionNoteDetail note={updated} role="gm" onUpdate={onUpdate} />)
 
-    expect(screen.getByPlaceholderText('Optional custom session title')).toBeTruthy()
+    const input = screen.getByPlaceholderText('Optional custom session title') as HTMLInputElement
+    expect(input.value).toBe('Unsaved draft title')
+
+    click('Save edit')
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    const [noteId, patch] = onUpdate.mock.calls[0]
+    expect(noteId).toBe('note-1')
+    expect(patch.title).toBe('Unsaved draft title')
+    expect(patch.generatedSnapshot).toMatchObject({ overallSummary: 'Updated elsewhere', cliffhangers: ['Changed elsewhere'] })
+  })
+})
+
+describe('SessionNoteDetail switching notes', () => {
+  // Two notes of the same shape, so every section that has an editor on the first also has one on the second.
+  const noteA = (fields: Partial<SessionNote> = {}) => fullNote({ id: 'note-a', title: 'Note A', ...fields })
+  const noteB = (fields: Partial<SessionNote> = {}) => fullNote({
+    id: 'note-b',
+    title: 'Note B',
+    overallSummary: 'B arrived.',
+    scenes: [
+      { name: 'The Bridge', summary: 'They crossed.', details: ['The rope held.'] },
+      { name: '', summary: 'They rested.', details: [] },
+    ],
+    cliffhangers: ['What waits across?'],
+    ...fields,
+  })
+  const detail = (sessionNote: SessionNote, onUpdate: ReturnType<typeof vi.fn>) => (
+    <SessionNoteDetail note={sessionNote} role="gm" onUpdate={onUpdate} />
+  )
+  const textboxValues = () => (screen.queryAllByRole('textbox') as (HTMLInputElement | HTMLTextAreaElement)[])
+    .map((box) => box.value)
+
+  // Every variant of `EditingSection`; each begins an edit on note A and leaves a draft no stored note holds.
+  const sections: { name: string; a: SessionNote; b: SessionNote; edit: () => void }[] = [
+    {
+      name: 'the title',
+      a: noteA(),
+      b: noteB(),
+      edit: () => {
+        click('Edit title')
+        type(screen.getByPlaceholderText('Optional custom session title'), 'Draft for A')
+      },
+    },
+    {
+      name: 'the overall summary',
+      a: noteA(),
+      b: noteB(),
+      edit: () => {
+        click('Edit summary')
+        type(within(section('Summary')).getByRole('textbox'), 'Draft for A')
+      },
+    },
+    {
+      name: 'the fallback markdown summary',
+      a: noteA({ overallSummary: '', summaryMarkdown: 'Markdown A' }),
+      b: noteB({ overallSummary: '', summaryMarkdown: 'Markdown B' }),
+      edit: () => {
+        click('Edit summary')
+        type(within(section('Summary')).getByRole('textbox'), 'Draft for A')
+      },
+    },
+    {
+      name: 'the details of an open scene',
+      a: noteA(),
+      b: noteB(),
+      edit: () => {
+        click('The Gate')
+        click('Edit The Gate')
+        type(within(section('Scenes')).getAllByRole('textbox')[2], 'Draft for A')
+      },
+    },
+    {
+      name: 'the cliffhangers',
+      a: noteA(),
+      b: noteB(),
+      edit: () => {
+        click('Edit cliffhangers')
+        type(within(section('Cliffhangers')).getAllByRole('textbox')[0], 'Draft for A')
+      },
+    },
+  ]
+
+  it.each(sections)('abandons an edit to $name when a different note is shown', ({ a, b, edit }) => {
+    const onUpdate = vi.fn()
+    const { rerender } = render(detail(a, onUpdate))
+
+    edit()
+    expect(textboxValues()).toContain('Draft for A')
+    rerender(detail(b, onUpdate))
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Note B' })).toBeTruthy()
+    expect(screen.queryAllByRole('textbox')).toEqual([])
+    expect(screen.queryByText('Draft for A')).toBeNull()
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('does not bring back an abandoned edit when returning to its note', () => {
+    const onUpdate = vi.fn()
+    const { rerender } = render(detail(noteA(), onUpdate))
+
+    click('Edit title')
+    type(screen.getByPlaceholderText('Optional custom session title'), 'Draft for A')
+    rerender(detail(noteB(), onUpdate))
+    rerender(detail(noteA(), onUpdate))
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Note A' })).toBeTruthy()
+    click('Edit title')
+    expect((screen.getByPlaceholderText('Optional custom session title') as HTMLInputElement).value).toBe('Note A')
+    expect(onUpdate).not.toHaveBeenCalled()
+  })
+
+  it('saves a fresh edit begun after a switch only to the note now shown', () => {
+    const onUpdate = vi.fn()
+    const { rerender } = render(detail(noteA(), onUpdate))
+
+    click('Edit title')
+    type(screen.getByPlaceholderText('Optional custom session title'), 'Draft for A')
+    rerender(detail(noteB(), onUpdate))
+
+    click('Edit title')
+    const input = screen.getByPlaceholderText('Optional custom session title') as HTMLInputElement
+    expect(input.value).toBe('Note B')
+    type(input, 'Draft for B')
+    click('Save edit')
+
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    const [noteId, patch] = onUpdate.mock.calls[0]
+    expect(noteId).toBe('note-b')
+    expect(patch.title).toBe('Draft for B')
+    expect(patch.generatedSnapshot).toMatchObject({ title: 'Note B', overallSummary: 'B arrived.', cliffhangers: ['What waits across?'] })
+  })
+
+  it('never commits the next note with the previous note\'s open editor', () => {
+    const onUpdate = vi.fn()
+    const commits: { heading: string | null; textboxes: string[] }[] = []
+    // Profiler's onRender runs once per commit, after React has applied it to the DOM.
+    const profiled = (sessionNote: SessionNote) => (
+      <Profiler
+        id="detail"
+        onRender={() => commits.push({ heading: document.querySelector('h2')?.textContent ?? null, textboxes: textboxValues() })}
+      >
+        {detail(sessionNote, onUpdate)}
+      </Profiler>
+    )
+    const { rerender } = render(profiled(noteA()))
+
+    click('Edit title')
+    type(screen.getByPlaceholderText('Optional custom session title'), 'Draft for A')
+    commits.length = 0
+    rerender(profiled(noteB()))
+
+    expect(commits.length).toBeGreaterThan(0)
+    expect(commits).toEqual(commits.map(() => ({ heading: 'Note B', textboxes: [] })))
   })
 })

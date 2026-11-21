@@ -1,3 +1,4 @@
+import { combatSkipsStages } from './inputs'
 import { lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import { freeze, readCombatAim, readingFor, requireAimPeople } from './attackAim'
 import { clampHandle } from './attackMath'
@@ -6,8 +7,10 @@ import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { requireDelivered } from './initiative'
+import { withLostActions } from './stages'
 import { combatantKey } from './inputs'
 import { combatInputModifiers } from './inputModifiers'
+import { downCards } from './down'
 import type { CombatCommand, Combatant, CombatDeclaration, CombatFight, CombatHandler, CombatSheet, CombatState } from './types'
 
 /** Run's settled cost: the engine records an empty declaration, with no attack and no Defense. */
@@ -18,11 +21,11 @@ export const combatOrdered = (state: CombatState): Combatant[] => state.order!.m
 
 /** Declare runs slowest first: whoever is still in the fight with nothing declared yet. */
 export const combatDeclarers = (state: CombatState): Combatant[] =>
-  combatOrdered(state).reverse().filter((entry) => entry.outReason === null && !entry.declaration)
+  combatOrdered(state).reverse().filter((entry) => entry.outReason === null && !combatSkipsStages(entry) && !entry.declaration)
 
 /** Attack runs fastest first, for everyone in the fight whose declaration has an attack. */
 export const combatAttackers = (state: CombatState): Combatant[] =>
-  combatOrdered(state).filter((entry) => entry.outReason === null && entry.declaration?.aim && !entry.declaration.stopped)
+  combatOrdered(state).filter((entry) => entry.outReason === null && !combatSkipsStages(entry) && entry.declaration?.aim && !entry.declaration.stopped)
 
 const attackWords = (state: CombatState): string => {
   const names = combatAttackers(state).map((entry) => entry.name)
@@ -30,7 +33,9 @@ const attackWords = (state: CombatState): string => {
 }
 
 /** The current choice must be approved before the next declarer or Attack can begin. */
-export function withDeclareRequests(state: CombatState, entropy: CombatEntropy): { state: CombatState; logs: CombatLog[] } {
+export function withDeclareRequests(unfilled: CombatState, entropy: CombatEntropy): { state: CombatState; logs: CombatLog[] } {
+  // A lost Action Stage is a stopped declaration, recorded unasked.
+  const state = withLostActions(unfilled)
   const next = combatDeclarers(state)[0]
   if (next) {
     const action = next.proposedDeclaration ? 'reviewDeclaration' : 'declare'
@@ -85,6 +90,7 @@ function fullDefense(fight: CombatFight, declarer: Combatant, record: CombatShee
 /** An attack and at most one named Defense line, split from the same pool in tens and frozen now. */
 function attackDeclaration(fight: CombatFight, declarer: Combatant, record: CombatSheet, command: CombatCommand): CombatDeclaration {
   if (declarer.movement?.choice === 'evade') throw new Error(`${declarer.name} moved evasively, which uses the action: no attack this round. Declare Full Defense instead.`)
+  if (downCards(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round }).length) throw new Error(`${declarer.name} is knocked down: no attack from the ground. Declare Full Defense instead.`)
   const aim = readCombatAim(command.payload.aim)
   requireAimPeople(fight.state, declarer, aim)
   const frozen = freeze(record, aim, readingFor(record, aim, fight, command.envelope.fightId))

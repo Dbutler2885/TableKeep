@@ -1,5 +1,4 @@
 import { useCallback } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 import { campaignTabPath, groupHomePath, groupPickerPath } from '../navigation/tabs'
 import type { GroupRecord } from '../../types/app'
@@ -9,7 +8,6 @@ type GroupNavigationOptions = {
   groups: GroupRecord[]
   navigate: NavigateFunction
   selectedGroupId: string | null
-  setDrawerOpen: Dispatch<SetStateAction<boolean>>
   createGroup: (name: string) => Promise<string>
   createCampaign: (groupId: string, name: string, system: string) => Promise<unknown>
   deleteGroup: (groupId: string) => Promise<void>
@@ -22,11 +20,10 @@ export function groupEntryPath(groups: GroupRecord[], groupId: string): string {
   return activeCampaign ? campaignTabPath(groupId, activeCampaign.id, 'character') : groupHomePath(groupId)
 }
 
-export function useGroupNavigation({ groups, navigate, selectedGroupId, setDrawerOpen, createGroup, createCampaign, deleteGroup }: GroupNavigationOptions) {
+export function useGroupNavigation({ groups, navigate, selectedGroupId, createGroup, createCampaign, deleteGroup }: GroupNavigationOptions) {
   const handleSelectGroup = useCallback((groupId: string) => {
     void navigate(groupEntryPath(groups, groupId), { replace: true })
-    setDrawerOpen(false)
-  }, [groups, navigate, setDrawerOpen])
+  }, [groups, navigate])
 
   const handleCreateGroup = useCallback(async (name: string) => {
     const groupId = await createGroup(name)

@@ -962,27 +962,6 @@ button:hover {
 
 /* === Campaign settings ================================================ */
 
-.side-settings-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: inherit;
-  font-size: 0.88rem;
-  font-weight: 500;
-  color: #1a1a1a;
-  background: transparent;
-  border: 1px solid #d8d9dd;
-  border-radius: 6px;
-  padding: 0.4rem 0.65rem;
-  margin-bottom: 0.5rem;
-  cursor: pointer;
-  text-align: left;
-}
-
-.side-settings-button:hover {
-  background: #f4f5f7;
-}
-
 .confirm-modal.group-modal.campaign-settings-modal {
   width: min(94vw, 460px);
 }
@@ -1249,44 +1228,110 @@ button:hover {
   }
 }
 
+/* A campaign is its sidebar and the page beside it. The sidebar runs edge to
+   edge down the window's left side, so the shell drops its own padding and
+   the page keeps the same inset from its edges through these gutters. */
+.shell-root:has(> .shell-layout) {
+  padding: 0;
+}
+
 .shell-layout {
+  --shell-gutter-top: 1rem;
+  --shell-gutter: 1rem;
   display: grid;
-  grid-template-columns: 1fr;
-  margin-top: 0.4rem;
+  grid-template-columns: auto minmax(0, 1fr);
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
+/* Stretched by the grid rather than `height: 100%`, so the gutters are taken
+   out of the row and the page's height chain stays definite. */
+.shell-layout > .content-panel {
+  height: auto;
+  margin: var(--shell-gutter-top) var(--shell-gutter) var(--shell-gutter);
+}
+
+/* As narrow as its content allows: the tab labels never wrap, so the widest
+   of them sets the width, and everything else (the stacked name, the group
+   and campaign names, the account lines and buttons) wraps between words to
+   fit, never inside one. */
 .side-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: min(86vw, 320px);
-  height: 100dvh;
-  max-height: 100dvh;
+  position: relative;
+  z-index: 60;
+  width: min-content;
+  height: 100%;
   min-height: 0;
   border: 0;
+  border-right: 1px solid #dddcd6;
   background: #fff;
-  padding: 3.7rem 1rem 1rem;
+  padding: 1rem 0.85rem;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* A window too short for it scrolls the sidebar; keep that scrollbar from
+     taking much of its width. */
+  scrollbar-width: thin;
+}
+
+/* Wrap the account lines between words, as everything else in the sidebar
+   wraps, rather than at any letter. */
+.side-nav .account-email {
+  word-break: normal;
+}
+
+.side-nav .nav-list .tab-button {
+  white-space: nowrap;
+}
+
+/* Reserve each label's bold width, so the sidebar keeps one width whichever
+   tab is active. The copy is hidden from assistive technology. */
+.tab-label {
+  display: inline-flex;
+  flex-direction: column;
+}
+
+.tab-label::after {
+  content: attr(data-label) / "";
+  height: 0;
   overflow: hidden;
-  transform: translateX(-105%);
-  transition: transform 180ms ease, filter 140ms ease, opacity 140ms ease;
-  z-index: 60;
+  visibility: hidden;
+  font-weight: 700;
+  pointer-events: none;
 }
 
-.side-nav.open {
-  transform: translateX(0);
-}
-
+/* "Table" over "Keep", with the mark beside both: stacked, so the name is
+   never what sets the sidebar's width; the tab labels are. */
 .side-title {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-areas: "mark first" "mark second";
+  justify-content: center;
+  justify-items: start;
+  align-items: center;
+  column-gap: 0.12em;
   font-size: 2rem;
   line-height: 0.95;
   margin-bottom: 0.2rem;
-  text-align: center;
+  text-align: left;
+}
+
+.side-title > .side-title-logo {
+  grid-area: mark;
+  width: 1.35em;
+  height: 1.35em;
+  margin: 0;
+  vertical-align: 0;
+}
+
+.side-title > span:nth-of-type(1) {
+  grid-area: first;
+}
+
+.side-title > span:nth-of-type(2) {
+  grid-area: second;
 }
 
 .brand-wordmark {
@@ -1389,6 +1434,11 @@ button:hover {
   opacity: 0.7;
 }
 
+.side-campaign-back > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .nav-list {
   display: grid;
   gap: 0;
@@ -1406,7 +1456,7 @@ button:hover {
   appearance: none;
   -webkit-appearance: none;
   border-radius: 0;
-  padding: 0.5rem 0;
+  padding: 0.5rem 0.55rem;
   border-bottom: 0;
   box-shadow: none;
   outline: none;
@@ -1450,6 +1500,145 @@ button:hover {
 .account-username {
   font-weight: 700;
   color: #5f8a56;
+}
+
+/* The username, and the role after it in small capitals. */
+.account-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.1rem 0.4rem;
+}
+
+.account-role {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.account-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.account-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid #d8d9dd;
+  border-radius: 6px;
+  background: transparent;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.account-action:hover {
+  background: #f4f5f7;
+}
+
+.confirm-modal.group-modal.discord-dialog {
+  width: min(92vw, 340px);
+}
+
+.discord-dialog-body {
+  display: grid;
+  justify-items: start;
+  gap: 0.55rem;
+}
+
+/* --- Phone ---------------------------------------------------------------
+   At and below PHONE_NAV_MAX_WIDTH (src/constants/layout.ts) the sidebar
+   would leave a phone's page too little room, so the campaign gets a bar
+   across the top, and the sidebar opens from it as a modal drawer. */
+
+.shell-layout:has(> .phone-nav-bar) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.phone-nav-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  padding: calc(0.5rem + env(safe-area-inset-top, 0px)) calc(0.75rem + env(safe-area-inset-right, 0px)) 0.5rem calc(0.75rem + env(safe-area-inset-left, 0px));
+  border-bottom: 1px solid #dddcd6;
+  background: #fff;
+}
+
+.phone-nav-toggle,
+.side-drawer-close {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  background: #fff;
+}
+
+.phone-nav-title {
+  min-width: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  overflow-wrap: break-word;
+}
+
+.side-drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: max-content;
+  max-width: calc(100vw - 3rem);
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
+}
+
+.side-drawer[open] {
+  display: flex;
+  animation: side-drawer-in 180ms ease;
+}
+
+.side-drawer::backdrop {
+  background: rgba(98, 115, 96, 0.16);
+}
+
+/* Room above the sidebar for the close button, over each skin's own padding. */
+.shell-root .shell-layout .side-drawer > .side-nav {
+  height: 100%;
+  padding-top: calc(3.6rem + env(safe-area-inset-top, 0px));
+  padding-left: calc(0.85rem + env(safe-area-inset-left, 0px));
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.side-drawer-close {
+  position: absolute;
+  top: calc(0.5rem + env(safe-area-inset-top, 0px));
+  left: calc(0.75rem + env(safe-area-inset-left, 0px));
+  /* Over the sidebar it closes, which the VtM and Lubec skins raise to 210. */
+  z-index: 220;
+}
+
+@keyframes side-drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-drawer[open] {
+    animation: none;
+  }
 }
 
 .content-panel {
@@ -3215,9 +3404,10 @@ button.character-item-add-btn:disabled {
    Below this width the roster and the sheet stop sharing the row: JS renders
    exactly one of them (see useResponsiveCharacterLayout) and the survivor takes
    the full width. Both character sheets cap at 920px and the roster column runs
-   up to 290px, so side-by-side below ~1250px only squeezes the sheet - and the
-   sheet's own reflow bands are keyed to *viewport* width, which is only honest
-   once the sheet actually owns the viewport.
+   up to 290px and the campaign sidebar beside the page takes about 180px more,
+   so side-by-side below ~1430px only squeezes the sheet - and the sheet's own
+   reflow bands are keyed to *viewport* width, which is only honest once the
+   sheet has the page to itself.
 
    The doubled `.maps-layout.characters-layout` selector is load-bearing. The
    tab element carries `maps-layout monsters-layout characters-layout`, and the
@@ -3225,7 +3415,7 @@ button.character-item-add-btn:disabled {
    source order wins, so a lone `.characters-layout` here silently loses and the
    two-column grid survives. Keep both classes on these selectors.
    Mirrors CHARACTER_SINGLE_PANE_MAX_WIDTH in src/constants/layout.ts. */
-@media (max-width: 1250px) {
+@media (max-width: 1430px) {
   .maps-layout.characters-layout {
     grid-template-columns: minmax(0, 1fr);
     height: 100%;
@@ -3240,30 +3430,15 @@ button.character-item-add-btn:disabled {
     padding-right: 0;
   }
 
-  /* The menu toggle is `position: fixed` at the top-left at every width, so a
-     solo detail pane needs the clearance the sidebar used to carry alone.
-     Below 900px the shell's own top padding already covers it. */
   .maps-layout.characters-layout > .characters-detail {
     border-left: 0;
     padding-left: 0;
-    padding-top: 3rem;
-  }
-}
-
-@media (max-width: 900px) {
-  .maps-layout.characters-layout > .characters-detail {
-    padding-top: 0;
   }
 }
 
 .monsters-sidebar {
   min-width: 0;
   min-height: 0;
-  padding-top: 3rem;
-}
-
-.characters-sidebar {
-  padding-top: 3rem;
 }
 
 .monster-add-btn {
@@ -3338,6 +3513,14 @@ button.character-item-add-btn:disabled {
   overflow: hidden;
   background: #fafaf8;
 }
+
+.lubec-portrait-frame {
+  position: relative;
+  width: fit-content;
+  flex-shrink: 0;
+}
+
+.lubec-portrait-frame .lubec-portrait { display: block; }
 
 .character-dead-overlay {
   position: absolute;
@@ -4812,41 +4995,6 @@ button.character-item-add-btn:disabled {
   max-width: 100%;
 }
 
-.menu-toggle {
-  position: fixed;
-  top: 0.8rem;
-  left: 0.8rem;
-  z-index: 70;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.2rem;
-  height: 2.2rem;
-  padding: 0;
-  background: #fff;
-}
-
-.drawer-backdrop {
-  display: block;
-  position: fixed;
-  inset: 0;
-  border: 0;
-  background: transparent;
-  z-index: 50;
-  padding: 0;
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-
-.drawer-backdrop:hover,
-.drawer-backdrop:active,
-.drawer-backdrop:focus,
-.drawer-backdrop:focus-visible {
-  background: rgba(98, 115, 96, 0.16);
-  box-shadow: none;
-  outline: none;
-}
-
 .success {
   margin-top: 0.7rem;
   color: #111;
@@ -5125,7 +5273,6 @@ button:disabled {
   display: grid;
   align-content: start;
   gap: 0.55rem;
-  padding-top: 3rem;
 }
 
 .item-type-filter-grid {
@@ -5841,7 +5988,6 @@ button:disabled {
 .maps-sidebar {
   border-right: 1px solid #dddcd6;
   padding-right: 0.75rem;
-  padding-top: 3rem;
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -6772,11 +6918,7 @@ button:disabled {
 }
 
 .map-preview-back-btn {
-  position: fixed;
-  top: 3.2rem;
-  left: 0.8rem;
-  /* Sit below the side drawer (z-index 60) so the drawer covers it when open. */
-  z-index: 55;
+  left: 0.55rem;
 }
 
 .map-controls {
@@ -10301,18 +10443,11 @@ button:disabled {
   }
 
   .side-nav {
-    width: 100dvw;
-    max-width: 100dvw;
-    padding-top: calc(3.35rem + env(safe-area-inset-top, 0px));
-    padding-right: calc(1rem + env(safe-area-inset-right, 0px));
+    padding-top: calc(0.8rem + env(safe-area-inset-top, 0px));
+    padding-right: 0.75rem;
     padding-bottom: calc(0.8rem + env(safe-area-inset-bottom, 0px));
-    padding-left: calc(1rem + env(safe-area-inset-left, 0px));
+    padding-left: calc(0.75rem + env(safe-area-inset-left, 0px));
     gap: 0.6rem;
-  }
-
-  .menu-toggle {
-    top: calc(0.8rem + env(safe-area-inset-top, 0px));
-    left: calc(0.8rem + env(safe-area-inset-left, 0px));
   }
 
   .side-title {
@@ -10331,7 +10466,8 @@ button:disabled {
   }
 
   .shell-layout {
-    margin-top: 0;
+    --shell-gutter-top: 0.75rem;
+    --shell-gutter: 0.75rem;
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -10455,10 +10591,12 @@ button:disabled {
     min-height: 0;
   }
 
+  /* Fixed along the foot of the page, which starts after the campaign
+     sidebar beside it (its width is --side-nav-width; nothing on a phone). */
   .character-sheet-page-tabs.bottom {
     display: flex;
     position: fixed;
-    left: 0;
+    left: var(--side-nav-width, 0px);
     right: 0;
     bottom: 0;
     margin-top: 0;
@@ -10567,10 +10705,6 @@ button:disabled {
     padding-top: 0;
     min-height: 0;
     overflow: auto;
-  }
-
-  .characters-sidebar {
-    padding-top: 0;
   }
 
   .items-sidebar {
@@ -12301,16 +12435,18 @@ button:disabled {
     linear-gradient(180deg, var(--vtm-pitch) 0%, var(--vtm-velvet) 60%, var(--vtm-void) 100%);
   border-right: 1px solid var(--vtm-rule);
   color: var(--vtm-parchment);
-  padding-top: 4rem;
+  padding-top: 1rem;
   box-shadow: 4px 0 32px rgba(0,0,0,0.7), inset -1px 0 0 rgba(196, 162, 90, 0.08);
-  /* Above .map-stage (101) and the backdrop (200) so the drawer occludes the map. */
+  /* Above the grain and vignette (100) and the VtM .map-stage (101), so its
+     shadow falls over the page rather than under it. */
   z-index: 210;
+  scrollbar-color: var(--vtm-rule) transparent;
 }
 
 .shell-root[data-theme="vtm"] .side-title {
   font-family: 'UnifrakturCook', 'IM Fell English', Georgia, serif;
   font-weight: 700;
-  font-size: 2.4rem;
+  font-size: 2rem;
   line-height: 0.95;
   color: var(--vtm-bone);
   letter-spacing: 0.01em;
@@ -12318,7 +12454,8 @@ button:disabled {
   margin-bottom: 0.3rem;
   text-align: center;
   position: relative;
-  padding-bottom: 0.55rem;
+  /* Room for the fangs that hang from "Keep". */
+  padding-bottom: 1.2rem;
 }
 
 /* Curved canine fangs: built-in shape curves to the LEFT (tip lower-left of top edge).
@@ -12347,6 +12484,38 @@ button:disabled {
   filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.65));
   transform-origin: top center;
   pointer-events: none;
+}
+
+/* In the sidebar the words are stacked, so both fangs hang from the lower
+   word, "Keep", one each side, curving in toward each other. */
+.shell-root[data-theme="vtm"] .side-title > .vtm-fang-anchor:nth-of-type(1)::after {
+  content: none;
+}
+
+.shell-root[data-theme="vtm"] .side-title > .vtm-fang-anchor:nth-of-type(2)::before,
+.shell-root[data-theme="vtm"] .side-title > .vtm-fang-anchor:nth-of-type(2)::after {
+  content: '';
+  position: absolute;
+  top: 102%;
+  width: 0.55em;
+  height: 0.85em;
+  margin-left: -0.275em;
+  background-color: var(--vtm-bone);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 28'><path d='M3 0 L13 0 Q14 6 11 14 Q7 22 4 27 Q3 16 1 8 Q1 4 3 0 Z' fill='black'/></svg>") center / contain no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 28'><path d='M3 0 L13 0 Q14 6 11 14 Q7 22 4 27 Q3 16 1 8 Q1 4 3 0 Z' fill='black'/></svg>") center / contain no-repeat;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.65));
+  transform-origin: top center;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="vtm"] .side-title > .vtm-fang-anchor:nth-of-type(2)::before {
+  left: 24%;
+  transform: scaleX(-1);
+}
+
+.shell-root[data-theme="vtm"] .side-title > .vtm-fang-anchor:nth-of-type(2)::after {
+  left: 76%;
+  transform: none;
 }
 
 /* "Home" fang: mirrored horizontally → curve hooks to the right (toward "House") */
@@ -12378,8 +12547,9 @@ button:disabled {
   border: 0;
   border-radius: 0;
   padding: 0.3rem 0.5rem;
-  margin: 0 auto 0.6rem;
-  align-self: center;
+  margin: 0 0 0.6rem;
+  align-self: stretch;
+  justify-content: center;
   text-align: center;
   letter-spacing: 0.005em;
 }
@@ -12433,8 +12603,11 @@ button:disabled {
   text-align: left;
   letter-spacing: 0.01em;
   position: relative;
-  transition: color 160ms ease, padding-left 160ms ease, background 160ms ease;
+  transition: color 160ms ease, padding 160ms ease, background 160ms ease;
 }
+
+/* The label slides right on hover and when active; the right padding gives
+   back what the left takes, so the sidebar's width holds still. */
 
 .shell-root[data-theme="vtm"] .tab-button::before {
   content: '';
@@ -12452,6 +12625,7 @@ button:disabled {
   color: var(--vtm-bone);
   background: linear-gradient(90deg, rgba(122,26,31,0.15), transparent 80%);
   padding-left: 1.9rem;
+  padding-right: 0.6rem;
 }
 
 .shell-root[data-theme="vtm"] .tab-button:hover::before {
@@ -12464,7 +12638,58 @@ button:disabled {
   font-style: italic;
   font-weight: 500;
   padding-left: 2.1rem;
+  padding-right: 0.4rem;
   text-shadow: 0 0 16px rgba(163, 34, 38, 0.45);
+}
+
+.shell-root[data-theme="vtm"] .tab-label::after {
+  font-weight: 500;
+}
+
+/* The theme clears the tab's background, which is what shows focus in the
+   default look, so a keyboard user gets the hover's slide and a gilt rule. */
+.shell-root[data-theme="vtm"] .tab-button:focus-visible {
+  outline: 1px solid var(--vtm-gold);
+  outline-offset: -1px;
+  color: var(--vtm-bone);
+}
+
+/* --- Phone bar and drawer --------------------------------------------- */
+
+.shell-root[data-theme="vtm"] .phone-nav-bar {
+  background: linear-gradient(180deg, var(--vtm-pitch) 0%, var(--vtm-velvet) 100%);
+  border-bottom: 1px solid var(--vtm-rule);
+  color: var(--vtm-parchment);
+  /* Above the grain and vignette (100), as the sidebar is. */
+  position: relative;
+  z-index: 210;
+}
+
+.shell-root[data-theme="vtm"] .phone-nav-title {
+  font-family: 'IM Fell English', 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.15rem;
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .phone-nav-toggle,
+.shell-root[data-theme="vtm"] .side-drawer-close {
+  background: var(--vtm-pitch);
+  border: 1px solid var(--vtm-rule);
+  color: var(--vtm-parchment);
+  border-radius: 2px;
+}
+
+.shell-root[data-theme="vtm"] .phone-nav-toggle:hover,
+.shell-root[data-theme="vtm"] .side-drawer-close:hover {
+  background: var(--vtm-velvet);
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .side-drawer::backdrop {
+  background: rgba(0, 0, 0, 0.65);
 }
 
 .shell-root[data-theme="vtm"] .tab-button.active::before {
@@ -12493,63 +12718,17 @@ button:disabled {
   text-transform: lowercase;
 }
 
-.shell-root[data-theme="vtm"] .side-settings-button {
-  font-family: 'Cormorant Garamond', serif;
-  font-style: italic;
-  font-weight: 600;
-  font-size: 0.95rem;
+.shell-root[data-theme="vtm"] .account-action {
   color: var(--vtm-parchment);
   background: transparent;
   border: 1px solid var(--vtm-rule);
   border-radius: 2px;
-  padding: 0.4rem 0.65rem;
-  letter-spacing: 0.02em;
 }
 
-.shell-root[data-theme="vtm"] .side-settings-button:hover {
+.shell-root[data-theme="vtm"] .account-action:hover {
   background: rgba(122, 26, 31, 0.18);
   border-color: var(--vtm-gold-faint);
   color: var(--vtm-bone);
-}
-
-.shell-root[data-theme="vtm"] .account-panel > button:last-child {
-  font-family: 'Cormorant Garamond', serif;
-  font-style: italic;
-  font-size: 0.92rem;
-  color: var(--vtm-parchment-soft);
-  background: transparent;
-  border: 1px solid var(--vtm-rule);
-  border-radius: 2px;
-  padding: 0.35rem 0.6rem;
-}
-
-.shell-root[data-theme="vtm"] .account-panel > button:last-child:hover {
-  background: rgba(122, 26, 31, 0.18);
-  color: var(--vtm-bone);
-  border-color: var(--vtm-oxblood);
-}
-
-/* --- Top hamburger / drawer chrome ----------------------------------- */
-
-.shell-root[data-theme="vtm"] .menu-toggle {
-  background: var(--vtm-pitch);
-  border: 1px solid var(--vtm-rule);
-  color: var(--vtm-parchment);
-  border-radius: 2px;
-  /* Sit above the VtM .map-stage (z-index 101) so the drawer stack occludes the map. */
-  z-index: 220;
-}
-
-.shell-root[data-theme="vtm"] .menu-toggle:hover {
-  background: var(--vtm-velvet);
-  border-color: var(--vtm-gold-faint);
-  color: var(--vtm-bone);
-}
-
-.shell-root[data-theme="vtm"] .drawer-backdrop {
-  background: rgba(0,0,0,0.65);
-  /* Above .map-stage (101) so the map and its red outline are covered. */
-  z-index: 200;
 }
 
 /* --- Main content surface (tabs) ------------------------------------- */
@@ -15551,13 +15730,22 @@ button:disabled {
 
 /* --- Side nav: the prototype's dark top bar, turned on its side ------- */
 
+/* Dark like the masthead it echoes, but quieter than the page beside it: the
+   ink is softened toward the paper, the edge is one thin rust line, and full
+   colour is kept for the open tab (rust) and the group's name (mustard). */
+.shell-root[data-theme="lubec"] {
+  --lubec-nav-surface: color-mix(in srgb, var(--lubec-ink) 90%, var(--lubec-paper));
+  --lubec-nav-rule: rgba(242, 234, 215, 0.14);
+  --lubec-nav-quiet: rgba(242, 234, 215, 0.72);
+}
+
 .shell-root[data-theme="lubec"] .side-nav {
-  background: var(--lubec-ink);
+  background: var(--lubec-nav-surface);
   color: var(--lubec-paper);
-  border-right: 5px solid var(--lubec-rust);
-  box-shadow: 4px 0 0 var(--lubec-mustard), 12px 0 32px rgba(7, 20, 23, 0.35);
-  /* Above .map-stage (101) and the backdrop (200) so the drawer occludes the map. */
+  border-right: 2px solid var(--lubec-rust);
+  /* Above the page's grain (5). */
   z-index: 210;
+  scrollbar-color: rgba(242, 234, 215, 0.3) transparent;
 }
 
 .shell-root[data-theme="lubec"] .side-title {
@@ -15574,35 +15762,35 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .side-meta {
   color: var(--lubec-mustard);
-  font: 700 0.95rem/1.1 var(--lubec-condensed);
+  font: 700 0.85rem/1.1 var(--lubec-condensed);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .shell-root[data-theme="lubec"] .side-campaign-back {
-  align-self: center;
+  justify-content: center;
   background: transparent;
   border: 0;
   color: var(--lubec-paper);
-  font: 800 1.1rem/1.1 var(--lubec-display);
+  font: 700 1rem/1.15 var(--lubec-display);
   text-align: center;
 }
 
 .shell-root[data-theme="lubec"] .side-campaign-back:hover {
-  background: rgba(242, 234, 215, 0.1);
+  background: rgba(242, 234, 215, 0.08);
 }
 
 .shell-root[data-theme="lubec"] .nav-list {
-  gap: 0.25rem;
-  padding: 0.6rem 0;
-  border-top: 2px solid rgba(242, 234, 215, 0.25);
-  border-bottom: 2px solid rgba(242, 234, 215, 0.25);
+  gap: 0.15rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--lubec-nav-rule);
+  border-bottom: 1px solid var(--lubec-nav-rule);
 }
 
 .shell-root[data-theme="lubec"] .tab-button {
-  padding: 0.55rem 0.8rem 0.4rem;
-  color: var(--lubec-paper);
-  font: 700 1.15rem/1 var(--lubec-condensed);
+  padding: 0.5rem 0.8rem 0.38rem;
+  color: var(--lubec-nav-quiet);
+  font: 700 1.05rem/1 var(--lubec-condensed);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -15610,7 +15798,7 @@ button:disabled {
 .shell-root[data-theme="lubec"] .tab-button:hover,
 .shell-root[data-theme="lubec"] .tab-button:active,
 .shell-root[data-theme="lubec"] .tab-button:focus {
-  background: rgba(242, 234, 215, 0.1);
+  background: rgba(242, 234, 215, 0.08);
   color: var(--lubec-cream);
 }
 
@@ -15626,52 +15814,65 @@ button:disabled {
 }
 
 .shell-root[data-theme="lubec"] .account-panel {
-  border-top: 2px solid rgba(242, 234, 215, 0.25);
+  border-top: 1px solid var(--lubec-nav-rule);
 }
 
 .shell-root[data-theme="lubec"] .account-email,
 .shell-root[data-theme="lubec"] .account-username {
-  color: rgba(242, 234, 215, 0.78);
+  color: var(--lubec-nav-quiet);
   font: 700 0.78rem/1.3 var(--lubec-type);
   letter-spacing: 0.04em;
 }
 
 .shell-root[data-theme="lubec"] .account-username {
-  color: var(--lubec-mustard);
+  color: var(--lubec-paper);
 }
 
 .shell-root[data-theme="lubec"] .account-panel button {
   background: transparent;
-  color: var(--lubec-paper);
-  border: 2px solid rgba(242, 234, 215, 0.55);
+  color: var(--lubec-nav-quiet);
+  border: 1px solid rgba(242, 234, 215, 0.3);
   border-radius: 0;
 }
 
 .shell-root[data-theme="lubec"] .account-panel button:hover {
-  background: rgba(242, 234, 215, 0.1);
+  background: rgba(242, 234, 215, 0.08);
   color: var(--lubec-cream);
 }
 
-/* --- Menu toggle and drawer ------------------------------------------- */
+/* --- Phone bar and drawer ------------------------------------------------ */
 
-.shell-root[data-theme="lubec"] .menu-toggle {
-  background: var(--lubec-ink);
+.shell-root[data-theme="lubec"] .phone-nav-bar {
+  background: var(--lubec-nav-surface);
+  color: var(--lubec-paper);
+  border-bottom: 2px solid var(--lubec-rust);
+  /* Above the page's grain (5). */
+  position: relative;
+  z-index: 210;
+}
+
+.shell-root[data-theme="lubec"] .phone-nav-title {
   color: var(--lubec-cream);
-  border: 2px solid var(--lubec-ink);
+  font: 700 1.1rem/1 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .phone-nav-toggle,
+.shell-root[data-theme="lubec"] .side-drawer-close {
+  background: transparent;
+  color: var(--lubec-cream);
+  border: 1px solid rgba(242, 234, 215, 0.3);
   border-radius: 0;
-  box-shadow: 0 3px 0 var(--lubec-mustard);
-  /* Above the Lubec .map-stage (101) so the drawer stack occludes the map. */
-  z-index: 220;
 }
 
-.shell-root[data-theme="lubec"] .menu-toggle:hover {
-  background: var(--lubec-blue);
+.shell-root[data-theme="lubec"] .phone-nav-toggle:hover,
+.shell-root[data-theme="lubec"] .side-drawer-close:hover {
+  background: rgba(242, 234, 215, 0.08);
 }
 
-.shell-root[data-theme="lubec"] .drawer-backdrop {
+.shell-root[data-theme="lubec"] .side-drawer::backdrop {
   background: rgba(16, 43, 49, 0.62);
-  /* Above .map-stage (101) so the map is covered. */
-  z-index: 200;
 }
 
 /* --- Content surface ---------------------------------------------------- */
@@ -15716,20 +15917,23 @@ button:disabled {
   outline-offset: 1px;
 }
 
-/* Buttons take the skin's colours and type and keep their own sizes. */
-.shell-root[data-theme="lubec"] button {
+/* Buttons take the skin's colours and type and keep their own sizes.
+   A map token is a button too, but it is only its cut-out image on the map:
+   the skin's cream would draw it as a tile. :where() keeps these rules'
+   specificity, so every other Lubec button rule still wins as before. */
+.shell-root[data-theme="lubec"] button:where(:not(.map-token)) {
   background: var(--lubec-cream);
   color: var(--lubec-blue);
   border-color: var(--lubec-ink);
   font-family: var(--lubec-type);
 }
 
-.shell-root[data-theme="lubec"] button:hover {
+.shell-root[data-theme="lubec"] button:where(:not(.map-token)):hover {
   background: var(--lubec-paper-deep);
   color: var(--lubec-ink);
 }
 
-.shell-root[data-theme="lubec"] button:focus-visible {
+.shell-root[data-theme="lubec"] button:where(:not(.map-token)):focus-visible {
   outline: 2px solid var(--lubec-rust);
   outline-offset: 2px;
 }
@@ -17229,6 +17433,88 @@ button:disabled {
   width: min(100%, 34rem);
 }
 
+/* The GM's private Death Save prompt sits in the corner, never over the fight. */
+.shell-root[data-theme="lubec"] .lubec-death-reminders {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 40;
+  display: grid;
+  gap: 0.6rem;
+  width: min(calc(100vw - 2rem), 26rem);
+  max-height: min(80vh, 40rem);
+  overflow-y: auto;
+  padding: 0.9rem 1rem;
+  border: 2px solid var(--lubec-rust);
+  border-radius: 6px;
+  background: var(--lubec-cream);
+  color: var(--lubec-ink);
+  box-shadow: 4px 4px 0 rgba(163, 66, 41, 0.35);
+  font-family: var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminders h3 {
+  margin: 0;
+  color: var(--lubec-rust);
+  font-family: var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminders p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminders > ul,
+.shell-root[data-theme="lubec"] .lubec-death-reminder ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminder {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--lubec-line);
+  border-radius: 4px;
+  background: var(--lubec-paper);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminder small {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminder button {
+  justify-self: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table caption {
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table th,
+.shell-root[data-theme="lubec"] .lubec-death-table td {
+  padding: 0.3rem 0.4rem;
+  border-top: 1px solid var(--lubec-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table th {
+  width: 3rem;
+  white-space: nowrap;
+}
+
 @media (max-width: 580px) {
   .shell-root[data-theme="lubec"] .lubec-panic-body,
   .shell-root[data-theme="lubec"] .lubec-counters-body {
@@ -17586,7 +17872,7 @@ button:disabled {
 }
 
 .shell-root[data-theme="lubec"] .fight-panel {
-  padding: 0.85rem;
+  padding: 0.85rem 0.85rem 0.55rem;
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid var(--lubec-rust);
   border-top: 0;
@@ -17599,6 +17885,7 @@ button:disabled {
   gap: 0.6rem 0.8rem;
   align-items: end;
   justify-content: space-between;
+  margin-bottom: 0.75rem;
 }
 
 .shell-root[data-theme="lubec"] .fight-heading .eyebrow {
@@ -17628,6 +17915,323 @@ button:disabled {
 .shell-root[data-theme="lubec"] .effective-handle strong {
   color: var(--lubec-ink);
   font: 800 1.4rem/1 var(--lubec-display);
+}
+
+/* The armed skill's bonus beside Effective Handle, as a roll circle's note names it. */
+.shell-root[data-theme="lubec"] .effective-handle-skill {
+  margin-left: 0.35rem;
+  color: var(--lubec-rust);
+}
+
+/* The prototype's allocation tools, bar, labels and rolls under the heading. */
+.shell-root[data-theme="lubec"] .fight-panel .combat-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-tool {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.7rem;
+  color: var(--lubec-blue);
+  background: transparent;
+  border: 1px solid var(--lubec-blue);
+  border-radius: 0;
+  cursor: pointer;
+  font: 800 0.64rem/1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-tool.active {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-tool:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .tool-status {
+  color: var(--lubec-muted);
+  font: 700 0.6rem/1.3 var(--lubec-type);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The skills a fight can take, at the toolbar's far end. */
+.shell-root[data-theme="lubec"] .fight-panel .combat-toolbar .skill-chips {
+  margin-left: auto;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-stage {
+  min-width: 0;
+  margin-top: 0.75rem;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .roll-controls {
+  position: relative;
+  width: 100%;
+  height: 2.35rem;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll {
+  position: absolute;
+  bottom: 0.4rem;
+  transform: translateX(-50%);
+  padding: 0.32rem 0.5rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-paper-deep);
+  border: 1px solid rgba(23, 40, 43, 0.55);
+  border-radius: 0;
+  cursor: pointer;
+  font: 800 0.55rem/1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll:hover,
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+  color: var(--lubec-muted);
+  font: 700 0.52rem/1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar {
+  position: relative;
+  width: 100%;
+  height: var(--lubec-circle);
+  overflow: hidden;
+  touch-action: none;
+  background: var(--lubec-gray);
+  border: 2px solid var(--lubec-ink);
+  border-radius: 999px;
+  box-shadow: inset 0 2px 5px rgba(23, 40, 43, 0.25);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.placing {
+  cursor: crosshair;
+}
+
+/* The tens ticks along the bar's top and bottom edges. */
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::before,
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  height: 0.6rem;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(23, 40, 43, 0.78) calc(10% - 1px) 10%);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::before {
+  top: 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::after {
+  bottom: 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.defense {
+  background: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.defense.alt {
+  background: var(--lubec-blue-alt);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.attack {
+  background: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.unused {
+  background: repeating-linear-gradient(135deg, #b3b5af 0 6px, #9b9e99 6px 12px);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.success {
+  background: var(--lubec-success);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.failure {
+  background: var(--lubec-failure);
+}
+
+/* A double flashes its stripes, red for a failure and green for a success. */
+.shell-root[data-theme="lubec"] .fight-panel .segment.double {
+  --critical-color: #ef2f2f;
+  background: repeating-linear-gradient(-45deg, var(--critical-color) 0 10px, var(--lubec-cream) 10px 20px);
+  animation: lubec-handle-double-flash 0.7s steps(1, end) infinite;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.double.success {
+  --critical-color: var(--lubec-success);
+}
+
+@keyframes lubec-handle-double-flash {
+  0%,
+  49% {
+    background: repeating-linear-gradient(-45deg, var(--critical-color) 0 10px, var(--lubec-cream) 10px 20px);
+  }
+
+  50%,
+  100% {
+    background: repeating-linear-gradient(-45deg, var(--lubec-cream) 0 10px, var(--critical-color) 10px 20px);
+  }
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .effective-edge {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--lubec-ink);
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview,
+.shell-root[data-theme="lubec"] .fight-panel .divider {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  width: 1.75rem;
+  margin-left: -0.875rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  touch-action: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview {
+  display: none;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.placing .preview.visible {
+  display: block;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview::before,
+.shell-root[data-theme="lubec"] .fight-panel .divider::before {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  background: var(--lubec-cream);
+  border: 1px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview::before {
+  opacity: 0.48;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .divider {
+  cursor: ew-resize;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .divider:hover::before,
+.shell-root[data-theme="lubec"] .fight-panel .divider:focus-visible::before {
+  width: 6px;
+  background: #f6cc72;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.removing .divider {
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.removing .divider:hover::before {
+  width: 7px;
+  background: #ffb19c;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-labels {
+  position: relative;
+  width: 100%;
+  height: 1.75rem;
+  margin-top: 0.35rem;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label {
+  position: absolute;
+  top: 0;
+  display: flex;
+  gap: 0.3rem;
+  align-items: baseline;
+  transform: translateX(-50%);
+  color: var(--lubec-blue);
+  font: 800 0.56rem/1 var(--lubec-type);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label.attack {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label.at-start {
+  transform: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label.at-end {
+  transform: translateX(-100%);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label strong {
+  font: 800 1.15rem/1 var(--lubec-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .roll-result {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-instruction {
+  margin: 0.35rem 0 0;
+  color: var(--lubec-muted);
+  font: 700 0.58rem/1.35 var(--lubec-type);
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .shell-root[data-theme="lubec"] .lubec-hands {
@@ -17748,6 +18352,10 @@ button:disabled {
   .shell-root[data-theme="lubec"] .fight-toggle .caret {
     transition: none;
   }
+
+  .shell-root[data-theme="lubec"] .fight-panel .segment.double {
+    animation: none;
+  }
 }
 
 @media (max-width: 580px) {
@@ -17774,6 +18382,14 @@ button:disabled {
 
   .shell-root[data-theme="lubec"] .lubec-in-hand {
     align-self: stretch;
+  }
+
+  .shell-root[data-theme="lubec"] .fight-panel .allocation-scale {
+    font-size: 0.4rem;
+  }
+
+  .shell-root[data-theme="lubec"] .fight-panel .allocation-label small {
+    display: none;
   }
 }
 
@@ -17851,6 +18467,129 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .lubec-effect-next {
   opacity: 0.72;
+}
+
+/* What ends the step ("Step down after 1 Long Rest"), between the step and what follows it. */
+.shell-root[data-theme="lubec"] .lubec-effect-until {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* A consequence the app does not play yet: the table applies it. */
+.shell-root[data-theme="lubec"] .lubec-card-modes {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-action {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-action select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-manual {
+  padding: 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+
+/* A wound's heading: the table's name for it, its severity and Trauma, and the table's own words; its cards follow as lines. */
+.shell-root[data-theme="lubec"] .lubec-effect-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.6rem;
+  align-items: baseline;
+  margin-top: 0.35rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-group-name {
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-group-meta {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-group-words {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-table-amount {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* An opened wound card: its line, its Step down, then the wound it came from across the full width. */
+.shell-root[data-theme="lubec"] .lubec-effect.is-open {
+  flex-wrap: wrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-detail {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--lubec-line);
+  font-size: 0.8rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-detail dl {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-fact {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-fact dt {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-detail > .secondary-button {
+  justify-self: end;
 }
 
 /* "From your gear": gear's Speed losses in a group of their own under the
@@ -18730,7 +19469,7 @@ button:disabled {
    Stats with Saves, the skills with Panic and Recovery, Stress with the
    effects, and the Fight bar runs over the class record below them. The
    page's wrappers step aside so each section takes its own place. */
-@media (min-width: 1251px) {
+@media (min-width: 1431px) {
   .shell-root[data-theme="lubec"] .lubec-character-tab .characters-detail-inner {
     max-width: none;
   }
@@ -18776,10 +19515,10 @@ button:disabled {
   }
 
   .shell-root[data-theme="lubec"]:has(.lubec-sheet:not(.map-npc-sheet-overlay *)) .shell-layout {
-    margin-top: 0;
+    --shell-gutter-top: 0;
   }
 
-  /* The roster keeps the shell's top margin, clear of the menu button. */
+  /* The roster keeps the shell's top margin. */
   .shell-root[data-theme="lubec"]:has(.lubec-sheet) .lubec-character-tab > .characters-sidebar {
     margin-top: 0.4rem;
   }
@@ -18797,8 +19536,10 @@ button:disabled {
   }
 
   /* A screen too narrow or too short for the Core page at full size shows all
-     of it a little smaller: the page needs a sheet about 1066px wide and 850px
-     tall, and the steps below scale it to the pane beside the roster. The
+     of it a little smaller: the page needs a sheet about 1080px wide and 850px
+     tall. The width's step is set on the sheet from the width it is given
+     (useLubecFitWidth), since the campaign sidebar takes part of the window;
+     the height's steps are below. The
      Gear page takes the same steps, so the masthead keeps one size across the
      two; its pack sizes itself to what the window has left (lubecGear.css). */
   .shell-root[data-theme="lubec"] .lubec-sheet:has(> .lubec-core, > .lubec-gear) {
@@ -18973,49 +19714,25 @@ button:disabled {
   }
 }
 
-@media (min-width: 1251px) and (max-width: 1432px) {
-  .shell-root[data-theme="lubec"] .lubec-sheet {
-    --lubec-fit-width: 0.95;
-  }
-}
-
-@media (min-width: 1251px) and (max-width: 1379px) {
-  .shell-root[data-theme="lubec"] .lubec-sheet {
-    --lubec-fit-width: 0.9;
-  }
-}
-
-@media (min-width: 1251px) and (max-width: 1326px) {
-  .shell-root[data-theme="lubec"] .lubec-sheet {
-    --lubec-fit-width: 0.85;
-  }
-}
-
-@media (min-width: 1251px) and (max-width: 1273px) {
-  .shell-root[data-theme="lubec"] .lubec-sheet {
-    --lubec-fit-width: 0.8;
-  }
-}
-
-@media (min-width: 1251px) and (max-height: 887px) {
+@media (min-width: 1431px) and (max-height: 887px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 845px) {
+@media (min-width: 1431px) and (max-height: 845px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 802px) {
+@media (min-width: 1431px) and (max-height: 802px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 760px) {
+@media (min-width: 1431px) and (max-height: 760px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --lubec-fit-height: 0.8;
   }
@@ -19025,110 +19742,143 @@ button:disabled {
    Stress row beside it, and gear's part can take Speed's note to a second
    line: together about one step's height. So a Core page listing gear's
    losses takes the next step down the height ladder at every height. */
-@media (min-width: 1251px) and (max-height: 929px) {
+@media (min-width: 1431px) and (max-height: 929px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses) {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 887px) {
+@media (min-width: 1431px) and (max-height: 887px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses) {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 845px) {
+@media (min-width: 1431px) and (max-height: 845px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses) {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 802px) {
+@media (min-width: 1431px) and (max-height: 802px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses) {
     --lubec-fit-height: 0.8;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 760px) {
+@media (min-width: 1431px) and (max-height: 760px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses) {
     --lubec-fit-height: 0.75;
   }
 }
 
 /* The opened Fight bar's panel, with "In hand" on as many rows as its chips
-   take, is about one step's height too, so a Core page with it open takes
-   the next step down, and one listing gear's losses as well the step after.
-   The opened panel's own steps lose to an NPC sheet's ladder. */
-@media (min-width: 1251px) and (max-height: 929px) {
+   and the allocation bar under them, adds about 300px to the 850px page, so
+   a Core page with it open needs a sheet about 1150px tall, and one listing
+   gear's losses as well about 1190px. Each step below keeps the relation the
+   850px page's own steps keep: a scale applies up to the window height of
+   the next scale up, times the sheet's height, plus 37px. The opened panel's
+   own steps lose to an NPC sheet's ladder. */
+@media (min-width: 1431px) and (max-height: 1187px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 887px) {
+@media (min-width: 1431px) and (max-height: 1129px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 845px) {
+@media (min-width: 1431px) and (max-height: 1072px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 802px) {
+@media (min-width: 1431px) and (max-height: 1014px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.8;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 760px) {
+@media (min-width: 1431px) and (max-height: 957px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.75;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 971px) {
+@media (min-width: 1431px) and (max-height: 899px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.7;
+  }
+}
+
+@media (min-width: 1431px) and (max-height: 842px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.65;
+  }
+}
+
+@media (min-width: 1431px) and (max-height: 784px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.6;
+  }
+}
+
+@media (min-width: 1431px) and (max-height: 1229px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 929px) {
+@media (min-width: 1431px) and (max-height: 1169px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 887px) {
+@media (min-width: 1431px) and (max-height: 1109px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 845px) {
+@media (min-width: 1431px) and (max-height: 1050px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.8;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 802px) {
+@media (min-width: 1431px) and (max-height: 990px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.75;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 760px) {
+@media (min-width: 1431px) and (max-height: 931px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.7;
+  }
+}
+
+@media (min-width: 1431px) and (max-height: 871px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.65;
+  }
+}
+
+@media (min-width: 1431px) and (max-height: 811px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.6;
   }
 }
 
 /* Desktop, an NPC's open sheet: the same sheet as a character's, taking the
    whole detail pane beside the NPC list on the one sheet of paper, with the
    list keeping the shell's top margin as the roster does. */
-@media (min-width: 1251px) {
+@media (min-width: 1431px) {
   .shell-root[data-theme="lubec"] .monsters-layout:has(.lubec-sheet) > .monsters-sidebar {
     margin-top: 0.4rem;
     border-right: 0;
@@ -19150,31 +19900,31 @@ button:disabled {
 /* The NPC's tabs stand above its sheet, so its Core page takes the next step
    down the character's height ladder at every height: the tabs and their
    spacing are about one step's height. */
-@media (min-width: 1251px) and (max-height: 929px) {
+@media (min-width: 1431px) and (max-height: 929px) {
   .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 887px) {
+@media (min-width: 1431px) and (max-height: 887px) {
   .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 845px) {
+@media (min-width: 1431px) and (max-height: 845px) {
   .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 802px) {
+@media (min-width: 1431px) and (max-height: 802px) {
   .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
     --lubec-fit-height: 0.8;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 760px) {
+@media (min-width: 1431px) and (max-height: 760px) {
   .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
     --lubec-fit-height: 0.75;
   }
@@ -19184,38 +19934,53 @@ button:disabled {
    margins, about 81px of the window's height, so its Core page takes its own
    steps down the height ladder: the page is about 835px tall at full size. */
 
-@media (min-width: 1251px) and (max-height: 915px) {
+@media (min-width: 1431px) and (max-height: 915px) {
   .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 874px) {
+@media (min-width: 1431px) and (max-height: 874px) {
   .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 832px) {
+@media (min-width: 1431px) and (max-height: 832px) {
   .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 790px) {
+@media (min-width: 1431px) and (max-height: 790px) {
   .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
     --lubec-fit-height: 0.8;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 748px) {
+@media (min-width: 1431px) and (max-height: 748px) {
   .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
     --lubec-fit-height: 0.75;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 707px) {
+@media (min-width: 1431px) and (max-height: 707px) {
   .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
     --lubec-fit-height: 0.7;
   }
 }
+
+.lubec-condition-control { position: relative; display: inline-flex; }
+.shell-root[data-theme="lubec"] .lubec-condition-popover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  width: 12rem;
+  padding: 0.6rem;
+  border: 2px solid var(--lubec-ink);
+  background: var(--lubec-paper);
+  box-shadow: 3px 3px 0 rgba(23, 40, 43, 0.25);
+}
+.lubec-condition-popover label { display: grid; gap: 0.35rem; }
+.lubec-condition-popover select { width: 100%; }

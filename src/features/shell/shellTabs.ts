@@ -1,11 +1,11 @@
-import type { GameSystem } from '../navigation/tabs'
+import { requiredTabs, type GameSystem } from '../navigation/tabs'
 import { ruleSets } from '../ruleSets/registry'
 import { ruleSetTabLabel, ruleSetTabs } from '../ruleSets/ruleSetTabs'
 import type { AppTab, Role } from '../../types/app'
 
 export type CampaignNavTab = { id: AppTab; label: string }
 
-const SIDEBAR_PANEL_TABS: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes']
+const SIDEBAR_PANEL_TABS: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'handouts']
 
 export function campaignTabLabel(gameSystem: GameSystem, tab: AppTab, role: Role | null): string {
   if (tab === 'character' && role === 'gm') return 'Characters'
@@ -24,7 +24,7 @@ const LIVE_FIGHT_TAB: AppTab = 'combat'
 function enabledSystemTabs(gameSystem: GameSystem, enabledTabs: AppTab[] | undefined) {
   const systemTabs = ruleSetTabs(gameSystem)
   const enabledSet = enabledTabs ? new Set([...enabledTabs, LIVE_FIGHT_TAB]) : null
-  return enabledSet ? systemTabs.filter((tab) => enabledSet.has(tab.id)) : systemTabs
+  return enabledSet ? systemTabs.filter((tab) => requiredTabs.includes(tab.id) || enabledSet.has(tab.id)) : systemTabs
 }
 
 // The side nav: the rule set's tabs the campaign has enabled, minus the tabs

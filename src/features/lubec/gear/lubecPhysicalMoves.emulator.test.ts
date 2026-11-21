@@ -15,7 +15,7 @@ const player = 'lineage-player'
 const source = { kind: 'character', characterId: 'source' } as const
 const target = { kind: 'character', characterId: 'target' } as const
 const gmItems = { kind: 'gm-items' } as const
-const store = { sendSaveNow: () => {}, hasPendingWrite: () => false }
+const store = { settleSaves: async () => {} }
 const sheet = (id: string, gear = lineageGear()) => ({ id, system: 'lubec', schemaVersion: 1, ownerUserId: player, name: id, lubec: { gear, counters: { stress: 2 } } })
 const library = { ...lineageWeapon, carrier: '', status: 'library', supplies: [lineageSupply] }
 

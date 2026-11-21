@@ -1,7 +1,6 @@
 import {
   describeLubecCheckOutcome,
   describeLubecOutcome,
-  lubecAdvantageName,
   isLubecCritical,
   lubecCheckTarget,
   type LubecAdvantage,
@@ -51,7 +50,8 @@ export type LubecSpin = {
  * but the switch keeps showing the mode a roll spins with until its ghost has
  * merged, and goes back to Normal only once the result lands.
  */
-export const lubecShownAdvantage = (spin: LubecSpin | null, mode: LubecAdvantage): LubecAdvantage =>
+/** The mode the switch shows: the spinning roll's, or the one set by hand; null while the cards decide. */
+export const lubecShownAdvantage = (spin: LubecSpin | null, mode: LubecAdvantage | null): LubecAdvantage | null =>
   spin?.advantage ?? mode
 
 /**
@@ -123,7 +123,7 @@ function sourceTotals(name: LubecValueName, modifiers: readonly LubecModifier[])
 
 const SOURCES = ['effect', 'gear'] as const
 
-// "-10 effect -20 gear"; where the floor at 0 clips the total, one part that
+// "-10 effect -20 gear"; where a floor (10 for a core Stat) clips the total, one part that
 // adds up, rather than numbers that do not: "-15 effect and gear".
 function modifierParts(request: ValueRequest, final: number, current: number): string[] {
   const totals = sourceTotals(request.name, request.modifiers)
@@ -188,10 +188,13 @@ function statusParts(roll: LubecLastRoll): StatusParts {
 }
 
 // Both dice under Advantage or Disadvantage, so anyone viewing sees which one was kept.
-const advantageNote = (roll: LubecLastRoll): string =>
-  (roll.advantage === 'normal' ? '' : ` (${lubecAdvantageName(roll.advantage)}, ${roll.dice.join(' and ')})`)
+/** Why a card left a roll at Normal; under a mode the breakdown below the status shows the mode, its reason and both dice instead. */
+const advantageNote = (roll: LubecLastRoll): string => {
+  const because = 'because' in roll && typeof roll.because === 'string' ? roll.because : null
+  return roll.advantage === 'normal' && because ? ` (${because})` : ''
+}
 
-/** "Handle + Boatwork: 32 vs 65 - success.", with both dice under Advantage and any Stress the roll changed. */
+/** "Handle + Boatwork: 32 vs 65 - success.", with any Stress the roll changed. */
 export function lubecRollStatus(roll: LubecLastRoll): string {
   const { what, target, outcome } = statusParts(roll)
   return `${what}${advantageNote(roll)}: ${roll.result} vs ${target} - ${lowerFirst(outcome)}.`

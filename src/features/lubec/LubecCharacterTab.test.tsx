@@ -748,7 +748,7 @@ describe('Lubec Fight panel', () => {
     expect(within(panel).getByText('In hand')).toBeTruthy()
     expect(inHand()).toEqual(['Empty hand', 'Empty hand', 'FisticuffsHandle 55'])
     expect(panel.querySelectorAll('input, textarea, select')).toHaveLength(0)
-    expect(within(panel).getAllByRole('button').map((b) => b.textContent)).toEqual(['FisticuffsHandle 55', 'Start a fight'])
+    expect(within(panel.querySelector('.fight-heading') as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['FisticuffsHandle 55', 'Start a fight'])
 
     fireEvent.click(fightToggle())
     expect(fightToggle().getAttribute('aria-expanded')).toBe('false')
@@ -759,7 +759,8 @@ describe('Lubec Fight panel', () => {
     const panel = openFight([walkie, revolver])
 
     expect(inHand()).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Right hand: Walkie-talkie'])
-    expect(panel.getAllByRole('button').map((b) => b.textContent)).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Start a fight'])
+    const heading = within(fightPanel().querySelector('.fight-heading') as HTMLElement)
+    expect(heading.getAllByRole('button').map((b) => b.textContent)).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Start a fight'])
     expect(panel.queryByRole('button', { name: /Drop/ })).toBeNull()
   })
 
@@ -814,6 +815,225 @@ describe('Lubec Fight panel', () => {
 
     expect(effectiveHandle()).toBe('missing')
     expect(fightPanel().querySelector('.lubec-missing')).toBeTruthy()
+  })
+})
+
+describe('Lubec Fight bar allocation', () => {
+  const fight = () => within(screen.getByRole('region', { name: 'Fight controls' }))
+  const bar = () => document.querySelector('.allocation-bar') as HTMLElement
+  const labels = () => [...document.querySelectorAll('.allocation-label')].map((label) => [label.className, label.textContent])
+  const parts = () => [...document.querySelectorAll('.allocation-bar .segment')].map((part) => [part.className, (part as HTMLElement).style.left, (part as HTMLElement).style.width])
+  const rollButtons = () => fight().queryAllByRole('button', { name: /^Roll / }).map((b) => [b.getAttribute('aria-label'), (b as HTMLElement).style.left])
+  const dividers = () => fight().queryAllByRole('button', { name: /^Defense divider/ })
+  const tool = (name: string) => fight().getByRole('button', { name })
+  const toolStatus = () => document.querySelector('.tool-status')?.textContent
+  const effectiveHandle = () => document.querySelector('.effective-handle')?.textContent
+  const fightChips = () => within(fight().getByRole('group', { name: 'Add a skill to the fight' }))
+  const stripChip = (name: string) => within(screen.getByRole('group', { name: 'Arm a skill' })).getByRole('button', { name: new RegExp(`^${name}`) })
+
+  const openBar = (sheet: Fields = {}, uid = 'player-1') => {
+    seed({ tommy: withSheet(sheet) })
+    mountTab('player', uid)
+    openSheet('Tommy Eves')
+    fireEvent.click(document.querySelector('.fight-toggle') as HTMLElement)
+    // The bar is 100 pixels wide from the left edge, so a pointer's x is its place on the bar.
+    bar().getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, right: 100, bottom: 0, height: 0, x: 0, y: 0, toJSON: () => null })
+  }
+  const placeLines = (...positions: number[]) => {
+    fireEvent.click(tool('+ Defense line'))
+    positions.forEach((clientX) => fireEvent.click(bar(), { clientX }))
+    fireEvent.click(tool('+ Defense line'))
+  }
+  const roll = (name: string) => fireEvent.click(fight().getByRole('button', { name: `Roll ${name}` }))
+
+  it('opens on the prototype\'s tools, scale and bar: all Effective Handle on the attack, the rest of the 100 unused', () => {
+    openBar()
+
+    expect(fight().getAllByRole('button', { name: /line|Reset/ }).map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([
+      ['+ Defense line', 'false'], ['Remove line', 'false'], ['Reset', null],
+    ])
+    expect(toolStatus()).toBe('Tools off')
+    expect([...document.querySelectorAll('.allocation-scale span')].map((mark) => mark.textContent)).toEqual(['0', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'])
+    expect(parts()).toEqual([['segment attack', '0%', '55%'], ['segment unused', '55%', '45%']])
+    expect((document.querySelector('.effective-edge') as HTMLElement).style.left).toBe('55%')
+    expect(labels()).toEqual([['allocation-label attack', 'ATK55']])
+    expect(rollButtons()).toEqual([['Roll ATK', '27.5%']])
+    expect(document.querySelector('.combat-instruction')?.textContent).toBe('Place or remove lines. Drag any divider to redivide the bar.')
+  })
+
+  it('places Defense lines with the tool, each part labelled and rolled on its own', () => {
+    openBar()
+    fireEvent.click(tool('+ Defense line'))
+    expect(tool('+ Defense line').getAttribute('aria-pressed')).toBe('true')
+    expect(tool('+ Defense line').className).toBe('combat-tool active')
+    expect(bar().className).toBe('allocation-bar placing')
+    expect(toolStatus()).toBe('Click the bar to place')
+
+    fireEvent.pointerMove(bar(), { clientX: 20 })
+    expect((document.querySelector('.preview') as HTMLElement).className).toBe('preview visible')
+    expect((document.querySelector('.preview') as HTMLElement).style.left).toBe('20%')
+    fireEvent.pointerLeave(bar())
+    expect((document.querySelector('.preview') as HTMLElement).className).toBe('preview')
+
+    fireEvent.click(bar(), { clientX: 35 })
+    fireEvent.click(bar(), { clientX: 20 })
+    fireEvent.click(bar(), { clientX: 20 })
+    fireEvent.click(bar(), { clientX: 90 })
+
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 20', 'Defense divider at 35', 'Defense divider at 55'])
+    expect(labels()).toEqual([['allocation-label defense', 'DEF 120'], ['allocation-label defense', 'DEF 215'], ['allocation-label defense', 'DEF 320']])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense', 'segment defense alt', 'segment defense', 'segment unused'])
+
+    // Over a divider the tool neither previews nor places another line.
+    fireEvent.pointerMove(dividers()[0], { clientX: 20 })
+    expect((document.querySelector('.preview') as HTMLElement).className).toBe('preview')
+    fireEvent.click(dividers()[0], { clientX: 21 })
+    expect(dividers()).toHaveLength(3)
+
+    fireEvent.click(tool('+ Defense line'))
+    expect(bar().className).toBe('allocation-bar')
+    fireEvent.click(bar(), { clientX: 10 })
+    expect(dividers()).toHaveLength(3)
+  })
+
+  it('rolls a d100 for a part, a success under its size and a double flashing either way, as the prototype does', () => {
+    openBar()
+    placeLines(20)
+
+    seedRolls(19, 22)
+    roll('DEF 1')
+    roll('ATK')
+
+    expect(labels()).toEqual([['allocation-label defense', 'DEF 119/20'], ['allocation-label attack', 'ATK22/35']])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense success', 'segment attack double success', 'segment unused'])
+
+    seedRolls(20, 99)
+    roll('DEF 1')
+    roll('ATK')
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 120/20', 'ATK99/35'])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense failure', 'segment attack double failure', 'segment unused'])
+  })
+
+  it('redivides the bar when a divider is dragged, between its neighbours, and drops the rolls made on the old one', () => {
+    openBar()
+    placeLines(20, 35)
+    seedRolls(10)
+    roll('DEF 1')
+
+    fireEvent.pointerDown(dividers()[0])
+    fireEvent.pointerMove(document, { clientX: 50 })
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 34', 'Defense divider at 35'])
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 134', 'DEF 21', 'ATK20'])
+    fireEvent.pointerUp(document)
+    fireEvent.pointerMove(document, { clientX: 5 })
+    expect(dividers()[0].getAttribute('aria-label')).toBe('Defense divider at 34')
+  })
+
+  it('removes a line with the tool or the Delete key, and Reset clears the lines and the rolls', () => {
+    openBar()
+    placeLines(10, 20, 30)
+
+    fireEvent.click(tool('Remove line'))
+    expect(toolStatus()).toBe('Click a line to remove')
+    expect(bar().className).toBe('allocation-bar removing')
+    fireEvent.pointerDown(dividers()[1])
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 10', 'Defense divider at 30'])
+
+    fireEvent.keyDown(dividers()[0], { key: 'Enter' })
+    fireEvent.keyDown(dividers()[0], { key: 'Delete' })
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 30'])
+
+    seedRolls(5)
+    roll('ATK')
+    fireEvent.click(tool('Reset'))
+    expect(dividers()).toHaveLength(0)
+    expect(toolStatus()).toBe('Tools off')
+    expect(labels()).toEqual([['allocation-label attack', 'ATK55']])
+  })
+
+  it('adds an armed skill\'s bonus to the bar, as it adds to a Stat Check, and Reset spends it', () => {
+    openBar()
+    placeLines(20)
+
+    expect(fightChips().getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Boatwork +10', 'Swimming +10', 'Diving +15'])
+    fireEvent.click(stripChip('Diving'))
+    expect(fightChips().getByRole('button', { name: /^Diving/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(effectiveHandle()).toBe('Effective Handle 70+15 Diving')
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 120', 'ATK50'])
+
+    fireEvent.click(fightChips().getByRole('button', { name: /^Boatwork/ }))
+    expect(stripChip('Boatwork').getAttribute('aria-pressed')).toBe('true')
+    expect(effectiveHandle()).toBe('Effective Handle 65+10 Boatwork')
+
+    fireEvent.click(tool('Reset'))
+    expect(stripChip('Boatwork').getAttribute('aria-pressed')).toBe('false')
+    expect(effectiveHandle()).toBe('Effective Handle 55')
+  })
+
+  it('takes a fighting skill, which the skill strip does not offer', () => {
+    openBar({ skills: { free: 'Boatwork', picked: ['Scrapping'] } })
+
+    expect(within(screen.getByRole('group', { name: 'Arm a skill' })).queryByRole('button', { name: /Scrapping/ })).toBeNull()
+    fireEvent.click(fightChips().getByRole('button', { name: /^Scrapping/ }))
+    expect(effectiveHandle()).toBe('Effective Handle 65+10 Scrapping')
+  })
+
+  it('drops the rolls when the Handle changes, and leaves a line past it off the bar until it reaches it again', () => {
+    openBar()
+    fireEvent.click(stripChip('Diving'))
+    placeLines(65)
+    seedRolls(30)
+    roll('DEF 1')
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 130/65', 'ATK5'])
+
+    fireEvent.click(stripChip('Diving'))
+    expect(dividers()).toHaveLength(0)
+    expect(labels().map(([, text]) => text)).toEqual(['ATK55'])
+
+    fireEvent.click(stripChip('Diving'))
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 165', 'ATK5'])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense', 'segment attack', 'segment unused'])
+  })
+
+  it('spins the number on its part before it lands, with the Roll held, when motion is allowed', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    onTestFinished(() => { vi.useRealTimers() })
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    openBar()
+
+    seedRolls(40)
+    roll('ATK')
+    expect(fight().getByRole('button', { name: 'Roll ATK' })).toHaveProperty('disabled', true)
+    expect(parts()[0][0]).toBe('segment attack')
+
+    act(() => { vi.runAllTimers() })
+    expect(labels().map(([, text]) => text)).toEqual(['ATK40/55'])
+    expect(parts()[0][0]).toBe('segment attack success')
+    expect(fight().getByRole('button', { name: 'Roll ATK' })).toHaveProperty('disabled', false)
+  })
+
+  it('stops a spin that a Reset has undone', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    onTestFinished(() => { vi.useRealTimers() })
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    openBar()
+
+    seedRolls(40)
+    roll('ATK')
+    fireEvent.click(tool('Reset'))
+    act(() => { vi.runAllTimers() })
+    expect(labels().map(([, text]) => text)).toEqual(['ATK55'])
+  })
+
+  it('divides the bar but rolls nothing and offers no skill for a viewer who may not roll on the character', () => {
+    openBar({}, 'player-2')
+
+    expect(rollButtons()).toEqual([])
+    expect(fight().queryByRole('group', { name: 'Add a skill to the fight' })).toBeNull()
+    placeLines(20)
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 120', 'ATK35'])
   })
 })
 
@@ -1294,7 +1514,7 @@ describe('Lubec active effects', () => {
     addEffect('Bruised knuckles', 'Punched a locker', [{ modifiers: [['Handle', '-40']] }])
     addEffect('Sprained wrist', 'Fell off a bike', [{ modifiers: [['Handle', '-10']] }])
 
-    expect(valuesOf('Handle')).toEqual(['5', '50 +5 class -50 effect'])
+    expect(valuesOf('Handle')).toEqual(['10', '50 +5 class -45 effect'])
     expect(effectLines()).toEqual([['Bruised knuckles', 'Handle -40'], ['Sprained wrist', 'Handle -10']])
     await flushSave()
     expect(writtenEffects().map(({ name, cause, steps }) => ({ name, cause, steps }))).toEqual([
@@ -1304,16 +1524,16 @@ describe('Lubec active effects', () => {
     expect(new Set(writtenEffects().map((effect) => effect.id)).size).toBe(2)
   })
 
-  it('floors a value at 0 under a large penalty, and keeps a hole a hole whatever the effects', async () => {
+  it('floors a core Stat at 10 under a large penalty, and keeps a hole a hole whatever the effects', async () => {
     const crushed = { id: 'crushed', name: 'Crushed hand', cause: 'Boat winch', steps: [{ modifiers: [{ target: 'Handle', amount: -80 }, { target: 'Speed', amount: -10 }] }] }
     seed({ tommy: withSheet({ base: { Strength: 24, Speed: null, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 }, effects: [crushed] }) })
     mountTab('player', 'player-1')
 
     openSheet('Tommy Eves')
 
-    expect(valuesOf('Handle')).toEqual(['0', '50 +5 class -55 effect'])
+    expect(valuesOf('Handle')).toEqual(['10', '50 +5 class -45 effect'])
     expect(valuesOf('Speed')).toEqual(['missing', ''])
-    expect(document.querySelector('.lubec-effective-handle')?.textContent).toBe('0')
+    expect(document.querySelector('.lubec-effective-handle')?.textContent).toBe('10')
     expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
   })
 
@@ -1550,7 +1770,8 @@ describe('Lubec Skills page', () => {
     openSkillsPage('Tommy Eves')
 
     const wires = () => [...document.querySelectorAll('.skill-tree path.wire')]
-    expect(observed).toEqual([document.querySelector('.skill-tree')])
+    // The sheet watches its pane for its fit zoom too; the tree is watched for its wires.
+    expect(observed).toContain(document.querySelector('.skill-tree'))
     expect(wires()).toHaveLength(59)
     expect(wires().every((wire) => wire.getAttribute('marker-end') === 'url(#lubec-skill-arrow)')).toBe(true)
 
@@ -2332,13 +2553,13 @@ describe('Lubec roller', () => {
     fireEvent.click(rollerButton('Advantage'))
     seedRolls(71, 23)
     roll('Speed')
-    expect(shownStatus()).toBe('Speed (Advantage, 71 and 23): 23 vs 56 - success.')
+    expect(shownStatus()).toBe('Speed: 23 vs 56 - success.')
 
     fireEvent.click(rollerButton('Disadvantage'))
     roll('Speed')
     seedRolls(23, 71)
     roll('Speed')
-    expect(shownStatus()).toBe('Speed (Disadvantage, 23 and 71): 71 vs 56 - failure, +1 Stress.')
+    expect(shownStatus()).toBe('Speed: 71 vs 56 - failure, +1 Stress.')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ dice: [23, 71], result: 71, advantage: 'disadvantage', outcome: 'failure' })
   })
@@ -2356,7 +2577,7 @@ describe('Lubec roller', () => {
     expect(pressedMode()).toEqual(['Advantage'])
     seedRolls(71, 23)
     roll('Speed')
-    expect(shownStatus()).toBe('Speed (Advantage, 71 and 23): 23 vs 56 - success.')
+    expect(shownStatus()).toBe('Speed: 23 vs 56 - success.')
     expect(pressedMode()).toEqual(['Normal'])
 
     seedRolls(40)
@@ -2366,7 +2587,7 @@ describe('Lubec roller', () => {
     fireEvent.click(rollerButton('Disadvantage'))
     seedRolls(12, 45)
     roll('Fear')
-    expect(shownStatus()).toBe('Fear (Disadvantage, 12 and 45): 45 vs 34 - failure, +1 Stress.')
+    expect(shownStatus()).toBe('Fear: 45 vs 34 - failure, +1 Stress.')
     expect(pressedMode()).toEqual(['Normal'])
   })
 
@@ -2402,6 +2623,30 @@ describe('Lubec roller', () => {
     await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(pressedMode()).toEqual(['Normal'])
+  })
+
+  it('preselects the mode a wound card sets, names the card, and lets the switch override it for one roll', async () => {
+    const ribs = { id: 'ribs', name: 'Broken rib(s)', cause: 'Blunt Force', part: 'Ribs', wound: { row: 'Broken rib(s)', table: 'blunt', groupId: 'w' }, steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls: [{ scope: 'physical', mode: 'disadvantage' }] }] }
+    seed({ tommy: withSheet({ effects: [ribs] }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(pressedMode()).toEqual([])
+    expect([...screen.getByLabelText('Modes from effects').querySelectorAll('li')].map((line) => line.textContent)).toEqual(['Strength, Speed, Handle: Disadvantage from Broken rib(s)'])
+
+    seedRolls(23, 71)
+    roll('Speed')
+    expect(shownStatus()).toBe('Speed: 71 vs 56 - failure, +1 Stress.')
+    expect(document.querySelector('.lubec-roll-mode')!.textContent).toBe('Disadvantage from Broken rib(s): keep the worse')
+    seedRolls(40)
+    roll('Intellect')
+    expect(shownStatus()).toBe('Intellect: 40 vs 43 - success.')
+
+    fireEvent.click(rollerButton('Normal'))
+    expect(pressedMode()).toEqual(['Normal'])
+    seedRolls(40)
+    roll('Speed')
+    expect(shownStatus()).toBe('Speed: 40 vs 56 - success.')
+    expect(pressedMode()).toEqual([])
   })
 
   it('applies an armed skill\'s bonus to the next roll only, then disarms it', async () => {
@@ -2623,7 +2868,7 @@ describe('Lubec roller', () => {
     expect(circleOf('Speed').className).toBe('roll-circle has-value check-failure')
     expect(ghostOf('Speed')).toBeNull()
     expect(valuesOf('Speed')).toEqual(['71/56', '51 +5 class'])
-    expect(shownStatus()).toBe('Speed (Disadvantage, 23 and 71): 71 vs 56 - failure, +1 Stress.')
+    expect(shownStatus()).toBe('Speed: 71 vs 56 - failure, +1 Stress.')
     expect(shownCounters().stress).toBe('3')
   })
 
@@ -2661,7 +2906,7 @@ describe('Lubec roller', () => {
     mountTab('player', 'player-2')
     openSheet('Tommy Eves')
 
-    expect(shownStatus()).toBe('Fear (Advantage, 12 and 44): 12 vs 34 - success.')
+    expect(shownStatus()).toBe('Fear: 12 vs 34 - success.')
     expect(screen.queryByLabelText('Arm a skill')).toBeNull()
     expect([...document.querySelectorAll('button.roll-circle')].map((circle) => (circle as HTMLButtonElement).disabled)).toEqual(Array(10).fill(true))
     expect(valuesOf('Fear')).toEqual(['12/34', '24 +10 class'])
@@ -3012,7 +3257,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedFace(20, 9)
     fireEvent.click(panicButton())
 
-    expect(shownStatus()).toBe('Panic Check (Advantage, 2 and 9): 9 vs Stress 5 - success.')
+    expect(shownStatus()).toBe('Panic Check: 9 vs Stress 5 - success.')
     expect(modePressed('Normal')).toBe(true)
   })
 
@@ -3025,7 +3270,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedRolls(23, 12)
     fireEvent.click(recoveryButton())
 
-    expect(shownStatus()).toBe('Recovery Save on Sanity (Disadvantage, 23 and 12): 23 vs 30 - success, -3 Stress.')
+    expect(shownStatus()).toBe('Recovery Save on Sanity: 23 vs 30 - success, -3 Stress.')
     expect(modePressed('Normal')).toBe(true)
   })
 
@@ -3134,7 +3379,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect([panicCircle().disabled, recoveryButton().disabled]).toEqual([true, true])
   })
 
-  it('lowers the Fight panel\'s Effective Handle by both Handle effects, capped at 100 and floored at 0, and restores it when one is removed', async () => {
+  it('lowers the Fight panel\'s Effective Handle by both Handle effects, capped at 100 and floored at 10, and restores it when one is removed', async () => {
     const handleEffect = (id: string, amount: number) =>
       ({ id, name: `Hurt ${amount}`, cause: 'Fell', steps: [{ modifiers: [{ target: 'Handle', amount }], labels: [] }] })
     const hurt = [handleEffect('concussion', -40), handleEffect('bruise', -10)]
@@ -3148,7 +3393,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
 
     openSheet('Tommy Eves')
     expect(effectLines()).toEqual([['Hurt -40', 'Handle -40'], ['Hurt -10', 'Handle -10']])
-    expect(effectiveHandle()).toBe('5')
+    expect(effectiveHandle()).toBe('10')
     fireEvent.click(effectsRegion().querySelector('button.lubec-effect-line') as HTMLElement)
     fireEvent.click(within(effectsRegion()).getByText('Remove effect', { selector: 'button' }))
     expect(effectiveHandle()).toBe('45')
@@ -3161,7 +3406,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(effectiveHandle()).toBe('100')
     backToRoster()
     openSheet('Cal Pike')
-    expect(effectiveHandle()).toBe('0')
+    expect(effectiveHandle()).toBe('10')
   })
 })
 

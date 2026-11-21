@@ -6,6 +6,7 @@ import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttac
 import { lubecSkillBonus } from '../../../ruleSets/lubec/skills'
 import { LUBEC_FISTICUFFS_ID } from '../../fight/lubecFightRequest'
 import { lubecFightAttack } from '../../fight/lubecFightWeapons'
+import { combatHands } from './inputModifiers'
 
 /** The skill each kind of attack adds, best first: fighting for melee, shooting for a gun, Throwing Arm for a throw. */
 const ATTACK_SKILLS: Readonly<Record<LubecAttackChoice['skill'], readonly string[]>> = {
@@ -32,7 +33,7 @@ export const combatFightingTraining = (sheet: Pick<LubecCharacterSheet, 'skills'
 
 /** The hands an attack is made with: the weapon's own, or Fisticuffs' free hands. */
 function attackHands(sheet: LubecCharacterSheet, weaponItemId: string): LubecHands {
-  if (weaponItemId === LUBEC_FISTICUFFS_ID) return lubecFisticuffsHands(sheet.gear) ?? 'both'
+  if (weaponItemId === LUBEC_FISTICUFFS_ID) return lubecFisticuffsHands(sheet.gear, combatHands(sheet, null)) ?? 'both'
   // Only a held weapon has a legal use, so it is always found here.
   return lubecHeld(sheet.gear).find((held) => held.itemId === weaponItemId)!.hands
 }
@@ -52,7 +53,8 @@ export const clampHandle = (value: number): number => Math.max(0, Math.min(100, 
 
 /** The attack Handle a weapon and use give, or null when the use is not legal now or Handle is a hole. */
 export function combatAttackReading(sheet: LubecCharacterSheet, modifiers: readonly LubecModifier[], weaponItemId: string, attackId: string): CombatAttackReading | null {
-  const choice = lubecFightAttack(sheet.gear, weaponItemId, combatFightingTraining(sheet), attackId)
+  // A weapon in a hand an active card takes out, or a two-handed one it forbids, has no legal use.
+  const choice = lubecFightAttack(sheet.gear, weaponItemId, combatFightingTraining(sheet), attackId, combatHands(sheet, null))
   if (!choice) return null
   const wielder = { strength: lubecCurrentValue(sheet, 'Strength', modifiers), handle: lubecEffectiveHandle(sheet, modifiers) }
   const handle = lubecAttackHandle(wielder, sheet.gear, { weapon: weaponOf(sheet, weaponItemId), hands: attackHands(sheet, weaponItemId) }).total
@@ -61,7 +63,7 @@ export function combatAttackReading(sheet: LubecCharacterSheet, modifiers: reado
   return { choice, handle, skill, total: clampHandle(handle + (skill?.bonus ?? 0)) }
 }
 
-export type CombatAttackResult = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null }
+export type CombatAttackResult = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null; dice?: number[]; mode?: 'advantage' | 'disadvantage'; because?: string | null }
 
 const tens = (value: number): number => Math.floor(value / 10)
 

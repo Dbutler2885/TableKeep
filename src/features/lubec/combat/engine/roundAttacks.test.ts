@@ -114,6 +114,12 @@ describe('declared attacks, fastest first', () => {
     expect(() => act(moved.records, { type: 'range', band: 'medium', modifier: 0, stage: 'the-first-attack' })).toThrow('That fight stage is stale.')
   })
 
+  it('keeps an out-of-reach reminder through a ranged attack, for the next melee aim', () => {
+    const records = ranged(attacking())
+    const reminded = { ...records, fight: { ...records.fight!, state: { ...state(records), outOfReach: [{ attackerKey: ROY, targetKey: HERO, round: 1 }] } } }
+    expect(state(roll(reminded, ROY, royThrow, [99]).records).outOfReach).toEqual([{ attackerKey: ROY, targetKey: HERO, round: 1 }])
+  })
+
   it('rolls Defense with the declared line naming the attacker, whatever split is sent', () => {
     const hit = roll(ranged(attacking()), ROY, royThrow, [10]).records
     expect(state(hit).attack).toMatchObject({ attackerKey: ROY, step: 'defense' })
@@ -337,11 +343,123 @@ describe('Evasive Movement', () => {
     expect(state(roll(missedEvasion, HERO, rockAt, [99]).records).attack!.evasion).toBeNull()
   })
 
-  it('is refused while a wound on the sheet says No Evasive Movement', () => {
+  it('is refused while a current card forbids it, and never by a card\'s words or a later step', () => {
     const hurt = roy()
-    hurt.sheet = { ...hurt.sheet, effects: [{ id: 'w', name: 'Damaged hip', cause: 'Blunt Force, groin, Impact 5', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement. After 1 Long Rest: healed.'] }] }] }
+    const knee = { id: 'w', name: 'Knee injury', cause: 'Blunt Force, shin, Impact 5', steps: [{ modifiers: [], labels: [], until: 'long-rest' as const, restrictions: [{ kind: 'no-evasive' as const }] }] }
+    hurt.sheet = { ...hurt.sheet, effects: [knee] }
     const moved = act(movement([hero([rock, knife]), hurt, dale()]), { type: 'move', actor: HERO, by: player, ...stay }).records
-    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } })).toThrow('Roy cannot move evasively: Damaged hip says No Evasive Movement.')
+    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } })).toThrow('Roy cannot move evasively: No Evasive Movement (Knee injury).')
+    const legacy = roy()
+    const later = { ...knee, steps: [{ modifiers: [], labels: [] }, knee.steps[0]] }
+    legacy.sheet = { ...legacy.sheet, effects: [{ id: 'old', name: 'Damaged hip', cause: 'by hand', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement.'] }] }, later] }
+    const free = act(movement([hero([rock, knife]), legacy, dale()]), { type: 'move', actor: HERO, by: player, ...stay }).records
+    expect(state(act(free, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } }).records).combatants.find((entry) => entry.key === ROY)!.movement).toMatchObject({ choice: 'evade' })
+  })
+
+  it('refuses Run for cannot-run, and both for crawl only, leaving Move or stay', () => {
+    const crawling = roy()
+    crawling.sheet = { ...crawling.sheet, effects: [{ id: 'w', name: 'Broken leg', cause: '', steps: [{ modifiers: [], labels: [], until: 'long-rest' as const, restrictions: [{ kind: 'crawl-only' as const }] }] }] }
+    const moved = act(movement([hero([rock, knife]), crawling, dale()]), { type: 'move', actor: HERO, by: player, ...stay }).records
+    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: { choice: 'run', pickup: null }, [DALE]: stay } })).toThrow('Roy cannot run: Crawl only without help (Broken leg).')
+    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } })).toThrow('Roy cannot move evasively: Crawl only without help (Broken leg).')
+    expect(state(act(moved, { type: 'npcMovement', choices: { [ROY]: stay, [DALE]: stay } }).records).combatants.find((entry) => entry.key === ROY)!.movement).toMatchObject({ choice: 'stay' })
   })
 })
 
+
+describe('repairing a split the sheet no longer fits', () => {
+  /** Roy's sheet with a hand-made -30 Handle effect: his throw's pool falls from 65 to 35. */
+  const weakened = (records: CombatRecords): CombatRecords => ({
+    ...records,
+    sheets: records.sheets.map((sheet) => (sheet.sheetId === 'roy'
+      ? { ...sheet, sheet: { ...sheet.sheet, effects: [{ id: 'cramp', name: 'Cramp', cause: 'by hand', steps: [{ modifiers: [{ target: 'Handle', amount: -30 }], labels: [] }] }] } }
+      : sheet)),
+  })
+
+  it('holds the roll until the owner chooses a new Defense, then rolls with the attack the rest of the new pool', () => {
+    const records = weakened(ranged(attacking()))
+    const held = roll(records, ROY, royThrow, [10])
+    expect(state(held.records).attack).toMatchObject({ step: 'aim', roll: null, splitRepair: { combatantKey: ROY, pool: 35, was: 65, against: HERO } })
+    expect(state(held.records).pendingActions).toEqual([{ combatantKey: ROY, action: 'repairSplit' }])
+    expect(held.plan.logs[0].event).toBe("Roy's Handle pool fell from 65 to 35. They choose a new Defense before the next roll.")
+    expect(() => roll(held.records, ROY, royThrow, [10])).toThrow('Waiting for the split to be repaired.')
+    expect(() => act(held.records, { type: 'repairSplit', actor: ROY, defense: 40 })).toThrow('Keep Defense in tens, below 35')
+    expect(() => act(held.records, { type: 'repairSplit', actor: ROY, by: player, defense: 10 })).toThrow('That combatant belongs to someone else.')
+    const repaired = act(held.records, { type: 'repairSplit', actor: ROY, defense: 10 }).records
+    const roy = who(repaired, ROY)
+    expect(roy.declaration).toMatchObject({ total: 35, lines: [{ against: HERO, amount: 10 }], frozen: { attack: 25, total: 35 }, repaired: true })
+    expect(state(repaired).attack).toMatchObject({ splitRepair: null, aim: { ...royThrow, defense: { against: HERO, amount: 10 } }, frozen: { attack: 25 } })
+    const rolled = roll(repaired, ROY, { ...royThrow, defense: { against: HERO, amount: 10 } }, [10])
+    expect(state(rolled.records).attack!.roll).toMatchObject({ roll: 10, attackNumber: 25, hit: true })
+  })
+
+  it('locks a spent attack and leaves Defense only what remains, or none', () => {
+    let records = ranged(attacking())
+    records = onward(roll(records, ROY, royThrow, [99]).records)
+    records = ranged(weakened(records))
+    const thrown = roll(records, HERO, heroThrow, [10, 40, 3])
+    expect(state(thrown.records).attack).toMatchObject({ attackerKey: HERO, step: 'defense' })
+    const defended = act(thrown.records, { type: 'defend', actor: ROY, dice: [40, 3] })
+    expect(who(defended.records, ROY).declaration).toMatchObject({ lines: [], frozen: { attack: 45 }, repaired: true })
+    expect(defended.plan.logs.map((log) => log.event)).toEqual(expect.arrayContaining(["Roy's Handle pool fell from 65 to 35: the split is now no Defense, ATK 45.", 'Roy has no Defense left.']))
+  })
+
+  it('keeps a declaration that still fits exactly as frozen', () => {
+    const records = ranged(attacking())
+    const rolled = roll(records, ROY, royThrow, [10])
+    expect(state(rolled.records).attack!.roll).toMatchObject({ attackNumber: 45 })
+    expect(who(rolled.records, ROY).declaration!.repaired).toBeUndefined()
+  })
+})
+
+describe('a wound that lands before its target acts', () => {
+  /** Wayne's turn, after Roy missed him. */
+  const waynesTurn = () => ranged(onward(roll(ranged(attacking()), ROY, royThrow, [99]).records))
+  const wound = (round: number) => ({
+    id: 'w1', target: { kind: 'character' as const, sheetId: 'hero' }, originatingRound: round, effectiveRound: round, traumaDelta: 1, stressDelta: 0,
+    effect: { id: 'injury', name: 'Forearm injury', cause: 'Blunt Force', steps: [{ modifiers: [{ target: 'Handle' as const, amount: -40 }], labels: [] }] },
+  })
+  const withState = (records: CombatRecords, change: Partial<CombatState>): CombatRecords => ({ ...records, fight: { ...records.fight!, state: { ...state(records), ...change } } })
+
+  it('holds every roll by the wounded combatant until the wound is on the sheet they read', () => {
+    const records = waynesTurn()
+    const round = state(records).round
+    const pending = withState(records, { woundOutbox: [wound(round)] })
+    expect(() => roll(pending, HERO, heroThrow, [10])).toThrow('Waiting for wounds to reach the sheet')
+    const acknowledged = withState(records, { woundAcknowledgements: [{ id: 'w1', target: { kind: 'character', sheetId: 'hero' }, targetRevision: 5, originatingRound: round, effectiveRound: round, operationId: 'op' }] })
+    expect(() => roll(acknowledged, HERO, heroThrow, [10])).toThrow('Waiting for wounds to reach the sheet')
+  })
+
+  it('reads the delivered card on the next roll: a split that no longer fits is repaired first', () => {
+    const records = waynesTurn()
+    const round = state(records).round
+    const delivered: CombatRecords = {
+      ...withState(records, { woundAcknowledgements: [{ id: 'w1', target: { kind: 'character', sheetId: 'hero' }, targetRevision: 5, originatingRound: round, effectiveRound: round, operationId: 'op' }] }),
+      sheets: records.sheets.map((sheet) => (sheet.sheetId === 'hero'
+        ? { ...sheet, revision: 5, sheet: { ...sheet.sheet, effects: [{ ...wound(round).effect, combatOrigin: { fightId: 'fight', woundId: 'w1', originatingRound: round, effectiveRound: round } }] } }
+        : sheet)),
+    }
+    const held = roll(delivered, HERO, heroThrow, [10])
+    expect(state(held.records).attack).toMatchObject({ roll: null, splitRepair: { combatantKey: HERO, was: 65, pool: 25 } })
+  })
+})
+
+describe('the end of a round', () => {
+  it('queues one identified tick for each combatant with a window still to process, once, and the next round waits for it', () => {
+    const records = ranged(attacking())
+    const countdowns = [{ key: ROY, wound: 'Long chest cut', kind: 'critical' as const, dueRound: 1 }, { key: HERO, wound: 'Gut shot', kind: 'bleed' as const, dueRound: 2 }]
+    const watched = { ...records, fight: { ...records.fight!, state: { ...state(records), roundWatch: { [HERO]: 2, [ROY]: 1 }, countdowns } } }
+    let current = onward(roll(watched, ROY, royThrow, [99]).records)
+    const last = act(roll(ranged(current), HERO, heroThrow, [99]).records, { type: 'continue' })
+    expect(last.plan.logs.map((log) => log.event)).toEqual(["Roy's Critical countdown from Long chest cut is due: a Death Save, which the GM resolves privately.", 'Round 2, Movement.'])
+    current = last.records
+    const next = state(current)
+    expect(next.countdowns).toEqual([countdowns[1]])
+    expect(next).toMatchObject({ round: 2, phase: 'movement', roundWatch: { [HERO]: 2 } })
+    expect(next.woundOutbox.map((entry) => [entry.kind, entry.id, entry.tickRound, entry.effectiveRound])).toEqual([
+      ['tick', `round-1:${HERO}`, 1, 2], ['tick', `round-1:${ROY}`, 1, 2],
+    ])
+    const moved = everyone(current)
+    expect(() => act(moved, { type: 'declare', actor: HERO, by: player, aim: heroThrow })).toThrow('Waiting for wounds to reach the sheet')
+  })
+})

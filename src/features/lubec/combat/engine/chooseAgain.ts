@@ -1,17 +1,19 @@
 import { lubecPlaceDetached, lubecTakeDetached } from '../../../ruleSets/lubec/gear/detachedItems'
+import { lubecNoHandWhy } from '../../../ruleSets/lubec/gear/placement'
 import { lubecFightAttack } from '../../fight/lubecFightWeapons'
 import { closeAttack } from './attackFlow'
 import { combatFightingTraining } from './attackMath'
 import { attackAt, attackRepair, combatantOf, combatSheetOf } from './attackParty'
 import { requireLiveContext } from './context'
 import { isRoundAttack } from './roundAttacks'
+import { combatHands, type CombatInputRound } from './inputModifiers'
 import type { CombatAim, CombatAttack, CombatCommand, CombatFight, CombatHandler, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
 
-/** The weapon and its use are still in hand and still legal for this sheet. */
-export const weaponInHand = (record: CombatSheet, aim: Pick<CombatAim, 'weaponItemId' | 'attackId'>): boolean =>
-  Boolean(lubecFightAttack(record.sheet.gear, aim.weaponItemId, combatFightingTraining(record.sheet), aim.attackId))
+/** The weapon and its use are still in a usable hand and still legal for this sheet. */
+export const weaponInHand = (record: CombatSheet, aim: Pick<CombatAim, 'weaponItemId' | 'attackId'>, context: CombatInputRound | null = null): boolean =>
+  Boolean(lubecFightAttack(record.sheet.gear, aim.weaponItemId, combatFightingTraining(record.sheet), aim.attackId, combatHands(record.sheet, context)))
 
-/** What has gone since Declare: the target Out, or the weapon out of hand. */
+/** What has gone since Declare: the target Out, or the weapon out of hand or out of use. */
 export const goneSinceDeclare = (state: CombatState, attack: CombatAttack, record: CombatSheet) =>
   ({ target: combatantOf(state, attack.aim!.targetKey).outReason !== null, weapon: !weaponInHand(record, attack.aim!) })
 
@@ -56,8 +58,8 @@ const floorPickup: CombatHandler = (command, records, authority): CombatPlan => 
   if (!gone.weapon) throw new Error('Your declared weapon is still in hand.')
   const itemCommand = { commandId: command.envelope.id, role: 'pickup' }
   const taken = lubecTakeDetached(fight.state.floor, String(command.payload.itemId), 1, itemCommand)
-  const arrival = lubecPlaceDetached(record.sheet.gear, taken.detached, itemCommand, 'hands')
-  if (!arrival.ok) throw new Error(`${attacker.name} has no free hand for the ${taken.detached.item.name}.`)
+  const arrival = lubecPlaceDetached(record.sheet.gear, taken.detached, itemCommand, 'hands', combatHands(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round }))
+  if (!arrival.ok) throw new Error(`${attacker.name} has no free hand for the ${taken.detached.item.name}.${lubecNoHandWhy(arrival.msg)}`)
   const event = `${attacker.name} picked up the ${taken.detached.item.name}, using the action.`
   return { fight: usedTurn(fight, attack, 'picked-up', { floor: taken.records }), items: [], logs: [{ event, actor: attacker.key }], sheets: [{ selection: { kind: attacker.kind, sheetId: attacker.sheetId }, gear: arrival.gear }] }
 }

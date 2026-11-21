@@ -74,7 +74,10 @@ describe('rolling initiative', () => {
     const hero = plan.fight.state.combatants.find((entry) => entry.key === HERO)!
     expect(hero).toMatchObject({ speed: 56, initiative: { roll: 56, speed: 56, success: false, sourceRevision: 2, ties: [] } })
     expect(plan.fight.state.pendingActions).toEqual([{ combatantKey: 'npc:roy', action: 'initiative' }, { combatantKey: 'npc:dale', action: 'initiative' }])
-    expect(plan.logs[0].roll).toEqual({ who: 'hero', what: 'Initiative', roll: '56', target: 'under Speed 56', tone: 'bad', result: 'Failure' })
+    expect(plan.logs[0].roll).toEqual({
+      who: 'hero', what: 'Initiative', roll: '56', target: 'under Speed 56', tone: 'bad', result: 'Failure',
+      breakdown: { name: 'Speed', target: 56, parts: [{ label: 'Base', value: '51' }, { label: 'Working Kid', value: '+5' }] },
+    })
     expect(act(begun(), 'initiative', { actor: HERO, by: player, dice: [55] }).plan.fight.state.combatants[0].initiative!.success).toBe(true)
   })
 

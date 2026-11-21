@@ -1,9 +1,11 @@
+import { combatSkipsStages } from './inputs'
 import { aimRequests } from './attackAim'
 import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { combatAttackers } from './declare'
 import { withMovementRequests } from './movement'
+import type { CombatWound } from '../woundTypes'
 import type { CombatAttack, Combatant, CombatDefenseLine, CombatHandler, CombatPlan, CombatState } from './types'
 
 /** An attack of the round, as against a Sneak Attack granted before initiative. */
@@ -24,11 +26,40 @@ function opened(state: CombatState, attacker: Combatant, entropy: CombatEntropy)
 
 const freshFighter = (entry: Combatant): Combatant => ({ ...entry, movement: null, declaration: null, proposedDeclaration: null, declarationRejected: false })
 
-/** The round is over: the next one begins at Movement by itself, with the last result still in view. */
+/**
+ * The end of the round, once: every combatant with a round window or countdown from this fight still to process gets
+ * one identified tick, which the delivery service turns into sheet changes. The next round's rolls wait for it.
+ */
+function endOfRound(state: CombatState): Pick<CombatState, 'woundOutbox' | 'roundWatch' | 'countdowns'> {
+  const watched = Object.entries(state.roundWatch ?? {}).filter(([, through]) => through >= state.round)
+  const ticks: CombatWound[] = watched.flatMap(([key]) => {
+    const combatant = state.combatants.find((entry) => entry.key === key)
+    if (!combatant) return []
+    return [{
+      kind: 'tick' as const, tickRound: state.round, id: `round-${state.round}:${key}`, target: { kind: combatant.kind, sheetId: combatant.sheetId },
+      originatingRound: state.round, effectiveRound: state.round + 1, traumaDelta: 0, stressDelta: 0,
+    }]
+  })
+  const roundWatch = Object.fromEntries(watched.filter(([, through]) => through > state.round))
+  const countdowns = (state.countdowns ?? []).filter((countdown) => countdown.dueRound > state.round)
+  return { woundOutbox: [...state.woundOutbox, ...ticks], roundWatch, countdowns }
+}
+
+const COUNTDOWN_WORDS = {
+  bleed: (name: string, wound: string) => `${name}'s bleeding from ${wound} is due: +1 Trauma.`,
+  critical: (name: string, wound: string) => `${name}'s Critical countdown from ${wound} is due: a Death Save, which the GM resolves privately.`,
+} as const
+
+/** The countdowns falling due at this round's end, in the log once: the sheet change itself is the tick's. */
+const countdownLogs = (state: CombatState): CombatLog[] => (state.countdowns ?? [])
+  .filter((countdown) => countdown.dueRound === state.round)
+  .map((countdown) => ({ event: COUNTDOWN_WORDS[countdown.kind](state.combatants.find((entry) => entry.key === countdown.key)?.name ?? 'Someone', countdown.wound), actor: countdown.key }))
+
+/** The round is over: its end is processed, and the next one begins at Movement by itself, with the last result still in view. */
 function nextRound(state: CombatState, entropy: CombatEntropy): CombatState {
   const round = state.round + 1
   return withMovementRequests({
-    ...state, round, phase: 'movement', stageInstanceId: entropy.id('round-stage', 0), combatants: state.combatants.map(freshFighter),
+    ...state, ...endOfRound(state), round, phase: 'movement', stageInstanceId: entropy.id('round-stage', 0), combatants: state.combatants.map(freshFighter),
     attack: null, lastAttack: finished(state), attacked: [], movementComplete: false,
   })
 }
@@ -55,7 +86,7 @@ export function withRoundFlow(plan: CombatPlan, entropy: CombatEntropy): CombatP
   const attacker = nextAttacker(state)
   if (attacker) return { ...plan, fight: { ...plan.fight, state: opened(state, attacker, entropy) }, logs: [...plan.logs, turnLog(attacker)] }
   const next = nextRound(state, entropy)
-  return { ...plan, fight: { ...plan.fight, state: next }, logs: [...plan.logs, { event: `Round ${next.round}, Movement.`, actor: null }] }
+  return { ...plan, fight: { ...plan.fight, state: next }, logs: [...plan.logs, ...countdownLogs(state), { event: `Round ${next.round}, Movement.`, actor: null }] }
 }
 
 /** The GM moves on from a round attack's Results; the round flow then opens the next turn or round. */
@@ -72,7 +103,9 @@ export const combatResultsHandlers: Readonly<Record<string, CombatHandler>> = { 
 /** In a round, the target's declared line against this attacker, if it still stands: what Defense rolls with, or nothing to roll. */
 export function declaredLine(state: CombatState, attack: CombatAttack): (CombatDefenseLine & { full: boolean }) | null {
   // Everyone in the fight during Attack has a declaration: made, Ran, or the empty one a Return gives.
-  const declaration = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!.declaration!
+  const defender = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!
+  if (combatSkipsStages(defender)) return null
+  const declaration = defender.declaration!
   const line = declaration.stopped ? undefined : declaration.lines.find((entry) => entry.against === attack.attackerKey)
   return line ? { ...line, full: declaration.full } : null
 }

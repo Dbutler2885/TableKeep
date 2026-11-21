@@ -8,6 +8,8 @@ import { lubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import { parseLubecGear, type LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
 import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
 import { combatEntropy } from './commandEntropy'
+import { withLostStages } from './stages'
+import { withMovementRequests } from './movement'
 import { RAN } from './declare'
 import { planCombatCommand } from './lifecycle'
 import type { CombatAuthority, CombatCommand, Combatant, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
@@ -113,6 +115,13 @@ describe('Movement', () => {
     expect(() => act(freeHand, { type: 'move', actor: HERO, by: player, ...claim('gone') })).toThrow('That item is no longer on the Floor.')
     expect(() => act(freeHand, { type: 'move', actor: HERO, by: player, choice: 'pickup' })).toThrow('That item is no longer on the Floor.')
     expect(() => act(freeHand, { type: 'move', actor: HERO, by: player, choice: 'pickup', pickup: { itemId: 'floor-ball', qty: 2 } })).toThrow('no longer on the Floor')
+  })
+
+  it('refuses a forged pickup into a hand an active card takes out, even an empty one', () => {
+    const armOut = { id: 'arm', name: 'Dislocated shoulder', cause: '', steps: [{ modifiers: [], labels: [], until: 'put-back', restrictions: [{ kind: 'arm-unusable', side: 'R' }] }] }
+    const oneHand = { ...hero([ball('hero-ball')]), sheet: { ...hero([ball('hero-ball')]).sheet, effects: [armOut as never] } }
+    expect(() => act(movement([oneHand, roy(), dale()]), { type: 'move', actor: HERO, by: player, ...claim() }))
+      .toThrow('Wayne has no free hand for the Dodgeball. Right arm unusable (Dislocated shoulder), and no other hand is free.')
   })
 
   it('names the sheet to repair when a pickup cannot read it', () => {
@@ -334,5 +343,76 @@ describe('Declare, slowest first', () => {
     const removed = act(pending, { type: 'takeOut', combatantKey: HERO }).records
     expect(state(removed).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
     expect(() => act(removed, { type: 'answerDeclaration', combatantKey: HERO, approve: true })).toThrow('not waiting for approval')
+  })
+})
+
+
+it('plays an entirely skipped round without player choices or declaration approvals', () => {
+  const records = movement()
+  let current = { ...state(records), round: 3 }
+  for (const combatant of current.combatants) current = withLostStages(current, combatant.key, { movement: [3], action: [3] }, 'Dazed')
+  records.fight = { ...records.fight!, state: withMovementRequests(current) }
+  expect(state(records).pendingActions).toEqual([])
+  const { plan } = settled(records)
+  expect(plan.fight.state).toMatchObject({ phase: 'movement', round: 4 })
+  expect(plan.fight.state.pendingActions).toHaveLength(3)
+  expect(plan.logs.map((entry) => entry.event)).toContain('Round 3, Attack. Nobody declared an attack.')
+})
+
+
+const downEffect = { id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end' as const, restrictions: [{ kind: 'down' as const }] }] }
+function downMovement(extra: object = {}) {
+  const injured = hero()
+  const records = movement([injured, roy(), dale()])
+  injured.sheet = { ...injured.sheet, ...extra, effects: [downEffect, ...((extra as { effects?: typeof injured.sheet.effects }).effects ?? [])] }
+  return records
+}
+
+describe('standing during Movement', () => {
+  it('offers staying, pickup and standing, refuses Run/Evasive, and requires a down card for Stand', () => {
+    const records = downMovement()
+    for (const choice of ['run', 'evade']) expect(() => act(records, { type: 'move', actor: HERO, by: player, choice })).toThrow('knocked down')
+    expect(act(records, { type: 'move', actor: HERO, by: player, choice: 'stay' }).plan.sheetEffects).toEqual([])
+    expect(() => act(movement(), { type: 'move', actor: HERO, by: player, choice: 'stand' })).toThrow('not knocked down')
+  })
+  it('stands on a successful Speed Check with active numeric penalties and mode, keeping both dice', () => {
+    const effect = { id: 'speed', name: 'Bad knee', cause: '', steps: [{ modifiers: [{ target: 'Speed' as const, amount: -20 }], labels: [], rolls: [{ scope: 'physical' as const, mode: 'disadvantage' as const }] }] }
+    const records = downMovement({ effects: [effect] })
+    const { plan } = act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [10, 30] })
+    expect(plan.fight.state.combatants[0].movement).toMatchObject({ choice: 'stand', stand: { target: 36, dice: [10, 30], result: 30, success: true, stress: 0, mode: 'disadvantage' } })
+    expect(plan.sheetEffects).toEqual([{ selection: { kind: 'character', sheetId: 'hero' }, removeEffects: ['down'], stressDelta: 0 }])
+    expect(plan.fight.state.lost).toBeUndefined()
+  })
+  it('a failure stays down, charges ordinary Check Stress and automatically skips Action and Defense', () => {
+    let records = downMovement()
+    const failed = act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [99] })
+    expect(failed.plan.sheetEffects).toEqual([{ selection: { kind: 'character', sheetId: 'hero' }, removeEffects: [], stressDelta: 1 }])
+    expect(who(failed.records, HERO).movement?.stand).toMatchObject({ success: false, result: 99 })
+    records = act(failed.records, npcs({ [ROY]: stay, [DALE]: stay })).records
+    const declared = settled(records).records
+    expect(who(declared, HERO).declaration).toMatchObject({ lost: true, stopped: true, lines: [] })
+    expect(state(declared).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
+  })
+  it('staying down allows no attack from the ground, only Full Defense', () => {
+    const records = declaring(downMovement())
+    const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
+    expect(() => act(records, { type: 'declare', actor: HERO, by: player, aim })).toThrow('Wayne is knocked down: no attack from the ground. Declare Full Defense instead.')
+    const guarded = act(records, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).records
+    expect(who(guarded, HERO).proposedDeclaration).toMatchObject({ full: true, lines: [{ against: ROY }] })
+  })
+  it('a successful Stand clears the card, so the fighter can attack again', () => {
+    const records = downMovement()
+    const stood = act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [1] }).records
+    const hero = stood.sheets.find((sheet) => sheet.sheetId === 'hero')!
+    hero.sheet = { ...hero.sheet, effects: hero.sheet.effects.filter((effect) => effect.id !== 'down') }
+    const declaringNow = settled(act(stood, npcs({ [ROY]: stay, [DALE]: stay })).records).records
+    const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
+    expect(who(act(declaringNow, { type: 'declare', actor: HERO, by: player, aim }).records, HERO).proposedDeclaration).toMatchObject({ full: false, aim: { targetKey: ROY } })
+  })
+  it('a separately lost Movement never grants a free Stand', () => {
+    const records = downMovement()
+    records.fight!.state = withMovementRequests(withLostStages(state(records), HERO, { movement: [1], action: [1] }, 'Dazed'))
+    expect(() => act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [1] })).toThrow('already confirmed')
+    expect(who(records, HERO).movement?.stand).toBeUndefined()
   })
 })

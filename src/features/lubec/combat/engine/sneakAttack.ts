@@ -35,4 +35,19 @@ const grant: CombatHandler = (command, records, authority, entropy) => {
   }
 }
 
-export const combatSneakAttackHandlers: Readonly<Record<string, CombatHandler>> = { grant, ...combatAimHandlers, ...combatRollHandlers, ...combatDefenseHandlers, ...combatWoundHandlers, ...combatRowHandlers }
+/** Until it rolls, a granted attack can be called off: by the GM, or by whoever controls the attacker. */
+const withdraw: CombatHandler = (command, records, authority) => {
+  const fight = requireLiveContext(command, records, authority)
+  const { state } = fight
+  const attack = state.attack
+  if (state.phase !== 'before-initiative' || !attack || attack.closed || attack.grantId === null) throw new Error('There is no Sneak Attack to cancel.')
+  if (command.payload.attackId !== attack.id) throw new Error('That Sneak Attack has already ended.')
+  if (attack.step !== 'aim') throw new Error('That Sneak Attack has already rolled.')
+  const { actorKey } = command.envelope
+  if (actorKey !== null && actorKey !== attack.attackerKey) throw new Error('Only the attacker or the GM can cancel that Sneak Attack.')
+  const attacker = combatantOf(state, attack.attackerKey)
+  const event = actorKey === null ? `The GM cancelled ${attacker.name}'s Sneak Attack.` : `${attacker.name} called off the Sneak Attack.`
+  return { fight: { ...fight, state: { ...state, attack: null, pendingActions: [] } }, items: [], logs: [{ event, actor: actorKey }] }
+}
+
+export const combatSneakAttackHandlers: Readonly<Record<string, CombatHandler>> = { grant, withdraw, ...combatAimHandlers, ...combatRollHandlers, ...combatDefenseHandlers, ...combatWoundHandlers, ...combatRowHandlers }

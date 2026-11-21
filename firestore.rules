@@ -149,6 +149,56 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/characters/$(characterId)).data.ownerUserId == request.auth.uid;
     }
 
+    function validHandout(groupId, campaignId, handoutId) {
+      let data = request.resource.data;
+      let prefix = 'groups/' + groupId + '/campaigns/' + campaignId + '/handouts/' + handoutId + '/';
+      return data.keys().hasOnly(['title', 'description', 'folderId', 'kind', 'text', 'storagePath', 'fileName', 'visibility', 'characterIds', 'viewerUids', 'gmUserId'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.get('description', '') is string && data.get('description', '').size() <= 2000
+        && data.folderId is string
+        && (data.folderId == '' || exists(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/handoutFolders/$(data.folderId)))
+        && data.kind in ['text', 'image', 'pdf']
+        && data.text is string && data.text.size() <= 200000
+        && data.fileName is string
+        && data.storagePath is string
+        && (data.storagePath == '' || data.storagePath.matches(prefix + '[^/]+')
+          || data.storagePath.matches('groups/demo-template/campaigns/demo-campaign/handouts/' + handoutId + '/[^/]+'))
+        && data.visibility in ['hidden', 'all', 'some']
+        && data.characterIds is list && data.characterIds.size() <= 100
+        && data.viewerUids is list && data.viewerUids.size() <= 100
+        && (data.visibility == 'some' || data.viewerUids.size() == 0)
+        && data.gmUserId == get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId;
+    }
+
+    // A Lubec clock. The text limits match `LUBEC_CLOCK_LIMITS` in
+    // `src/features/lubec/clocks/lubecClock.ts`. `filled` lists the filled
+    // pieces' indexes, in any order: each one a whole number below the clock's
+    // piece count, and none twice. Who sees it is a handout's shape:
+    // `viewerUids` holds the chosen characters' owners only when shown to some.
+    function validLubecClock() {
+      let data = request.resource.data;
+      let fields = ['name', 'description', 'pieces', 'filled', 'started', 'increase', 'decrease', 'whenFull', 'whenEmpty',
+        'visibility', 'characterIds', 'viewerUids', 'createdAt', 'updatedAt'];
+      return data.keys().hasOnly(fields) && data.keys().hasAll(fields)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.description is string && data.description.size() <= 1000
+        && data.pieces is int && data.pieces >= 1 && data.pieces <= 10
+        && data.filled is list
+        && data.filled.hasOnly([0, 1, 2, 3, 4, 5, 6, 7, 8, 9][0:data.pieces])
+        && data.filled.toSet().size() == data.filled.size()
+        && data.started is bool
+        && data.increase is string && data.increase.size() <= 500
+        && data.decrease is string && data.decrease.size() <= 500
+        && data.whenFull is string && data.whenFull.size() <= 500
+        && data.whenEmpty is string && data.whenEmpty.size() <= 500
+        && data.visibility in ['hidden', 'all', 'some']
+        && data.characterIds is list && data.characterIds.size() <= 100
+        && data.viewerUids is list && data.viewerUids.size() <= 100
+        && (data.visibility == 'some' || data.viewerUids.size() == 0)
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
     function onlyChanges(allowedKeys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
     }
@@ -302,12 +352,27 @@ service cloud.firestore {
 
         // Creates and updates are fenced by the schema floor; deletes are not,
         // because a delete leaves no old-shaped data behind.
+        function lubecCondition(data) {
+          return data.get('lubec', {}).get('condition', null);
+        }
+        function validLubecCondition(data) {
+          return lubecCondition(data) in [null, 'comatose', 'dead'];
+        }
+        // Whole-map replacements and deletions must preserve the GM's condition too.
+        function maySetLubecCondition(groupId, campaignId, creating) {
+          return validLubecCondition(request.resource.data)
+            && (isCampaignGm(groupId, campaignId)
+                || (creating ? lubecCondition(request.resource.data) == null
+                    : lubecCondition(request.resource.data) == lubecCondition(resource.data)));
+        }
         match /characters/{characterId} {
           allow read: if isGroupMember(groupId);
           allow create: if isGroupMember(groupId)
             && request.resource.data.ownerUserId == request.auth.uid
+            && maySetLubecCondition(groupId, campaignId, true)
             && meetsCharacterSchemaFloor(groupId, campaignId);
           allow update: if (isCampaignGm(groupId, campaignId) || isCharacterOwner())
+            && maySetLubecCondition(groupId, campaignId, false)
             && meetsCharacterUpdateSchemaFloor(groupId, campaignId)
             && meetsSheetRevision(groupId, campaignId);
           allow delete: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
@@ -513,6 +578,56 @@ service cloud.firestore {
           allow read: if isCampaignGm(groupId, campaignId)
             || (isGroupMember(groupId) && resource.data.revealed == true);
           allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        // Character owners are captured when the GM saves visibility. Membership
+        // remains live; an inactive member cannot use an old visibility grant.
+        match /handouts/{handoutId} {
+          allow read: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId) && (
+              resource.data.visibility == 'all' || request.auth.uid in resource.data.viewerUids
+            ));
+          allow create, update: if isCampaignGm(groupId, campaignId)
+            && validHandout(groupId, campaignId, handoutId);
+          allow delete: if isCampaignGm(groupId, campaignId);
+        }
+
+        // Lubec clocks. The GM sees every clock and alone chooses who else
+        // sees one, as with handouts. A member sees a clock shown to everyone
+        // or to them, and may fill, empty, edit and delete it with no GM gate,
+        // but never change who sees it; a clock a member makes is shown to
+        // everyone. Viewers are captured when the GM saves; membership stays live.
+        match /clocks/{clockId} {
+          function seesClock() {
+            return isGroupMember(groupId)
+              && (resource.data.visibility == 'all' || request.auth.uid in resource.data.viewerUids);
+          }
+          allow read, delete: if isCampaignGm(groupId, campaignId) || seesClock();
+          allow create: if validLubecClock()
+            && request.resource.data.createdAt == request.time
+            && (isCampaignGm(groupId, campaignId)
+              || (isGroupMember(groupId)
+                && request.resource.data.visibility == 'all'
+                && request.resource.data.characterIds.size() == 0));
+          allow update: if validLubecClock()
+            && request.resource.data.createdAt == resource.data.createdAt
+            && (isCampaignGm(groupId, campaignId)
+              || (seesClock()
+                && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['visibility', 'characterIds', 'viewerUids'])));
+        }
+
+        match /handoutFolders/{folderId} {
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isCampaignGm(groupId, campaignId)
+            && request.resource.data.keys().hasOnly(['name', 'parentId'])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 200
+            && request.resource.data.parentId is string
+            && request.resource.data.parentId != folderId
+            && (request.resource.data.parentId == ''
+              || exists(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/handoutFolders/$(request.resource.data.parentId)));
+          allow delete: if isCampaignGm(groupId, campaignId);
         }
 
         match /referenceDocs/{docId} {

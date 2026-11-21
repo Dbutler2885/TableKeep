@@ -28,7 +28,7 @@ vi.mock('../useLubecCombatSend', () => ({
   },
 }))
 vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => ({ characters: [], npcs: [], items: [], roster: mocks.roster }) }))
-vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => mocks.roster }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ roster: mocks.roster, writer: null }) }))
 
 const { LubecCombat } = await import('./LubecCombat')
 
@@ -130,8 +130,9 @@ describe('a Dodgeball row\'s Check or Save', () => {
     expect(screen.getByText(/^Failure\. 99 is over/)).toBeTruthy()
     // The wound's words are in the panel below, so the headline's line keeps only where the ball went.
     expect(screen.getByRole('heading', { name: 'Roy Carver is Out' }).nextSibling!.textContent).toBe('The dodgeball lands on the Floor.')
-    expect([...document.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual(['What it doesMinor Concussion, which is Dazed and -10 Handle until a Long Rest.'])
-    expect(screen.getAllByText('Out', { selector: '.badge' })).toHaveLength(1)
+    expect(document.querySelector('.results-prose')!.textContent).toBe('Minor Concussion, which is Dazed and -10 Handle until a Long Rest.')
+    // The turn order dims an Out fighter's line and says Out to a screen reader.
+    expect(screen.getAllByText('Out', { selector: '.sr-only' })).toHaveLength(1)
   })
 
   it('shows a spectator who cannot read Roy\'s sheet only who the Save waits on', () => {
@@ -169,14 +170,14 @@ describe('a Dodgeball row\'s Check or Save', () => {
     expect(screen.getByText(/Dodgeball · Legs · Impact/).textContent).toBe('Dodgeball · Legs · Impact 6+')
   })
 
-  it('puts both out on a Headshot, and shows a Minor row with no Trauma', () => {
+  it('puts both out on a Headshot, and shows a Minor row\'s Trauma +0', () => {
     show('player', 'marcy-uid', fightAfter(...rowAt(30, 5, 4, 99)))
     expect(screen.getByRole('heading', { name: 'Roy Carver and Wayne Gardner are Out' })).toBeTruthy()
     const wound = document.querySelector('.results-wound')!
     expect(wound.className).toBe('results-wound mi')
     expect(within(wound as HTMLElement).getByText('Minor')).toBeTruthy()
-    expect(within(wound as HTMLElement).getByText('Trauma 0')).toBeTruthy()
-    expect(within(wound as HTMLElement).getByText('Out of the fight')).toBeTruthy()
+    expect(wound.querySelector('.tag')!.textContent).toBe('Trauma +0')
+    expect(within(wound as HTMLElement).queryByText('Out of the fight')).toBeNull()
   })
 })
 
@@ -200,7 +201,7 @@ describe('rolling initiative', () => {
 
   it('gives a player their own Roll on their Speed bar, and the verdict once rolled', async () => {
     show('player', 'wayne-uid', begun())
-    expect(screen.getByText('Roll initiative: d100 under your Speed.')).toBeTruthy()
+    expect(screen.getByText('Roll initiative.')).toBeTruthy()
     fireEvent.click(button('Roll'))
     await waitFor(() => expect(sentOf('initiative')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'initiative' } }))
     cleanup()
@@ -213,14 +214,14 @@ describe('rolling initiative', () => {
     const live = begun({ type: 'initiative', actor: WAYNE, dice: { initiative: 99 } })
     live.fight.state.combatants = live.fight.state.combatants.map((entry) => ({ ...entry, kind: 'character' as const, ownerUserId: 'both-uid' }))
     show('player', 'both-uid', live)
-    expect(screen.getByText('Roy Carver: roll initiative, d100 under Speed.')).toBeTruthy()
+    expect(screen.getByText('Roy Carver: roll initiative.')).toBeTruthy()
     expect(screen.getByText(/99 is not under \d+: a failure\./)).toBeTruthy()
   })
 
   it('lets the GM roll every NPC with one button, or roll for an absent player', async () => {
     show('gm', 'gm', begun())
     expect(screen.getByText('Not rolled')).toBeTruthy()
-    expect(screen.getByText('Rolling on their screen')).toBeTruthy()
+    expect(screen.getByText('Rolling')).toBeTruthy()
     fireEvent.click(button('Roll for NPCs'))
     await waitFor(() => expect(sentOf('npcInitiative')).toHaveLength(1))
     fireEvent.click(button('Away: roll for Wayne Gardner'))
@@ -258,6 +259,6 @@ describe('rolling initiative', () => {
     const rail = screen.getByText('Turn order').closest('.panel') as HTMLElement
     expect(within(rail).getByText('fastest first')).toBeTruthy()
     expect([...rail.querySelectorAll('.nm')].map((name) => name.textContent)).toEqual(['Roy Carver', 'Wayne Gardner'])
-    expect(within(rail).getByText('Successes go before failures: higher successes first, lower failures first.')).toBeTruthy()
+    expect(within(rail).queryByText(/Successes go before failures/)).toBeNull()
   })
 })

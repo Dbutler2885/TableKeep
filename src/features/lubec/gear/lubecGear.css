@@ -367,6 +367,13 @@
   text-transform: uppercase;
 }
 
+.shell-root[data-theme="lubec"] .lubec-gear .slot .slot-why {
+  padding: 0 0.4rem;
+  color: var(--lubec-rust);
+  font: 700 0.68rem/1.25 var(--lubec-type);
+  text-align: center;
+}
+
 .shell-root[data-theme="lubec"] .lubec-gear .slot-text {
   display: grid;
   gap: 0.15rem;
@@ -585,13 +592,14 @@
   border-color: rgba(242, 234, 215, 0.45);
 }
 
-/* The toast: one line after an action */
+/* The toast: one line after an action, centred on the page beside the
+   campaign sidebar (--side-nav-width). */
 .shell-root[data-theme="lubec"] .lubec-gear .toast {
   position: fixed;
-  left: 50%;
+  left: calc(50% + var(--side-nav-width, 0px) / 2);
   bottom: calc(1rem + env(safe-area-inset-bottom));
   z-index: 330;
-  max-width: calc(100% - 2rem);
+  max-width: calc(100% - 2rem - var(--side-nav-width, 0px));
   padding: 0.7rem 0.9rem;
   color: var(--lubec-cream);
   background: var(--lubec-ink);
@@ -780,7 +788,7 @@ body.lubec-dragging * {
    Keep has no bottom bar, so it sits clear of the window's edge and the safe area. */
 .shell-root[data-theme="lubec"] .lubec-gear-drag .drop-ground {
   position: fixed;
-  left: 50%;
+  left: calc(50% + var(--side-nav-width, 0px) / 2);
   bottom: calc(0.9rem + env(safe-area-inset-bottom));
   z-index: 335;
   display: flex;

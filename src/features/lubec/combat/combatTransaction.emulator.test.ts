@@ -154,6 +154,9 @@ describe('durable command protocol', () => {
     expect(reloaded.pending()).toEqual([])
     const end = await action(db, 'end')
     await expect(commit(db, end, lost)).rejects.toThrow('lost acknowledgement')
+    // The uncertain acknowledgement was for closing. Reload resumes End after that receipt.
+    expect(await control(db)).toBe('fight-start')
+    expect(await commit(db, end, settings)).toMatchObject({ ok: true })
     expect(await control(db)).toBeNull()
     const dropsBefore = (await getDocs(collection(db, root, 'gmItems'))).docs.map((snap) => snap.data())
     expect(await commit(db, end, settings)).toMatchObject({ ok: true })
@@ -297,7 +300,7 @@ describe('atomic End and interruption', () => {
     expect(await commit(db, { ...ghost, envelope: { ...ghost.envelope, id: 'ghost-end', fightId: 'no-such-fight' } })).toEqual({ ok: false, reason: 'That fight is not live.' })
     await seed('combatControl/current', { activeFightId: 'different' })
     expect(await commit(db, await action(db, 'end'))).toMatchObject({ ok: false, reason: expect.stringContaining('control does not match') })
-    expect((await getDocs(collection(db, root, 'combats/fight-start/commands'))).size).toBe(1)
+    expect((await getDocs(collection(db, root, 'combats/fight-start/commands'))).size).toBe(2)
   })
 
   it('retries finalization after a concurrent wound enqueue and refuses to end if delivery cannot clear it', async () => {
@@ -328,7 +331,7 @@ describe('atomic End and interruption', () => {
     expect(await commit(db, await action(db, 'end'), settings)).toMatchObject({ ok: true })
     expect(callbacks).toBeGreaterThan(2)
     expect(drained).toBe(1)
-    expect(await readFight(db)).toMatchObject({ status: 'ended', state: { woundOutbox: [], woundAcknowledgements: [{ id: 'racing-wound', targetRevision: 1 }] } })
+    expect(await readFight(db)).toMatchObject({ status: 'ended', state: { woundOutbox: [], woundAcknowledgements: expect.arrayContaining([{ id: 'racing-wound', target: { kind: 'character', sheetId: 'hero' }, targetRevision: 1, originatingRound: 0, effectiveRound: 1, operationId: 'fixture_op' }]) } })
     const oldEnd = await action(db, 'end')
     await commit(db, oldEnd, settings)
     expect(drained).toBe(1)

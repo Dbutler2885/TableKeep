@@ -21,7 +21,7 @@ export function CombatEndConfirm({ state, onEnd, onCancel }: ConfirmProps) {
     <CombatWindow
       title="End combat"
       stepper={<PhaseStepper state={state} />}
-      foot={<><span className="note">Rounds advance by themselves; only you end combat.</span><button type="button" className="btn line" disabled={busy} onClick={onCancel}>Cancel</button><button type="button" className="btn rust" disabled={busy} onClick={() => void end()}>End combat</button></>}
+      foot={<><button type="button" className="btn line" disabled={busy} onClick={onCancel}>Cancel</button><button type="button" className="btn rust" disabled={busy} onClick={() => void end()}>End combat</button></>}
     >
       {refusal ? <div className="notice hot" role="alert"><span><b>Combat is still running.</b> {refusal}</span></div> : null}
       <p className="ask">End combat?</p>
@@ -52,10 +52,10 @@ type EndedProps = { state: CombatState; onNew: (() => void) | null }
 
 /** The GM's last screen of a fight: it has ended, where the Floor went, and the way to set up the next one. */
 export function CombatEnded({ state, onNew }: EndedProps) {
-  const foot = <><span className="note">The Combat tab is gone for players.</span><button type="button" className="btn rust" disabled={!onNew} onClick={onNew ?? undefined}>Set up new combat</button></>
+  const foot = <><button type="button" className="btn rust" disabled={!onNew} onClick={onNew ?? undefined}>Set up new combat</button></>
   return (
     <CombatWindow title="End combat" stepper={<PhaseStepper state={state} />} foot={foot}>
-      <div className="outcome safe"><h4>Combat ended</h4><p>Players were returned to their sheets. <EndedFloorWords state={state} /></p></div>
+      <div className="outcome safe"><h4>Combat ended</h4><p><EndedFloorWords state={state} /></p></div>
     </CombatWindow>
   )
 }

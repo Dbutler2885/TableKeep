@@ -8,7 +8,8 @@ import type { LubecGmItem } from '../../../ruleSets/lubec/gear/gmItem'
 import type { RuleSetSheetProps } from '../../../ruleSets/RuleSetSheets'
 import { CombatTicker } from '../CombatMessages'
 import { gmCommandKey, gmEnvelope, startEnvelope } from '../combatEnvelopes'
-import { useLubecCombat, type LubecLiveFight } from '../combatWatch'
+import type { LubecLiveFight } from '../combatWatch'
+import { useCombatReveal, useHeld } from '../useCombatReveal'
 import { createCombatCommand } from '../commandJournal'
 import type { Combatant, CombatOutcome, CombatState } from '../engine/types'
 import { attackCommands } from './attackCommands'
@@ -29,18 +30,24 @@ import { viewerHands } from './movementModel'
 import { CombatSetup, type CombatSetupStart } from './CombatSetup'
 import { combatFloorSelections, type CombatSetupIssue } from './combatSetupModel'
 import { useCombatGmData } from './useCombatGmData'
+import { CombatDeathReminders } from './CombatDeathReminders'
+import { NO_SHEET_WRITERS, type CombatEffectsAccess, type CombatSheetWriters } from './fighterEffectsModel'
 import './lubecCombat.css'
+import './combatFrame.css'
 
-type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[]; headerActions?: ReactNode; onOut?: (combatant: Combatant) => void; placement?: ReactNode }
+/** Past this many fighters the rails tighten their lines so everyone still fits. */
+const CROWD = 12
+
+type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[]; headerActions?: ReactNode; onOut?: (combatant: Combatant) => void; placement?: ReactNode; effects?: CombatEffectsAccess }
 
 /** The live tab: everyone in the fight on the left, what to do now in the middle, the declarations and the Floor on the right. */
-function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle, onPlace = null, hands = [], headerActions, onOut, placement }: LayoutProps) {
+function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle, onPlace = null, hands = [], headerActions, onOut, placement, effects }: LayoutProps) {
   const view = combatPhaseView(state)
   return (
     <>
       <CombatHead round={view.round} stage={stage ?? view.stage} pips={view.pips} actions={headerActions} />
-      <div className="ct">
-        <div className="rail"><TurnOrderPanel state={state} userId={userId} onOut={onOut} /></div>
+      <div className="ct framed" data-crowd={state.combatants.length > CROWD ? 'crowd' : undefined}>
+        <div className="rail"><TurnOrderPanel state={state} userId={userId} onOut={onOut} effects={effects} /></div>
         <div className="mid">{tools}{middle}</div>
         <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} hands={hands} placement={placement} /></div>
         <CombatTicker />
@@ -73,6 +80,8 @@ const shownClosing = (closing: Closing | null, live: LubecLiveFight | null): Clo
   (closing && (!live || live.id === closing.live.id) ? { ...closing, live: live ?? closing.live } : null)
 
 type GmProps = { campaign: Campaign; userId: string; setError: (message: string) => void }
+/** The fight as far as its roll cards have revealed it, and whether one is still revealing. */
+type Reveal = { live: LubecLiveFight | null; revealing: boolean }
 
 function useGmCombat({ campaign, userId, setError }: GmProps) {
   const scope = useMemo(() => ({ groupId: campaign.groupId, campaignId: campaign.id }), [campaign.groupId, campaign.id])
@@ -107,6 +116,7 @@ type GmLiveProps = {
   live: LubecLiveFight
   userId: string
   roster: CombatRosterRecords
+  writers: CombatSheetWriters
   send: CombatSend
   tool: CombatGmTool
   onTool: (tool: CombatGmTool) => void
@@ -126,7 +136,7 @@ function useOutTool(campaign: Campaign, live: LubecLiveFight, send: CombatSend, 
 }
 
 /** The GM's live fight: tools over the middle, Before initiative's grants, and placement onto the Floor. */
-function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, items, place, onEnd, setError }: GmLiveProps) {
+function CombatGmLive({ campaign, live, userId, roster, writers, send, tool, onTool, items, place, onEnd, setError }: GmLiveProps) {
   const [placing, setPlacing] = useState(false)
   const [actingFor, setActingFor] = useState<ActingFor | null>(null)
   const { state } = live.fight
@@ -144,14 +154,22 @@ function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, item
   const tools = <CombatGmTools tool={tool} onTool={onTool} combatants={state.combatants} actingFor={viewer.actingFor} onActFor={actFor} onStopActing={() => setActingFor(null)} />
   const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={actFor} />
   const placement = tool === 'place' ? <div className="floor-placement"><CombatItemPicker items={items} onPlace={(item, qty) => void placeOnFloor(item, qty)} withCount busy={placing} /><button type="button" className="btn line small" disabled={placing} onClick={() => onTool('')}>Cancel placement</button></div> : null
+  const effects: CombatEffectsAccess = { roster, writers, scope: { groupId: campaign.groupId, campaignId: campaign.id }, viewer: { role: 'gm', userId } }
   const endButton = <button type="button" className="btn line small end-combat" onClick={onEnd}>End combat</button>
-  return <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} placement={placement} onOut={people} headerActions={endButton} />
+  return (
+    <>
+      <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} placement={placement} onOut={people} headerActions={endButton} effects={effects} />
+      <CombatDeathReminders combatants={state.combatants} roster={roster} scope={{ groupId: campaign.groupId, campaignId: campaign.id }} />
+    </>
+  )
 }
 
 /** The GM's tab: set up a fight, run Before initiative and place items, and end it. */
-function CombatGm(props: GmProps) {
-  const { live } = useLubecCombat()
+function CombatGm({ reveal, ...props }: GmProps & { reveal: Reveal }) {
+  const { live, revealing } = reveal
   const { commands, repair, data, send } = useGmCombat(props)
+  // Sheets can change while a card reveals (a wound reaching one); hold them with the fight.
+  const roster = useHeld(data.roster, revealing)
   const [closing, setClosing] = useState<Closing | null>(null)
   const [tool, setTool] = useState<CombatGmTool>('')
   const shown = shownClosing(closing, live)
@@ -168,7 +186,7 @@ function CombatGm(props: GmProps) {
   if (!live) return <CombatSetup {...data} onStart={commands.start} onRepair={repair} />
   return (
     <CombatGmLive
-      campaign={props.campaign} live={live} userId={props.userId} roster={data.roster} send={send} tool={tool} onTool={setTool} items={data.items} setError={props.setError}
+      campaign={props.campaign} live={live} userId={props.userId} roster={roster} writers={data.writers ?? NO_SHEET_WRITERS} send={send} tool={tool} onTool={setTool} items={data.items} setError={props.setError}
       place={(item, qty) => commands.place(live, item, qty)}
       onEnd={() => { setTool(''); setClosing({ live, done: false }) }}
     />
@@ -178,22 +196,26 @@ function CombatGm(props: GmProps) {
 type ViewerProps = { campaign: Campaign; userId: string; setError: (message: string) => void }
 
 /** A player's tab, in the fight or watching it: the rails, their own controls when something waits on them, and who the fight is waiting on. */
-function CombatPlayer({ campaign, userId, setError }: ViewerProps) {
-  const { live } = useLubecCombat()
+function CombatPlayer({ campaign, userId, setError, reveal }: ViewerProps & { reveal: Reveal }) {
+  const { live, revealing } = reveal
   const send = useLubecCombatSend(userId)
   const inFight = Boolean(live?.fight.state.combatants.some((combatant) => combatant.ownerUserId === userId))
-  const roster = useCombatPlayerRoster({ campaign, userId, setError, enabled: inFight })
+  const { roster: current, writer } = useCombatPlayerRoster({ campaign, userId, setError, enabled: inFight })
+  const roster = useHeld(current, revealing)
   if (!live) return null
   const viewer = { role: 'player' as const, userId, actingFor: null }
   const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={inFight ? roster : NO_ROSTER} send={send} onActFor={() => undefined} />
-  return <CombatLayout state={live.fight.state} userId={userId} role="player" middle={middle} hands={viewerHands(live.fight.state, viewer, roster)} />
+  const effects: CombatEffectsAccess = { roster: inFight ? roster : NO_ROSTER, writers: { characters: writer ?? null, npcSheets: null }, scope: { groupId: campaign.groupId, campaignId: campaign.id }, viewer: { role: 'player', userId } }
+  return <CombatLayout state={live.fight.state} userId={userId} role="player" middle={middle} hands={viewerHands(live.fight.state, viewer, roster)} effects={effects} />
 }
 
 /** Lubec's Combat tab. Players have it only while a fight is live; the route gate sends them away otherwise. */
 export function LubecCombat({ campaign, role, user, setError }: RuleSetSheetProps) {
+  const reveal = useCombatReveal()
+  // While a roll card reveals, the tab shows the fight as it stood and takes no input, so nobody acts on the old screen.
   return (
-    <div className="lubec-combat">
-      {role === 'gm' ? <CombatGm campaign={campaign} userId={user.uid} setError={setError} /> : <CombatPlayer campaign={campaign} userId={user.uid} setError={setError} />}
+    <div className="lubec-combat" inert={reveal.revealing}>
+      {role === 'gm' ? <CombatGm campaign={campaign} userId={user.uid} setError={setError} reveal={reveal} /> : <CombatPlayer campaign={campaign} userId={user.uid} setError={setError} reveal={reveal} />}
     </div>
   )
 }

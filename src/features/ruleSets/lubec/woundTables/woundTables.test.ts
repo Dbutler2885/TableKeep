@@ -25,7 +25,8 @@ describe('the wound tables as data', () => {
   it.each(tables)('%s gives each severity its Trauma, names every wound, and leaves only listed injuries', (_, table) => {
     for (const row of table.locations.flatMap((location) => location.rows)) {
       expect(row.trauma).toBe(TRAUMA[row.severity])
-      expect(row.name).not.toBe('')
+      // A final d2 row with no shared name lands under the name of the branch it rolled.
+      expect(row.name || (row.choices ?? []).every((choice) => choice.name)).toBeTruthy()
       for (const injury of [row.injury, ...(row.choices ?? []).map((choice) => choice.injury)]) {
         if (injury) expect(isLubecLastingInjury(injury)).toBe(true)
       }
@@ -50,22 +51,21 @@ describe('reading a row', () => {
     },
   )
 
-  it('carries a concussion\'s Body Save, a d2\'s two wounds, unconsciousness and the lasting injury', () => {
-    expect(lubecWoundTableRow('blunt', 'head', 2)?.row.save).toEqual({ successTrauma: 0, success: 'Only Dazed, and 0 Trauma instead of +1.', failure: 'Now: Dazed. Lasting: -10 Handle. After 1 Long Rest: healed.' })
-    expect(lubecWoundTableRow('gunshot', 'torso', 3)?.row.choices).toEqual([
-      { name: 'Bullet along the ribs', text: 'Disadvantage on physical Checks; half Movement and no Evasive Movement.' },
-      { name: 'Lodged bullet', text: '-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', injury: 'Lodged object' },
-    ])
-    expect(lubecWoundTableRow('fisticuffs', 'neck', 8)?.row).toMatchObject({ name: 'Blow to the side of the neck', out: true })
-    expect(lubecWoundTableRow('blunt', 'torso', 4)?.row).toMatchObject({ name: 'Broken rib(s)', injury: 'Broken ribs' })
+  it('carries a concussion, a d2\'s two wounds, unconsciousness and a final row\'s severity', () => {
+    expect(lubecWoundTableRow('blunt', 'head', 4)?.row.concussion).toEqual({ kind: 'minor' })
+    expect(lubecWoundTableRow('piercing', 'torso', 4)?.row.choices?.map((choice) => choice.name)).toEqual(['Stab stopped by a rib', 'Point lodged'])
+    expect(lubecWoundTableRow('gunshot', 'torso', 3)?.row.choices?.map((choice) => [choice.name, choice.outcome?.timers ?? []])).toEqual([['Bullet along the ribs', []], ['Bleeding wound', ['bleed']]])
+    expect(lubecWoundTableRow('fisticuffs', 'neck', 9)?.row).toMatchObject({ name: 'Blow to the side of the neck', outcome: { now: [{ kind: 'unconscious' }] } })
+    expect(lubecWoundTableRow('fisticuffs', 'head', 5)?.row.name).toBe('Broken jaw or cheekbone')
+    expect(lubecWoundTableRow('fisticuffs', 'head', 8)?.row.concussion).toEqual({ kind: 'severe' })
+    expect(lubecWoundTableRow('blunt', 'torso', 4)?.row).toMatchObject({ name: 'Broken rib(s)', severity: 'Serious' })
   })
 
-  it('splits a grouped Fisticuffs row by the part it struck', () => {
-    expect(lubecWoundTableRow('fisticuffs', 'upperarm-L', 7)?.row).toMatchObject({ name: 'Dislocated shoulder', injury: 'Dislocated shoulder' })
-    expect(lubecWoundTableRow('fisticuffs', 'forearm-L', 7)?.row).toMatchObject({ name: 'Broken forearm', injury: 'Broken arm' })
-    expect(lubecWoundTableRow('fisticuffs', 'hand-R', 9)?.row).toMatchObject({ name: 'Fractured hand / wrist', injury: 'Broken hand' })
-    expect(lubecWoundTableRow('fisticuffs', 'waist', 6)?.row.name).toBe('Body injury')
-    expect(lubecWoundTableRow('fisticuffs', 'torso', 6)?.row.name).toBe('Rib injury')
+  it('reads Fisticuffs shin and foot as rows of their own, and caps each location at its last row', () => {
+    expect(lubecWoundTableRow('fisticuffs', 'shin-L', 8)?.row.name).toBe('Fractured shin or knee')
+    expect(lubecWoundTableRow('fisticuffs', 'feet-R', 8)?.row.name).toBe('Sprained ankle')
+    expect(lubecWoundTableRow('fisticuffs', 'feet-R', 8)?.location.parts).toEqual(['feet'])
+    expect(lubecWoundTableRow('fisticuffs', 'hand-R', 9)?.row).toMatchObject({ name: 'Badly bruised hand', severity: 'Serious' })
     expect(lubecWoundTableRow('fisticuffs', 'groin', 1)?.location.parts).toEqual(['groin'])
   })
 })

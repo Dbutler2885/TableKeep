@@ -140,9 +140,11 @@
 .shell-root[data-theme="lubec"] .lubec-combat .bigwait { padding: 1.4rem 1rem 1.2rem; text-align: center; }
 .shell-root[data-theme="lubec"] .lubec-combat .bigwait h3 { margin: 0.2rem 0 0.3rem; color: var(--lubec-blue); font: 800 clamp(1.5rem, 3vw, 2.3rem)/1 var(--lubec-display); text-transform: uppercase; }
 .shell-root[data-theme="lubec"] .lubec-combat .bigwait p { margin: 0.2rem 0; font: 700 0.8rem/1.5 var(--lubec-type); }
-.shell-root[data-theme="lubec"] .lubec-combat .bigwait .dots::after { content: ""; animation: lubec-combat-dots 1.4s steps(4, end) infinite; }
-@keyframes lubec-combat-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75%, 100% { content: "..."; } }
-@media (prefers-reduced-motion: reduce) { .shell-root[data-theme="lubec"] .lubec-combat .bigwait .dots::after { animation: none; content: "..."; } }
+/* The three dots always take their room and are only revealed one by one, so the heading never changes width or wraps
+   differently as they count. */
+.shell-root[data-theme="lubec"] .lubec-combat .bigwait .dots::after { content: "..."; clip-path: inset(0 100% 0 0); animation: lubec-combat-dots 1.4s infinite; animation-timing-function: steps(1, end); }
+@keyframes lubec-combat-dots { 0% { clip-path: inset(0 100% 0 0); } 25% { clip-path: inset(0 66% 0 0); } 50% { clip-path: inset(0 33% 0 0); } 75%, 100% { clip-path: inset(0 0 0 0); } }
+@media (prefers-reduced-motion: reduce) { .shell-root[data-theme="lubec"] .lubec-combat .bigwait .dots::after { animation: none; clip-path: none; } }
 
 /* The end of a fight */
 .shell-root[data-theme="lubec"] .lubec-combat .outcome { margin: 0; padding: 0.7rem 0.8rem; border: 2px solid var(--lubec-ink); background: var(--lubec-cream); }
@@ -152,6 +154,10 @@
 .shell-root[data-theme="lubec"] .lubec-combat .outcome.safe h4 { color: var(--lubec-success); }
 
 @media (max-width: 1150px) {
+  .shell-root[data-theme="lubec"] .lubec-combat :is(.ct, .ct.two, .two-col) { grid-template-columns: minmax(0, 1fr); }
+}
+/* Beside the campaign sidebar a wide window can still leave the tab too narrow for three columns. */
+@container combat (max-width: 1069.98px) {
   .shell-root[data-theme="lubec"] .lubec-combat :is(.ct, .ct.two, .two-col) { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -431,9 +437,13 @@
 .shell-root[data-theme="lubec"] .lubec-combat .results-wound.ca { --sev-edge: var(--lubec-ink); --sev-shade: rgba(154, 63, 39, 0.42); }
 .shell-root[data-theme="lubec"] .lubec-combat .results-wound-head { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-wound h4 { margin: 0.4rem 0 0.45rem; font: 800 1.5rem/1.1 var(--lubec-display); }
-.shell-root[data-theme="lubec"] .lubec-combat .results-parts { display: grid; gap: 0.35rem; margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .results-parts { display: grid; gap: 0.35rem; margin: 0.5rem 0 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .results-prose { margin: 0; font: 600 0.92rem/1.45 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .results-prose b { font-weight: 800; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-parts > div { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 0.7rem; align-items: baseline; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-parts dd { margin: 0; font: 700 0.84rem/1.45 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .results-section ul { display: grid; gap: 0.15rem; margin: 0; padding-left: 1rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .results-section li { overflow-wrap: anywhere; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-wound .note { margin: 0.45rem 0 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-continue { display: grid; justify-items: end; gap: 0.5rem; padding: 0.85rem 0.95rem 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .results-wait { margin: 0; padding: 0.85rem 0.95rem 0; color: var(--lubec-muted); font: 800 0.8rem/1.4 var(--lubec-type); }
@@ -443,3 +453,33 @@
 @media (max-width: 560px) {
   .shell-root[data-theme="lubec"] .lubec-combat .results-parts > div { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
 }
+
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-choice { display: grid; gap: 0.6rem; justify-items: start; padding: 0.85rem 0.95rem 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-choice label { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font: 800 0.8rem/1.4 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-sum { margin: 0; font: 800 0.95rem/1.3 var(--lubec-display); }
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-wait { margin: 0; padding: 0.85rem 0.95rem 0; color: var(--lubec-muted); font: 800 0.8rem/1.4 var(--lubec-type); }
+
+/* The sheet's Effects panel over the fight; the chips that open it are in combatFrame.css. */
+.shell-root[data-theme="lubec"] .fighter-effects-modal {
+  width: min(34rem, calc(100vw - 2rem)); max-width: none; max-height: calc(100dvh - 2rem); padding: 0; overflow: auto;
+  border: 2px solid var(--lubec-ink); background: var(--lubec-paper); color: var(--lubec-ink); box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+}
+.shell-root[data-theme="lubec"] .fighter-effects-modal::backdrop { background: rgba(7, 20, 23, 0.65); }
+.shell-root[data-theme="lubec"] .fighter-effects-modal .fighter-effects-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.45rem 0.7rem; color: var(--lubec-cream); background: var(--lubec-ink);
+}
+.shell-root[data-theme="lubec"] .fighter-effects-modal .fighter-effects-head h2 { margin: 0; color: var(--lubec-cream); font: 700 1.05rem/1 var(--lubec-condensed); letter-spacing: 0.12em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .fighter-effects-modal .fighter-effects-head .btn { color: var(--lubec-cream); border-color: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] .fighter-effects-modal .lubec-effects { margin: 0; padding: 0.7rem; }
+/* Inside the dialog the panel takes the sheet's narrow layout: its heading as a row above the cards. */
+.shell-root[data-theme="lubec"] .fighter-effects-modal .ability-section { grid-template-columns: minmax(0, 1fr); }
+.shell-root[data-theme="lubec"] .fighter-effects-modal .section-heading { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 0 0.55rem; border-right: 0; border-bottom: 1px solid var(--lubec-line); text-align: left; }
+.shell-root[data-theme="lubec"] .fighter-effects-modal .section-heading h3 { margin: 0; }
+
+
+/* A granted Sneak Attack can be called off from its window's header bar until it rolls. */
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .section-head .head-action { margin-left: auto; display: flex; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel { padding: .28rem .6rem; color: var(--lubec-cream); background: transparent; border: 1.5px solid rgba(255, 248, 231, .75); font: 800 .62rem/1 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel:hover:not(:disabled) { background: rgba(255, 248, 231, .14); }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel:focus-visible { outline: 2px solid var(--lubec-cream); outline-offset: 2px; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .head-cancel:disabled { opacity: .55; cursor: default; }

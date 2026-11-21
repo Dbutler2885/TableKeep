@@ -30,7 +30,7 @@ vi.mock('../useLubecCombatSend', () => ({
   },
 }))
 vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => ({ characters: [], npcs: [], items: [], roster: mocks.roster }) }))
-vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => mocks.roster }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ roster: mocks.roster, writer: null }) }))
 
 const { LubecCombat } = await import('./LubecCombat')
 
@@ -143,11 +143,11 @@ describe('a declared attack on its turn', () => {
 
   it('locks the declared split for the attacker, with Roll live once the GM ranges it', async () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, range))
-    expect(screen.getByText('Round 1 · Stage 3, Attack')).toBeTruthy()
+    expect(screen.queryByText('Round 1 · Stage 3, Attack')).toBeNull()
     const matchup = screen.getByRole('group', { name: 'Current attack' })
     expect(matchup.querySelector('.matchup-attacker')?.textContent).toBe('AttackerWayne Gardner')
     expect(matchup.querySelector('.matchup-target')?.textContent).toBe('TargetRoy Carver')
-    expect(screen.getByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeTruthy()
+    expect(screen.queryByText(/split are locked/)).toBeNull()
     expect(document.querySelector('.defense-lines b')!.textContent).toBe('Roy Carver')
     expect(screen.queryByRole('button', { name: 'Add a Defense line' })).toBeNull()
     expect((document.querySelector('.divider') as HTMLButtonElement).disabled).toBe(true)
@@ -165,8 +165,8 @@ describe('a declared attack on its turn', () => {
     expect(document.querySelector('.defense-lines')).toBeNull()
     fireEvent.click(button('Roll'))
     expect(await screen.findByText('That attack step is stale.')).toBeTruthy()
-    const alert = screen.getByRole('alert')
-    expect(alert.nextElementSibling?.classList.contains('ask-row')).toBe(true)
+    // The refusal takes the window's notice line, beside the matchup, so the bar below it does not move.
+    expect(screen.getByRole('alert').closest('.attack-top .notice-slot')).toBeTruthy()
   })
 
   it('rolls a Full Defense line at +10', () => {
@@ -247,7 +247,7 @@ describe('a declared attack on its turn', () => {
     expect(within(results).getByRole('heading', { name: 'A miss' })).toBeTruthy()
     expect(within(results).getByText('Waiting on the GM to move on')).toBeTruthy()
     expect(within(results).queryByRole('button')).toBeNull()
-    expect(screen.getByText('The GM moves the fight on from here.')).toBeTruthy()
+    expect(screen.queryByText(/moves the fight on from here/)).toBeNull()
     cleanup()
     show('gm', 'gm', fightAfter(...royMissed))
     fireEvent.click(button("Continue: Wayne Gardner's turn"))
@@ -292,7 +292,7 @@ describe('the GM\'s tools', () => {
     show('gm', 'gm', fightAfter(...wayneTurn))
     tool('actfor')
     fireEvent.click(button('Act for Wayne Gardner'))
-    expect(screen.getByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeTruthy()
+    expect(screen.queryByText(/split are locked/)).toBeNull()
     expect(screen.getByText('Acting for Wayne Gardner')).toBeTruthy()
     fireEvent.click(button('Stop acting'))
     expect(screen.queryByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeNull()

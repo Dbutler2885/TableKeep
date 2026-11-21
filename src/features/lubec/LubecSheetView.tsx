@@ -1,6 +1,9 @@
+import { LubecConditionControl } from './LubecConditionControl'
+import { LUBEC_CONDITION_NAMES, type LubecCondition } from '../ruleSets/lubec/condition'
+import type { LubecEffectRecovery } from './effectRecovery'
 import { LubecSaveNotice, type LubecSaveControls } from './LubecSaveNotice'
 import { Pencil, Trash2, UserPlus } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
@@ -16,6 +19,8 @@ import type { LubecGearDrop } from './gear/lubecGearDrop'
 import type { LubecGearGive } from './gear/lubecGive'
 import type { LubecGearHidden } from './gear/lubecHiddenCarrierWrites'
 import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
+import { LubecHandsContext } from './gear/lubecHandsContext'
+import { lubecHandLimits } from '../ruleSets/lubec/handLimits'
 import type { LubecPictureUpload } from './gear/lubecPicked'
 import type { LubecSharedSeat } from './gear/lubecSharedSeat'
 import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
@@ -32,6 +37,9 @@ import type { LubecRolled } from './useLubecRoller'
 import lubecPines from './lubecPines.svg'
 import { useTakeOpenPage } from '../navigation/openRequest'
 import { LubecCombatGearNotice } from './combat/LubecCombatGearNotice'
+import { LubecDeathReminders } from './LubecDeathReminders'
+import { lubecPendingDeathReminders } from '../ruleSets/lubec/deathReminders'
+import { useLubecFitWidth } from './lubecFitWidth'
 
 type LubecPage = 'core' | 'skills' | 'gear'
 
@@ -55,6 +63,7 @@ function LubecPageTabs({ page, onPage, dot }: PageTabsProps) {
 }
 
 type MastheadProps = {
+  onConditionChange: LubecSheetViewProps['onConditionChange']
   character: LubecCharacterRecord
   page: LubecPage
   onPage: (page: LubecPage) => void
@@ -70,7 +79,7 @@ type MastheadProps = {
   onAssign: (() => void) | null
 }
 
-type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete' | 'onAssign'>
+type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete' | 'onAssign' | 'onConditionChange' | 'character'>
 
 type BandAction = {
   onClick: (() => void) | null
@@ -92,7 +101,7 @@ const bandActionsOf = ({ onEdit, onDelete, onAssign }: BandActionsProps): BandAc
 // The name band's Edit, Give to Player and Delete buttons, for those who may.
 function LubecBandActions(props: BandActionsProps) {
   const actions = bandActionsOf(props).filter((action): action is ShownBandAction => action.onClick !== null)
-  if (actions.length === 0) return null
+  if (actions.length === 0 && !props.onConditionChange) return null
   return (
     <div className="lubec-band-actions">
       {actions.map(({ onClick, label, ariaLabel, Icon, className }) => (
@@ -100,6 +109,7 @@ function LubecBandActions(props: BandActionsProps) {
           <Icon size={12} aria-hidden="true" /> {label}
         </button>
       ))}
+      <LubecConditionControl condition={props.character.lubec.condition} onChange={props.onConditionChange ?? null} />
     </div>
   )
 }
@@ -110,6 +120,7 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
     <div className="lubec-kid-meta">
       <span>{lubecClass(character.lubec.class.key)?.name ?? <LubecMissing />}</span>
       {age === null ? null : <span className="lubec-kid-age">Age {age}</span>}
+      {character.lubec.condition ? <span role="status" aria-label="Condition">{LUBEC_CONDITION_NAMES[character.lubec.condition]}</span> : null}
     </div>
   )
 }
@@ -134,7 +145,7 @@ function LubecMasthead({ character, page, onPage, dot, editing, ...actions }: Ma
         <div className="lubec-id-text">
           <h2 className="lubec-kid-name">{lubecCharacterName(character)}</h2>
           <LubecKidMeta character={character} />
-          <LubecBandActions {...actions} />
+          <LubecBandActions character={character} {...actions} />
         </div>
         <div className="lubec-stamp" aria-hidden="true">Lubec<br />Maine<br />1977</div>
       </div>
@@ -165,6 +176,10 @@ function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinali
 }
 
 export type LubecSheetViewProps = {
+  onConditionChange?: ((condition: LubecCondition | undefined) => void) | null
+  onEffectRecovery?: LubecEffectRecovery
+  /** The GM's handle on the sheet's Death Save reminders; absent or null for anyone else, who never sees them. */
+  onDeathHandled?: ((id: string) => Promise<unknown>) | null
   saveControls?: LubecSaveControls
   character: LubecCharacterRecord
   /** The viewer's edits, or null when they may only look. */
@@ -213,7 +228,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onEffectRecovery' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -236,14 +251,18 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
 // The Gear page, which asks the owner for a heavy thing's Strength roll on the character's own sheet.
 function LubecSheetGear({ character, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'>) {
   const strength = onGearRolled && { sheet: character.lubec, onRolled: onGearRolled }
+  // An unusable arm, a hand that cannot grip, or no two-handed actions, from the active cards.
+  const hands = useMemo(() => lubecHandLimits(character.lubec.effects), [character.lubec.effects])
   return (
-    <LubecGearPage
-      gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock} kinds={carrierKinds} give={gearGive} shared={shared} hidden={onGearHidden} upload={onGearUpload}
-    />
+    <LubecHandsContext.Provider value={hands}>
+      <LubecGearPage
+        gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock} kinds={carrierKinds} give={gearGive} shared={shared} hidden={onGearHidden} upload={onGearUpload}
+      />
+    </LubecHandsContext.Provider>
   )
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: SheetPageProps) {
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onEffectRecovery, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: SheetPageProps) {
   if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearHidden={onGearHidden} onGearUpload={onGearUpload} onGearRolled={onGearRolled} campaignStock={campaignStock} carrierKinds={carrierKinds} gearGive={gearGive} shared={shared} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
@@ -253,7 +272,8 @@ function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onC
     <LubecCorePage
       sheet={character.lubec}
       onCountersChange={onCountersChange}
-      onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
+      onEffectRecovery={onEffectRecovery}
+      onEffectsChange={editing ? (effects, counters) => editing.update({ lubec: { ...character.lubec, effects, ...(counters ? { counters } : {}) } }) : null}
       onGearChange={onGearChange}
       onGearDrop={onGearDrop}
       onDraftEdit={onDraftEdit}
@@ -297,12 +317,13 @@ const SheetCombatReturn = ({ landed, page, sheetId }: { landed: LubecPage | null
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
+  character, editing, onEffectRecovery, onConditionChange = null, onDeathHandled = null, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
 }: LubecSheetViewProps) {
   const { landed, page, setPage } = useSheetPage(character.id)
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const sheetRef = useRef<HTMLElement>(null)
+  useLubecFitWidth(sheetRef)
   const identityEditing = identityEditingOf(editing, identityEditable)
   return (
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
@@ -315,6 +336,7 @@ export function LubecSheetView({
         onEdit={identityEditing ? () => setBandOpen(true) : null}
         onDelete={bandDeleteOf(character, onDelete)}
         onAssign={onAssign}
+        onConditionChange={onConditionChange}
       />
       <LubecSaveNotice controls={saveControls} />
       {identityEditing && bandOpen ? <LubecNameBandEditor character={character} editing={identityEditing} onDone={() => setBandOpen(false)} /> : null}
@@ -333,6 +355,7 @@ export function LubecSheetView({
         character={character}
         editing={editing}
         onCountersChange={onCountersChange}
+        onEffectRecovery={onEffectRecovery}
         onRollUp={onRollUp}
         onGearChange={onGearChange}
         onGearDrop={onGearDrop}
@@ -345,6 +368,7 @@ export function LubecSheetView({
         shared={shared}
         {...lockedEdits(correcting, corrections, edits)}
       />
+      {onDeathHandled ? <LubecDeathReminders entries={lubecPendingDeathReminders(character.lubec.deathReminders).map((reminder) => ({ key: reminder.id, who: null, reminder, onHandled: () => onDeathHandled(reminder.id) }))} /> : null}
     </article>
   )
 }

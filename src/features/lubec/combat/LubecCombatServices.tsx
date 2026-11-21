@@ -12,6 +12,7 @@ import { combatSummariesStale } from './engine/summaries'
 import { COMBAT_UNCERTAIN, useLubecCombatSend } from './useLubecCombatSend'
 import { drainCombatWounds } from './woundDelivery'
 import { combatWoundDrainService, type CombatWoundDeliveryStatus } from './woundDrainService'
+import { allUnconscious } from './engine/stages'
 import { WOUND_WAIT } from './woundTypes'
 import { DeclarationReviewModal } from './DeclarationReviewModal'
 
@@ -91,7 +92,7 @@ function WoundDeliverer({ scope, live, userId, setError }: DelivererProps) {
 /** The settle command to send for this fight, once per Movement stage whose choices are all in; null otherwise. */
 function settleAttempt(live: LubecLiveFight, tried: string | null): string | null {
   const { state } = live.fight
-  if (state.phase !== 'movement' || !state.movementComplete) return null
+  if (state.phase !== 'movement' || !state.movementComplete || allUnconscious(state)) return null
   return state.stageInstanceId === tried ? null : state.stageInstanceId
 }
 

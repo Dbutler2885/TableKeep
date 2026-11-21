@@ -1,26 +1,39 @@
+import { LubecTableWords } from '../../LubecTableWords'
 import { awaitingContinue } from '../engine/roundAttacks'
 import type { CombatAttack, CombatState } from '../engine/types'
 import { outcomeBanner } from './outcomeWords'
 import { Refusal, type StepControls } from './ResultSteps'
 import { useAct } from './useAct'
-import { continueWords, headWords, resultsFacts, resultsWound, type ResultsWound } from './resultsModel'
+import { continueWords, headWords, resultsWound, type ResultsWound } from './resultsModel'
 
+/** The table's own name and words for the wound, its Trauma, and only what the table leaves to the dice; the headline already says the severity, or that the target is Out. */
 function WoundPanel({ wound }: { wound: ResultsWound }) {
   return (
     <div className={`results-wound ${wound.cls}`}>
       <div className="results-wound-head">
-        <span className={`sev ${wound.cls}`}>{wound.severity}</span>
+        {wound.out ? <span className={`sev ${wound.cls}`}>{wound.severity}</span> : null}
         <span className="tag ink">{wound.trauma}</span>
-        {wound.out ? <span className="badge rust">Out of the fight</span> : null}
       </div>
       <h4>{wound.name}</h4>
-      <dl className="results-parts">
-        {wound.parts.map((part) => <div key={part.label}><dt>{part.label}</dt><dd>{part.text}</dd></div>)}
-        {wound.injury ? <div><dt>Lasting injury</dt><dd>{wound.injury}</dd></div> : null}
-      </dl>
+      <LubecTableWords text={wound.prose} className="results-prose" />
+      <WoundFacts wound={wound} />
       {wound.notes.map((note) => <p key={note} className="note">{note}</p>)}
-      <p className="note">{wound.sheet}</p>
     </div>
+  )
+}
+
+function WoundFacts({ wound }: { wound: ResultsWound }) {
+  if (!wound.injury && !wound.sections.length) return null
+  return (
+    <dl className="results-parts">
+      {wound.injury ? <div><dt>Lasting injury</dt><dd>{wound.injury}</dd></div> : null}
+      {wound.sections.map((section) => (
+        <div key={section.label} className="results-section">
+          <dt>{section.label}</dt>
+          <dd><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul></dd>
+        </div>
+      ))}
+    </dl>
   )
 }
 
@@ -47,16 +60,13 @@ function ResultsHead({ title, line }: { title: string; line: string | null }) {
   )
 }
 
-/** The end of every attack: what happened, to whom, where, with what and how hard, then the wound it left. */
+/** The end of every attack: what happened, then the wound it left; the steps above already say who, with what, where and how hard. */
 export function ResultsCard({ state, attack, controls }: { state: CombatState; attack: CombatAttack; controls: StepControls | null }) {
   const banner = outcomeBanner(state, attack)
   const wound = resultsWound(state, attack)
   return (
     <section className={`results ${banner?.tone ?? ''}`.trim()} aria-label="Results">
       <ResultsHead {...headWords(banner, wound !== null)} />
-      <dl className="results-facts">
-        {resultsFacts(state, attack).map((fact) => <div key={fact.term}><dt>{fact.term}</dt><dd>{fact.value}</dd></div>)}
-      </dl>
       {wound ? <WoundPanel wound={wound} /> : null}
       <ContinueBar state={state} attack={attack} controls={controls} />
     </section>

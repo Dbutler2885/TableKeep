@@ -2,6 +2,7 @@
 // and the weapon a Gear card named. The modal loads nothing itself, so these
 // are the only readings of a combatant it makes.
 
+import type { LubecCondition } from '../../ruleSets/lubec/condition'
 import type { LubecCharacterRecord } from '../../ruleSets/lubec/characterRecord'
 import { emptyLubecGear, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecWielder, type LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
@@ -11,11 +12,12 @@ import { armorVs, WOUND_KINDS } from '../gear/itemLabels'
 import { lubecCharacterName } from '../lubecNames'
 import { lubecNpcSheetRecord, type LubecNpcIdentity } from '../lubecNpcSheetRecord'
 import type { LubecArmorNumbers, LubecNpcFightSummary } from './lubecNpcFightSummary'
+import { lubecHandLimits, type LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /** Someone in a fight: a player's character, or an NPC on a map token. */
 export type LubecCombatant =
   | { kind: 'character'; character: LubecCharacterRecord }
-  | { kind: 'npc'; npc: LubecNpcIdentity; sheet: LubecCharacterRecord | null; summary?: LubecNpcFightSummary | null }
+  | { kind: 'npc'; npc: LubecNpcIdentity; sheet: LubecCharacterRecord | null; summary?: LubecNpcFightSummary | null; condition?: LubecCondition }
 
 export type LubecFightRequest = {
   attacker: LubecCombatant
@@ -36,7 +38,7 @@ export type LubecFightHost = {
 export const LUBEC_FISTICUFFS_ID = 'fisticuffs'
 
 /** A combatant's name, portrait and token. */
-export type LubecCombatantFace = Pick<LubecNpcIdentity, 'portraitFocusX' | 'portraitFocusY' | 'tokenIcon'> & { name: string; portraitUrl: string | null }
+export type LubecCombatantFace = Pick<LubecNpcIdentity, 'portraitFocusX' | 'portraitFocusY' | 'tokenIcon'> & { name: string; portraitUrl: string | null; condition?: LubecCondition }
 
 /** One combatant's key: a character and an NPC can share an id, as a clone keeps ids. */
 export const lubecCombatantKey = (c: LubecCombatant): string =>
@@ -48,14 +50,19 @@ export function lubecCombatantRecord(c: LubecCombatant): LubecCharacterRecord | 
   return c.sheet && lubecNpcSheetRecord(c.npc, c.sheet)
 }
 
+const combatantCondition = (c: LubecCombatant) => c.kind === 'character' ? c.character.lubec.condition : c.sheet?.lubec.condition ?? c.condition
+
 export function lubecCombatantFace(c: LubecCombatant): LubecCombatantFace {
   const { portraitUrl, portraitFocusX, portraitFocusY, tokenIcon } = c.kind === 'character' ? c.character : c.npc
   const name = c.kind === 'character' ? lubecCharacterName(c.character) : c.npc.name
-  return { name: name || 'Unnamed', portraitUrl, portraitFocusX, portraitFocusY, tokenIcon }
+  return { condition: combatantCondition(c), name: name || 'Unnamed', portraitUrl, portraitFocusX, portraitFocusY, tokenIcon }
 }
 
 /** What a combatant carries; nothing without a sheet to read. */
 export const lubecCombatantGear = (c: LubecCombatant): LubecGear => lubecCombatantRecord(c)?.lubec.gear ?? emptyLubecGear()
+
+/** The hands a combatant can use, from their sheet's active cards; both, without a sheet to read. */
+export const lubecCombatantHands = (c: LubecCombatant): LubecHandLimits => lubecHandLimits(lubecCombatantRecord(c)?.lubec.effects ?? [])
 
 /** A combatant's Strength and Handle; holes without a sheet to read. */
 export function lubecCombatantWielder(c: LubecCombatant): LubecWielder {

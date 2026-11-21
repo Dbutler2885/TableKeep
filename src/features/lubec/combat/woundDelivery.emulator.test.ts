@@ -1,13 +1,18 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, deleteDoc, doc, getDoc, getDocFromServer, getDocs, runTransaction, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
+import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
+import { collection, deleteField, deleteDoc, doc, getDoc, getDocFromServer, getDocs, runTransaction, serverTimestamp, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
 import { saveSheetIntention } from '../../character/characterStore/sheetIntentionTransaction'
 import { lubecCharacterSheet } from '../../ruleSets/lubec/sheetFixtures'
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../ruleSets/lubec/derivations'
+import type { LubecStepUntil } from '../../ruleSets/lubec/effects'
 import { createCombatCommand } from './commandJournal'
 import { commitCombatCommand } from './combatTransaction'
+import { lubecEffectRecovery } from '../effectRecovery'
+import { acknowledgeLubecDeathReminder } from '../deathReminderAck'
+import { combatEntropy } from './engine/commandEntropy'
 import { combatLifecycleHandlers } from './engine/lifecycle'
 import { combatInputModifiers, confirmedCombatRevision, readCombatInputs } from './woundBarrier'
 import { deliverCombatWound, drainCombatWounds } from './woundDelivery'
@@ -231,7 +236,9 @@ describe('canonical input barriers', () => {
     await expect(readInputs(as('player'), 0, { kind: 'npc', sheetId: 'roy' })).rejects.toThrow()
     await deleteDoc(ref(as(), 'characters/hero'))
     await expect(readInputs(as(), 0)).rejects.toThrow('sheet is missing')
-    await commitCombatCommand(as(), await command('end'), settings())
+    expect(await commitCombatCommand(as(), await command('end'), settings())).toMatchObject({ ok: false, reason: expect.stringContaining('sheet is missing') })
+    await seed('characters/hero', sheet())
+    expect(await commitCombatCommand(as(), await command('end'), settings())).toMatchObject({ ok: true })
     await expect(readInputs(as(), 0)).rejects.toThrow('not live')
   })
 })
@@ -253,7 +260,8 @@ it('End retries the latest empty-outbox transaction after a player enqueues a wo
   })
   expect(outcome).toMatchObject({ ok: true })
   expect(callbacks).toBeGreaterThan(2)
-  expect((await readFight()).state).toMatchObject({ woundOutbox: [], woundAcknowledgements: [{ id: 'wound', targetRevision: 1 }] })
+  expect((await readFight()).state.woundOutbox).toEqual([])
+  expect((await readFight()).state.woundAcknowledgements).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'wound', targetRevision: 1 })]))
   expect((await readFight()).status).toBe('ended')
   expect((await getDoc(ref(as(), 'combatControl/current'))).get('activeFightId')).toBeNull()
   expect((await storedSheet()).lubec.counters.trauma).toBe(1)
@@ -267,8 +275,364 @@ it('End exposes a failed delivery reason and remains live until the same End com
   const end = await command('end')
   expect(await commitCombatCommand(as(), end, settings())).toMatchObject({ ok: false, reason: expect.stringContaining('sheet is missing') })
   expect((await readFight()).status).toBe('live')
-  expect((await readFight()).state.woundOutbox).toHaveLength(1)
+  expect((await readFight()).state.woundOutbox.map((entry) => entry.id)).toEqual(['wound', 'close:character:hero', 'close:npc:roy'])
   await seed('characters/hero', sheet())
   expect(await commitCombatCommand(as(), end, settings())).toMatchObject({ ok: true })
   expect((await storedSheet()).sheetRevision).toBe(1)
+})
+
+describe('a final wound\'s linked cards through real rules', () => {
+  const step = (amount: number, until: LubecStepUntil) => ({ modifiers: [{ target: 'Handle' as const, amount }], labels: [], until })
+  const card = (cardKey: string, amount: number, until: LubecStepUntil = 'long-rest') =>
+    ({ id: cardKey, cardKey, name: 'Shattered forearm', part: cardKey, cause: 'Blunt Force, left forearm, Impact 6', wound: { row: 'Shattered forearm', table: 'blunt', groupId: '' }, steps: [step(amount, until)] })
+  const linked = (selection: CombatantSelection = target) => {
+    const cards = [card('bleed', 0, 'treated'), card('arm', -20)]
+    return wound({ target: selection, effect: cards[0], effects: cards, traumaDelta: 2, stressDelta: 0 })
+  }
+  const pathOf = (selection: CombatantSelection) => (selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy')
+  const effectsOf = async (path: string) => (await storedSheet(as(), path)).lubec.effects as { id: string; wound: { groupId: string } }[]
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('lands every card once under one wound identity for $kind, across racing drains and a replay', async (selection) => {
+    await fixture([linked(selection)])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const acknowledgement = (await readFight()).state.woundAcknowledgements[0]
+    expect(await deliverCombatWound(as(), scope, 'gm', 'wound')).toEqual(acknowledgement)
+    const effects = await effectsOf(pathOf(selection))
+    expect(effects.map((effect) => effect.id)).toEqual([`${acknowledgement.operationId}_bleed`, `${acknowledgement.operationId}_arm`])
+    expect(new Set(effects.map((effect) => effect.wound.groupId))).toEqual(new Set([acknowledgement.operationId]))
+    expect((await storedSheet(as(), pathOf(selection))).lubec.counters.trauma).toBe(2)
+  })
+
+  async function steppedDown(uid: string, path: string) {
+    const db = as(uid)
+    const stored = await storedSheet(db, path)
+    const [bleed] = stored.lubec.effects as { id: string }[]
+    return saveSheetIntention(db, ref(db, path), {
+      operationId: `step_${uid}`, baseRevision: stored.sheetRevision,
+      edits: [{ kind: 'remove', path: ['lubec', 'effects', { recordId: bleed.id }], base: { exists: true, value: bleed as never } }],
+    })
+  }
+
+  it.each(['player', 'gm'])('lets %s step down one PC card, leaving its sibling and the Trauma', async (uid) => {
+    await fixture([linked()])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect(await steppedDown(uid, 'characters/hero')).toMatchObject({ status: 'committed', revision: 2 })
+    const after = await storedSheet()
+    expect((after.lubec.effects as { id: string }[]).map((effect) => effect.id)).toEqual([expect.stringMatching(/_arm$/)])
+    expect(after.lubec.counters.trauma).toBe(2)
+  })
+
+  it.each([['other', 'characters/hero'], ['spectator', 'characters/hero'], ['player', 'npcSheets/roy']])('refuses %s stepping down a card on %s', async (uid, path) => {
+    await fixture([linked(path === 'characters/hero' ? target : { kind: 'npc', sheetId: 'roy' })])
+    await drainCombatWounds(as(), scope, 'gm')
+    await expect(steppedDown(uid, path)).rejects.toThrow()
+    expect((await effectsOf(path)).length).toBe(2)
+  })
+
+  it('charges a knock-out\'s rolled Minimum Stress once, across racing drains and a replay', async () => {
+    const knockOut = { ...linked(), minimumStressDelta: 3, effects: [card('unconscious', 0, 'by-hand')], effect: card('unconscious', 0, 'by-hand') }
+    await fixture([knockOut])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    await deliverCombatWound(as(), scope, 'gm', 'wound')
+    expect((await storedSheet()).lubec.counters).toMatchObject({ trauma: 2, minimumStress: 5 })
+    expect(await effectsOf('characters/hero')).toHaveLength(1)
+  })
+
+  it('keeps both of two concurrent sibling Step downs, and a retried Step down applies once', async () => {
+    const twoSteps = { ...card('arm', -20), steps: [step(-20, 'long-rest'), step(-10, 'lasting')] }
+    await fixture([{ ...linked(), effects: [card('bleed', 0, 'treated'), twoSteps], effect: card('bleed', 0, 'treated') }])
+    await drainCombatWounds(as(), scope, 'gm')
+    const stored = await storedSheet()
+    const [bleed, arm] = stored.lubec.effects as { id: string; steps: unknown[] }[]
+    const aid = { operationId: 'first_aid', baseRevision: 1, edits: [{ kind: 'remove' as const, path: ['lubec', 'effects', { recordId: bleed.id }], base: { exists: true as const, value: bleed as never } }] }
+    const rest = {
+      operationId: 'long_rest', baseRevision: 1,
+      edits: [{ kind: 'set' as const, path: ['lubec', 'effects', { recordId: arm.id }, 'steps'], base: { exists: true as const, value: arm.steps as never }, value: arm.steps.slice(1) as never }],
+    }
+    const player = as('player')
+    await Promise.all([saveSheetIntention(player, ref(player, 'characters/hero'), aid), saveSheetIntention(as(), ref(as(), 'characters/hero'), rest)])
+    expect(await saveSheetIntention(as(), ref(as(), 'characters/hero'), rest)).toMatchObject({ status: 'committed' })
+    const after = await storedSheet()
+    expect(after.sheetRevision).toBe(3)
+    expect((after.lubec.effects as { id: string; steps: unknown[] }[]).map((effect) => [effect.id, effect.steps.length])).toEqual([[arm.id, 1]])
+    expect(after.lubec.counters.trauma).toBe(2)
+  })
+
+  it('lets the GM step down an NPC card', async () => {
+    await fixture([linked({ kind: 'npc', sheetId: 'roy' })])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect(await steppedDown('gm', 'npcSheets/roy')).toMatchObject({ status: 'committed' })
+    expect((await effectsOf('npcSheets/roy')).length).toBe(1)
+  })
+})
+
+describe('round ticks through real rules', () => {
+  const brief = { id: 'clipped', name: 'Clipped', cause: 'Blunt Force', combatOrigin: { fightId: 'fight', woundId: 'w', originatingRound: 1, effectiveRound: 1 }, steps: [{ modifiers: [], labels: [], until: 'next-round-end', rolls: [{ scope: 'attacks', mode: 'disadvantage' }] }] }
+  const tick = (round: number): CombatWound => ({ kind: 'tick', tickRound: round, id: `round-${round}:character:hero`, target, originatingRound: round, effectiveRound: round + 1, traumaDelta: 0, stressDelta: 0 })
+
+  it('ends a brief window once at the end of the next round, across racing drains and a replay', async () => {
+    await seed('characters/hero', { ...sheet(), lubec: { ...lubecCharacterSheet(), effects: [brief] } })
+    await fixture([tick(2)], 2)
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const acknowledgement = (await readFight()).state.woundAcknowledgements[0]
+    expect(acknowledgement).toMatchObject({ id: 'round-2:character:hero', targetRevision: 1 })
+    expect(await deliverCombatWound(as(), scope, 'gm', 'round-2:character:hero')).toEqual(acknowledgement)
+    expect((await storedSheet()).lubec.effects).toEqual([])
+    expect((await storedSheet()).sheetRevision).toBe(1)
+  })
+
+  it('acknowledges a tick with nothing to end at the revision it read, writing no sheet', async () => {
+    await fixture([tick(1)], 1)
+    await drainCombatWounds(as(), scope, 'gm')
+    expect((await readFight()).state.woundAcknowledgements[0]).toMatchObject({ targetRevision: 0 })
+    expect((await storedSheet()).sheetRevision).toBe(0)
+  })
+})
+
+
+describe('saved lost stages through real rules', () => {
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('delivers and closes Dazed once for $kind while preserving sibling cards', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const lost = { movement: [4, 5], action: [3, 4] }
+    const card = { id: 'dazed', cardKey: 'dazed', name: 'Concussion', cause: 'Fisticuffs', lost, steps: [{ modifiers: [], labels: ['Dazed'], until: 'rounds' as const }] }
+    const sibling = { id: 'lasting', cardKey: 'lasting', name: 'Concussion', cause: 'Fisticuffs', steps: [{ modifiers: [{ target: 'Intellect' as const, amount: -10 }], labels: [], until: 'lasting' as const }] }
+    await fixture([wound({ target: selection, originatingRound: 3, effectiveRound: 3, effects: [card, sibling], traumaDelta: 0, stressDelta: 0 })], 3)
+    await drainCombatWounds(as(), scope, 'gm')
+    const delivered = (await storedSheet(as(), path)).lubec.effects
+    expect(delivered[0].lost).toEqual(lost)
+    const close: CombatWound = { kind: 'close', tickRound: 4, id: `close:${selection.kind}:${selection.sheetId}`, target: selection, originatingRound: 4, effectiveRound: 5, traumaDelta: 0, stressDelta: 0 }
+    await fixture([close], 4)
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const after = await storedSheet(as(), path)
+    expect(after.lubec.effects[0]).toMatchObject({ lost, afterCombat: { suggestedMinutes: 2 }, steps: [{ until: 'by-hand' }] })
+    expect(after.lubec.effects[1]).toEqual(delivered[1])
+    const receipt = await deliverCombatWound(as(), scope, 'gm', close.id)
+    expect(receipt.targetRevision).toBe(2)
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(2)
+  })
+})
+
+
+describe('standing through real rules and command receipts', () => {
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('clears only down on a successful Stand for $kind and replays without rerolling', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const raw = sheet(selection.kind === 'character' ? 'player' : 'gm')
+    const down = { id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }
+    const sibling = { id: 'sibling', name: 'Dazed', cause: 'Concussion', steps: [{ modifiers: [], labels: ['Action lost'], until: 'rounds' }] }
+    await seed(path, { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Speed: 100 }, effects: [down, sibling] } })
+    const fight = await readFight()
+    await updateDoc(ref(as(), 'combats/fight'), { state: { ...fight.state, phase: 'movement', round: 3, order: ['character:hero', 'npc:roy'], pendingActions: [] } })
+    const actorKey = `${selection.kind}:${selection.sheetId}`
+    const move = { ...await command('move', 'stand', actorKey), payload: { type: 'move', choice: 'stand' } }
+    const uid = selection.kind === 'character' ? 'player' : 'gm'
+    const [one, two] = await Promise.all([commitCombatCommand(as(uid), move, settings(uid)), commitCombatCommand(as(), move, settings())])
+    expect(one).toMatchObject({ ok: true })
+    expect(two).toEqual(one)
+    expect((await storedSheet(as(), path))).toMatchObject({ sheetRevision: 1, lubec: { effects: [sibling], counters: raw.lubec.counters } })
+    expect((await readFight()).state.combatants.find((entry) => entry.key === actorKey)?.movement).toMatchObject({ choice: 'stand', stand: { success: true } })
+    expect(await commitCombatCommand(as(uid), move, settings(uid))).toEqual(one)
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(1)
+  })
+
+  it('charges failed Stand Stress once and keeps the down card, then closing clears it', async () => {
+    const raw = sheet()
+    const down = { id: 'down', name: 'Knocked down', cause: 'Sweep', combatOrigin: { fightId: 'fight', woundId: 'knock', originatingRound: 1, effectiveRound: 1 }, steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }
+    await seed('characters/hero', { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Speed: 0 }, effects: [down] } })
+    const fight = await readFight()
+    await updateDoc(ref(as(), 'combats/fight'), { state: { ...fight.state, phase: 'movement', round: 3, order: ['character:hero', 'npc:roy'], pendingActions: [] } })
+    let move = { ...await command('move', 'stand', 'character:hero'), payload: { type: 'move', choice: 'stand' } }
+    for (let i = 0; combatEntropy(move).die('stand:character:hero', 100) <= 50; i++) move = { ...move, seed: `failed-stand-${i}` }
+    const result = await commitCombatCommand(as('player'), move, settings('player'))
+    expect(result).toMatchObject({ ok: true })
+    expect(await commitCombatCommand(as('player'), move, settings('player'))).toEqual(result)
+    const current = await storedSheet()
+    expect(current.lubec.counters.stress).toBe(raw.lubec.counters.stress + 1)
+    expect(current.lubec.effects).toEqual([down])
+    expect((await readFight()).state.lost?.['character:hero'].action).toEqual([3])
+    expect(await commitCombatCommand(as(), await command('end'), settings())).toMatchObject({ ok: true })
+    expect((await storedSheet()).lubec.effects).toEqual([])
+    expect((await storedSheet()).lubec.counters.stress).toBe(raw.lubec.counters.stress + 1)
+  })
+})
+
+
+describe('waking Head 9 through real rules', () => {
+  const card = { id: 'wake', name: 'Knocked out', cause: 'Fisticuffs Head 9', cardKey: 'unconscious', wakeSave: 'severe-concussion', wound: { groupId: 'original', trauma: 2, minimumStress: 3, dice: { minutes: [4, 9] } }, steps: [{ modifiers: [], labels: ['13 minutes'], until: 'by-hand', restrictions: [{ kind: 'unconscious' }] }] }
+  const sibling = { id: 'sibling', name: 'Dazed', cause: 'Another wound', steps: [{ modifiers: [], labels: ['Keep'], until: 'rounds' }] }
+  const quiet = { settleSaves: async () => undefined }
+  const recover = (uid: string, selection: CombatantSelection) => lubecEffectRecovery({ db: as(uid), scope, sheet: selection.kind === 'npc' ? { kind: 'npc', npcId: selection.sheetId } : { kind: 'character', characterId: selection.sheetId } }, quiet, selection.sheetId)
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('resolves $kind once across racing clears and reload, preserving landing charges and siblings', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const raw = sheet(selection.kind === 'character' ? 'player' : 'gm')
+    await seed(path, { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 100 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [card, sibling] } })
+    const uid = selection.kind === 'character' ? 'player' : 'gm'
+    const first = recover(uid, selection)
+    const results = await Promise.all([first('wake'), recover('second-gm', selection)('wake')])
+    expect(results[0]).toMatchObject({ status: 'committed', revision: 1 })
+    expect(results[1]).toEqual(results[0])
+    const current = await storedSheet(as(), path)
+    expect(current.lubec.counters).toEqual({ stress: 3, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects).toHaveLength(2)
+    expect(current.lubec.effects[0]).toEqual(sibling)
+    expect(current.lubec.effects[1]).toMatchObject({ id: 'wake_aftermath', wound: card.wound, steps: [{ modifiers: [{ target: 'Handle', amount: -10 }] }], recoveryRoll: { outcome: 'success', advantage: 'disadvantage' } })
+    expect(await recover(uid, selection)('wake')).toEqual(results[0])
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(1)
+  })
+
+  it('charges a failed waking Save once and refuses another player or a player resolving an NPC', async () => {
+    const raw = sheet()
+    await seed('characters/hero', { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 0 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [card, sibling] } })
+    await seed('npcSheets/roy', { ...raw, ownerUserId: 'gm', lubec: { ...raw.lubec, effects: [card] } })
+    await expect(recover('other', target)('wake')).rejects.toThrow()
+    await expect(recover('player', { kind: 'npc', sheetId: 'roy' })('wake')).rejects.toThrow()
+    const result = await recover('player', target)('wake')
+    expect(result).toMatchObject({ status: 'committed', revision: 1 })
+    expect(await recover('gm', target)('wake')).toEqual(result)
+    const current = await storedSheet()
+    expect(current.lubec.counters).toEqual({ stress: 4, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects[1]).toMatchObject({ recoveryRoll: { outcome: 'failure' }, steps: [{ modifiers: [{ target: 'Handle', amount: -30 }] }, { modifiers: [{ target: 'Handle', amount: -10 }] }, { modifiers: [{ target: 'Intellect', amount: -10 }] }] })
+  })
+})
+
+describe('a wound drop through real rules', () => {
+  const inHand = (id: string, name: string, slot: number, extra: Record<string, unknown> = {}) =>
+    ({ id, kind: 'thing', carrier: 'hands', slot, name, size: 1, qty: 1, weight: 'normal', note: '', ...extra })
+  const holding = (ownerUserId: string, ...items: object[]) => {
+    const raw = sheet(ownerUserId)
+    return { ...raw, lubec: { ...raw.lubec, gear: { ...raw.lubec.gear, items } } }
+  }
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('moves the struck hand\'s item from the $kind sheet to the Floor once, across racing drains, a replay and End', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    await seed(path, holding(selection.kind === 'character' ? 'player' : 'gm', inHand('knife', 'Knife', 1), inHand('lantern', 'Lantern', 0)))
+    await fixture([wound({ target: selection, effectiveRound: 1, drop: { hand: 'right' } })])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const fight = await readFight()
+    expect(fight.state.floor.map((record) => record.item.id)).toEqual(['knife'])
+    expect(fight.state.floor[0].item).not.toHaveProperty('slot')
+    const stored = await storedSheet(as(), path)
+    expect(stored.lubec.gear.items.map((item: { id: string }) => item.id)).toEqual(['lantern'])
+    expect(stored).toMatchObject({ sheetRevision: 1, lubec: { counters: { trauma: 1 } } })
+    expect(await deliverCombatWound(as(), scope, 'gm', 'wound')).toEqual(fight.state.woundAcknowledgements[0])
+    expect((await readFight()).state.floor).toHaveLength(1)
+    expect(await commitCombatCommand(as(), await command('end'), settings())).toMatchObject({ ok: true })
+    expect((await getDoc(ref(as(), 'gmItems/knife'))).data()).toMatchObject({ id: 'knife', name: 'Knife', status: 'dropped' })
+  })
+
+  it('drops a two-handed item held through the struck hand as one item, and an empty hand drops nothing', async () => {
+    await seed('characters/hero', holding('player', inHand('spear', 'Spear', 0, { size: 2 })))
+    await fixture([wound({ effectiveRound: 1, drop: { hand: 'right' } }), wound({ id: 'again', effectiveRound: 1, drop: { hand: 'left' } })])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect((await readFight()).state.floor.map((record) => record.item.id)).toEqual(['spear'])
+    const stored = await storedSheet()
+    expect(stored.lubec.gear.items).toEqual([])
+    expect(stored.sheetRevision).toBe(2)
+  })
+})
+
+describe('the delayed speech-recovery Save through real rules', () => {
+  const speech = {
+    id: 'speech', name: 'Windpipe opened', part: 'Speech', cause: 'Cutting Neck 5', cardKey: 'speech', wound: { groupId: 'original', trauma: 2 },
+    steps: [
+      { modifiers: [], labels: [], until: 'long-rest', restrictions: [{ kind: 'speech', words: 'Whisper only' }] },
+      { modifiers: [], labels: ['Body Save'], until: 'by-hand', onReach: { save: 'Body', failure: 'Speech damaged' } },
+    ],
+  }
+  const bleed = { id: 'bleed', name: 'Windpipe opened', part: 'Bleeding', cause: 'Cutting Neck 5', steps: [{ modifiers: [], labels: ['Keep'], until: 'rounds' }] }
+  const quiet = { settleSaves: async () => undefined }
+  const recover = (uid: string, selection: CombatantSelection) => lubecEffectRecovery({ db: as(uid), scope, sheet: selection.kind === 'npc' ? { kind: 'npc', npcId: selection.sheetId } : { kind: 'character', characterId: selection.sheetId } }, quiet, selection.sheetId)
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('resolves a $kind card once across racing Step downs and a replay, keeping the sibling and the landing charges', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const raw = sheet(selection.kind === 'character' ? 'player' : 'gm')
+    await seed(path, { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 100 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [speech, bleed] } })
+    const uid = selection.kind === 'character' ? 'player' : 'gm'
+    const results = await Promise.all([recover(uid, selection)('speech', 'reach'), recover('second-gm', selection)('speech', 'reach')])
+    expect(results[0]).toMatchObject({ status: 'committed', revision: 1 })
+    expect(results[1]).toEqual(results[0])
+    const current = await storedSheet(as(), path)
+    expect(current.lubec.counters).toEqual({ stress: 3, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects).toEqual([bleed])
+    expect(current.lubec.lastRoll).toMatchObject({ against: 'Body', outcome: 'success' })
+    expect(await recover(uid, selection)('speech', 'reach')).toEqual(results[0])
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(1)
+  })
+
+  it('charges a failed Save once, and refuses another player or a player resolving an NPC', async () => {
+    const raw = sheet()
+    await seed('characters/hero', { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 0 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [speech, bleed] } })
+    await seed('npcSheets/roy', { ...raw, ownerUserId: 'gm', lubec: { ...raw.lubec, effects: [speech] } })
+    await expect(recover('other', target)('speech', 'reach')).rejects.toThrow()
+    await expect(recover('player', { kind: 'npc', sheetId: 'roy' })('speech', 'reach')).rejects.toThrow()
+    const result = await recover('player', target)('speech', 'reach')
+    expect(result).toMatchObject({ status: 'committed', revision: 1 })
+    expect(await recover('gm', target)('speech', 'reach')).toEqual(result)
+    const current = await storedSheet()
+    expect(current.lubec.counters).toEqual({ stress: 4, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects).toEqual([bleed, expect.objectContaining({ id: 'speech_recovered', steps: [expect.objectContaining({ labels: ['Speech damaged'], until: 'lasting', charmReminder: true })], recoveryRoll: expect.objectContaining({ outcome: 'failure' }) })])
+  })
+})
+
+describe('Death Save reminders through real rules', () => {
+  const classed = (trauma: number) => {
+    const raw = sheet()
+    return { ...raw, lubec: { ...raw.lubec, class: { key: 'working', choices: {} }, counters: { stress: 0, minimumStress: 2, trauma } } }
+  }
+
+  it('raises one reminder for a wound across racing drains and a replay, and the GM marks it handled once', async () => {
+    await seed('characters/hero', classed(2))
+    await fixture([wound({ effectiveRound: 1, traumaDelta: 2, immediateDeathSave: 'Shot through the heart' })])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    await deliverCombatWound(as(), scope, 'gm', 'wound')
+    const stored = await storedSheet()
+    expect(stored.lubec.counters.trauma).toBe(4)
+    expect(stored.lubec.deathReminders).toEqual([expect.objectContaining({ reasons: ['Immediate Death Save: Shot through the heart', 'Trauma reached 4, the Death Save threshold of 4'] })])
+    const id = stored.lubec.deathReminders[0].id
+    const handled = await Promise.all([acknowledgeLubecDeathReminder(as(), scope, target, id), acknowledgeLubecDeathReminder(as('second-gm'), scope, target, id)])
+    expect(handled[1]).toEqual(handled[0])
+    const after = await storedSheet()
+    expect(after.lubec.deathReminders).toEqual([expect.objectContaining({ id, handled: true })])
+    expect(after.lubec.counters).toEqual(stored.lubec.counters)
+  })
+
+  it('raises none for a wound below the threshold', async () => {
+    await seed('characters/hero', classed(0))
+    await fixture([wound({ effectiveRound: 1, traumaDelta: 1 })])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect((await storedSheet()).lubec.deathReminders).toBeUndefined()
+  })
+})
+
+describe('GM-only Lubec conditions through real rules', () => {
+  it('denies owner creation with a condition, including alongside ordinary edits', async () => {
+    for (const condition of ['comatose', 'dead']) {
+      await assertFails(setDoc(ref(as('player'), `characters/new-${condition}`), { ...sheet(), schemaWrittenAt: serverTimestamp(), lubec: { ...sheet().lubec, condition } }))
+    }
+    await assertSucceeds(setDoc(ref(as('player'), 'characters/new-none'), { ...sheet(), schemaWrittenAt: serverTimestamp() }))
+  })
+  it('denies owner set, change, clear and nested deletion/replacement but allows unchanged conditions', async () => {
+    await assertFails(updateDoc(ref(as('player'), 'characters/hero'), { 'lubec.condition': 'dead', name: 'Changed', sheetRevision: 1 }))
+    await assertSucceeds(updateDoc(ref(as(), 'characters/hero'), { 'lubec.condition': 'comatose', sheetRevision: 1 }))
+    for (const update of [
+      { 'lubec.condition': 'dead' }, { 'lubec.condition': deleteField() }, { lubec: deleteField() },
+      { lubec: sheet().lubec }, { lubec: { ...sheet().lubec, condition: 'dead' } },
+    ]) await assertFails(updateDoc(ref(as('player'), 'characters/hero'), { ...update, name: 'Changed', sheetRevision: 2 }))
+    await assertSucceeds(updateDoc(ref(as('player'), 'characters/hero'), { name: 'Ordinary edit', sheetRevision: 2 }))
+    await assertSucceeds(updateDoc(ref(as('player'), 'characters/hero'), { lubec: { ...sheet().lubec, condition: 'comatose', age: 15 }, sheetRevision: 3 }))
+    await assertSucceeds(updateDoc(ref(as(), 'characters/hero'), { 'lubec.condition': 'dead', sheetRevision: 4 }))
+    await assertSucceeds(updateDoc(ref(as(), 'characters/hero'), { 'lubec.condition': deleteField(), sheetRevision: 5 }))
+  })
+  it('rebases a stale owner edit without erasing a newer GM condition', async () => {
+    await saveSheetIntention(as(), ref(as(), 'characters/hero'), { operationId: 'gm-condition', baseRevision: 0, edits: [{ kind: 'set', path: ['lubec', 'condition'], base: { exists: false }, value: 'dead' }] })
+    await saveSheetIntention(as('player'), ref(as('player'), 'characters/hero'), { operationId: 'owner-age', baseRevision: 0, edits: [{ kind: 'set', path: ['lubec', 'age'], base: { exists: true, value: null }, value: 15 }] })
+    expect(await storedSheet()).toMatchObject({ lubec: { condition: 'dead', age: 15 } })
+  })
+  it.each(['characters/hero', 'npcSheets/roy'])('continues wounds and countdowns on a Dead %s', async (path) => {
+    await seed(path, { ...sheet(), lubec: { ...sheet().lubec, condition: 'dead' } })
+    const selection = path.startsWith('npcSheets') ? { kind: 'npc' as const, sheetId: 'roy' } : target
+    await fixture([wound({ target: selection })])
+    await deliverCombatWound(as(), scope, 'gm', 'wound')
+    expect(await storedSheet(as(), path)).toMatchObject({ lubec: { condition: 'dead', counters: { trauma: 1 }, effects: [expect.anything()] } })
+  })
 })

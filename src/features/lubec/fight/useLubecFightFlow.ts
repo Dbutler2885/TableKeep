@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { lubecChosenWeaponName } from './lubecFightWeapons'
-import { lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantKey, lubecTargetChoices, type LubecCombatant, type LubecFightRequest } from './lubecFightRequest'
+import { lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantHands, lubecCombatantKey, lubecTargetChoices, type LubecCombatant, type LubecFightRequest } from './lubecFightRequest'
 
 export const WEAPON_STEP = 0
 export const TARGET_STEP = 1
@@ -10,7 +10,7 @@ function useWeaponChoice(request: LubecFightRequest) {
   const gear = lubecCombatantGear(request.attacker)
   const [weaponId, setWeaponId] = useState(request.weaponItemId ?? null)
   const [attackId, setAttackId] = useState(request.attackId ?? null)
-  const weaponName = lubecChosenWeaponName(gear, weaponId, lubecCombatantFightingTraining(request.attacker), attackId)
+  const weaponName = lubecChosenWeaponName(gear, weaponId, lubecCombatantFightingTraining(request.attacker), attackId, lubecCombatantHands(request.attacker))
   const choose = (id: string) => { setWeaponId(id); setAttackId(null) }
   return { gear, weaponId, weaponName, setWeaponId: choose }
 }

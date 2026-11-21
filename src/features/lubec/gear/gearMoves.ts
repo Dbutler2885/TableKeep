@@ -17,6 +17,7 @@ import {
   lubecSwapOf,
   lubecSwappedToast,
 } from './moveLabels'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /** A move waiting on a Strength roll: the thing, where it goes, and the boxes it was dropped on. */
 export type LubecHeavyMove = { itemId: string; dest: string; cells: readonly number[] | null }
@@ -29,14 +30,14 @@ export type LubecGearMove =
 
 const refused = (msg: string) => ({ kind: 'refused' as const, msg })
 
-function swapped(gear: LubecGear, i: LubecItem, o: LubecItem): LubecGearMove {
-  const s = lubecSwapItems(gear, i, o)
+function swapped(gear: LubecGear, i: LubecItem, o: LubecItem, hands: LubecHandLimits): LubecGearMove {
+  const s = lubecSwapItems(gear, i, o, hands)
   return s.ok ? { kind: 'done', gear: s.gear, toast: lubecSwappedToast(s.a, s.b, s.cost, s.gear) } : refused(s.msg)
 }
 
 // Rule E5: a heavy thing that would come onto you asks first; one that can't go there is refused before anyone rolls.
-function moved(gear: LubecGear, i: LubecItem, dest: string, cells: readonly number[] | null): LubecGearMove {
-  const m = lubecMoveItem(gear, i.id, dest, cells)
+function moved(gear: LubecGear, i: LubecItem, dest: string, cells: readonly number[] | null, hands: LubecHandLimits): LubecGearMove {
+  const m = lubecMoveItem(gear, i.id, dest, cells, hands)
   if (!m.ok) return refused(m.msg)
   if (lubecNeedsStrength(i, dest, i)) return { kind: 'ask', move: { itemId: i.id, dest, cells } }
   return { kind: 'done', gear: m.gear, toast: lubecMovedToast(m.item, i.carrier, dest, m.gear) }
@@ -47,32 +48,32 @@ function moved(gear: LubecGear, i: LubecItem, dest: string, cells: readonly numb
  * the roll is answered, recording `check` on the thing; with no check, as when
  * nobody is asked, it moves and waits for its owner to roll.
  */
-export function lubecHeavyMove(gear: LubecGear, { itemId, dest, cells }: LubecHeavyMove, check: LubecCheck | null): Extract<LubecGearMove, { kind: 'done' | 'refused' }> {
+export function lubecHeavyMove(gear: LubecGear, { itemId, dest, cells }: LubecHeavyMove, check: LubecCheck | null, hands: LubecHandLimits = LUBEC_FREE_HANDS): Extract<LubecGearMove, { kind: 'done' | 'refused' }> {
   const from = gear.items.find((x) => x.id === itemId)?.carrier ?? ''
-  const m = lubecMoveItem(gear, itemId, dest, cells)
+  const m = lubecMoveItem(gear, itemId, dest, cells, hands)
   if (!m.ok) return refused(m.msg)
   return { kind: 'done', gear: check ? lubecWithCheck(m.gear, itemId, check) : m.gear, toast: lubecMovedToast(m.item, from, dest, m.gear) }
 }
 
 /** The card's Move it or Swap, for the choice `value` in its Move list. A refused move points at swapping when it could. */
-export function lubecCardMove(gear: LubecGear, i: LubecItem, value: string): LubecGearMove {
+export function lubecCardMove(gear: LubecGear, i: LubecItem, value: string, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecGearMove {
   if (value === LUBEC_DROP_DEST) return { kind: 'drop' }
   const o = lubecSwapOf(gear, value)
-  if (o) return swapped(gear, i, o)
-  const m = moved(gear, i, value, null)
+  if (o) return swapped(gear, i, o, hands)
+  const m = moved(gear, i, value, null, hands)
   return m.kind === 'refused' ? refused(lubecRefusal(gear, i, m.msg)) : m
 }
 
 // A move to a place in the record: arranging inside the main pocket is free and isn't a move.
-function placed(gear: LubecGear, it: LubecItem, hot: LubecDropTarget): LubecGearMove {
+function placed(gear: LubecGear, it: LubecItem, hot: LubecDropTarget, hands: LubecHandLimits): LubecGearMove {
   const packed = hot.repack ? lubecRepackMain(gear) : gear
   if (hot.cells && lubecInMain(it)) return { kind: 'done', gear: lubecArrangeItem(packed, it.id, hot.cells), toast: lubecArrangedToast(it) }
-  return moved(packed, it, hot.dest, hot.cells ?? null)
+  return moved(packed, it, hot.dest, hot.cells ?? null, hands)
 }
 
 /** Letting go of a dragged thing over `hot`: it costs exactly what the Move button would (Rule M7). */
-export function lubecDragMove(gear: LubecGear, it: LubecItem, hot: LubecDropTarget): LubecGearMove {
+export function lubecDragMove(gear: LubecGear, it: LubecItem, hot: LubecDropTarget, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecGearMove {
   if (!hot.ok) return refused(hot.why ?? '')
-  if (hot.swap) return swapped(gear, it, hot.swap)
-  return hot.dest === LUBEC_DROP_DEST ? { kind: 'drop' } : placed(gear, it, hot)
+  if (hot.swap) return swapped(gear, it, hot.swap, hands)
+  return hot.dest === LUBEC_DROP_DEST ? { kind: 'drop' } : placed(gear, it, hot, hands)
 }

@@ -76,6 +76,12 @@ export class SessionRecorder {
   readonly startedAtMs: number
   /** Told when something a person should know about happens. Set at any time. */
   onAlarm: ((alarm: RecorderAlarm) => void) | null
+  /**
+   * Told of each speaker's utterances as they are transcribed, live or caught
+   * up after a restart. Set at any time. Whatever it does, and however it
+   * fails, the recording goes on.
+   */
+  onUtterances: ((utterances: readonly Utterance[]) => void) | null = null
   #options: RecorderOptions
   #store: SessionStore
   #journal: JournalWriter
@@ -371,6 +377,13 @@ export class SessionRecorder {
     const transcription = this.#transcription.get(speakerId)
     if (!transcription) return
     this.#utteranceCounts.set(speakerId, (this.#utteranceCounts.get(speakerId) ?? 0) + utterances.length)
+    if (utterances.length > 0) {
+      try {
+        this.onUtterances?.(utterances)
+      } catch {
+        // Whoever is listening is never a reason for the transcript not to be stored.
+      }
+    }
     const write = transcription.publishing.then(() =>
       this.#store.publishUtterances(this.location, speakerId, utterances, checkpointSamples),
     )

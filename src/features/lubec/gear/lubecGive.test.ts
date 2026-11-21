@@ -19,7 +19,7 @@ const options = (extra: Partial<LubecGiveOptions> = {}): LubecGiveOptions => ({
   from: tommy,
   characters: [tommy, stephen],
   outgoing: [],
-  store: { updateCharacterNow: vi.fn(), hasPendingWrite: () => false },
+  store: { settleSaves: vi.fn(async () => undefined) },
   createTransfer: vi.fn(async () => undefined),
   cancelTransfer: vi.fn(async () => undefined),
   ...extra,
@@ -41,15 +41,13 @@ describe('lubecGiveTargets', () => {
 })
 
 describe('an offer', () => {
-  it('sends the sheet\'s waiting save and waits for it before the offer is written', async () => {
+  it('settles the sheet\'s saves before the offer is written', async () => {
     const order: string[] = []
-    let waiting = true
     const store = {
-      updateCharacterNow: () => {
-        order.push('save')
-        waiting = false
+      settleSaves: async (id: string) => {
+        await Promise.resolve()
+        order.push(`settled ${id}`)
       },
-      hasPendingWrite: () => waiting,
     }
     const createTransfer = vi.fn(async () => {
       order.push('offer')
@@ -58,7 +56,7 @@ describe('an offer', () => {
 
     await expect(give.offer(flashlight, give.targets[0], 1)).resolves.toEqual({ ok: true })
 
-    expect(order).toEqual(['save', 'offer'])
+    expect(order).toEqual(['settled Tommy', 'offer'])
     const { carrier: _carrier, pocket: _pocket, ...snapshot } = flashlight
     expect(createTransfer).toHaveBeenCalledWith(snapshot, 'light', { id: 'Tommy', name: 'Tommy', ownerUserId: 'player-1' }, give.targets[0])
   })
