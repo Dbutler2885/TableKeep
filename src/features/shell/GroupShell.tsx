@@ -79,6 +79,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
           onSelectGroup={handleSelectGroup}
           onSignOut={handleSignOut}
           discordUserId={isDemoVisitor ? undefined : user.uid}
+          loading={loading}
         />
       ) : !selectedCampaignId ? (
         <GroupHome

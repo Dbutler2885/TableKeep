@@ -14,9 +14,11 @@ type GroupPickerProps = {
   onSignOut: () => void
   /** The signed-in account, or undefined for a demo visitor, who has no Discord connection to manage. */
   discordUserId?: string
+  /** The groups have not arrived yet, so an empty list is not "no groups". */
+  loading?: boolean
 }
 
-export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, onSignOut, discordUserId }: GroupPickerProps) {
+export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, onSignOut, discordUserId, loading = false }: GroupPickerProps) {
   const [createOpen, setCreateOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -65,7 +67,11 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, on
           </>
         ) : null}
 
-        {groups.length === 0 ? (
+        {groups.length === 0 && loading ? (
+          <div className="group-empty-state" role="status">
+            <h2>Opening your groups&hellip;</h2>
+          </div>
+        ) : groups.length === 0 ? (
           <div className="group-empty-state">
             <h2>No groups yet</h2>
             <p>You don&rsquo;t belong to any groups yet. Create one, or ask a friend to send you an invite link.</p>

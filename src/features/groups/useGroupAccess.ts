@@ -60,9 +60,17 @@ export function useGroupAccess(user: User) {
       where('status', '==', 'active'),
     )
 
+    // When the server is slow the SDK can first answer from its local cache, which holds no memberships yet.
+    // That empty answer is not "you have no groups": wait for the server, listening to metadata so a
+    // server answer that is also empty still arrives, and skip later metadata-only events.
+    let answered = false
     const unsub = onSnapshot(
       membershipQuery,
+      { includeMetadataChanges: true },
       (snap) => {
+        if (snap.metadata.fromCache && snap.empty) return
+        if (answered && snap.docChanges().length === 0) return
+        answered = true
         void (async () => {
           try {
             const nextGroups = await Promise.all(
