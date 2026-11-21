@@ -6,13 +6,13 @@ import { LubecFightWindowContent } from '../../fight/LubecFightWindowContent'
 import { lubecCombatantFace, lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
 import { clampHandle } from '../engine/attackMath'
 import { combatOpponents } from '../engine/attackParty'
-import { downCards } from '../engine/down'
+import { combatPosture } from '../engine/posture'
 import { combatInputModifiers } from '../engine/inputModifiers'
 import type { CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackBar, AttackScale, SegmentRoll } from './AttackBar'
 import type { AttackCommands, DeclarePick } from './attackCommands'
 import { attackSum, initialDraft, labelPlace, segmentMiddle, withDefense, withWeapon, type AttackDraft } from './attackDraft'
-import { attackWindowModel, type AttackReading, type AttackWindowModel } from './attackWindowModel'
+import { attackWindowModel, postureTargets, type AttackReading, type AttackWindowModel } from './attackWindowModel'
 import { AttackDefenseLine, DefenseLineSelect } from './AttackWindowParts'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
 import { CombatStepper, CombatWindow, NoticeSlot, type SlotNotice } from './CombatParts'
@@ -53,12 +53,12 @@ type NoticeInputs = { state: CombatState; declarer: Combatant; refusal: string |
 function declareNotices({ state, declarer, refusal, evading, down, reach }: NoticeInputs): SlotNotice[] {
   const rejected = 'The GM rejected your declaration. Choose again.'
   const evasive = 'No attack this round: declare Full Defense against one person.'
-  const grounded = 'No attack from the ground: declare Full Defense against one person.'
+  const grounded = 'Nobody they can attack from the ground: declare Full Defense against one person.'
   const notices: (SlotNotice | null)[] = [
     refusal ? { key: 'refusal', tone: 'hot', role: 'alert', body: refusal, words: refusal } : null,
     declarer.declarationRejected ? { key: 'rejected', tone: 'hot', role: 'status', body: rejected, words: rejected } : null,
     evading ? { key: 'evading', tone: 'cool', role: 'status', body: <><b>{declarer.name} moved evasively.</b> {evasive}</>, words: `${declarer.name} moved evasively. ${evasive}` } : null,
-    down && !evading ? { key: 'down', tone: 'cool', role: 'status', body: <><b>{declarer.name} is knocked down.</b> {grounded}</>, words: `${declarer.name} is knocked down. ${grounded}` } : null,
+    down && !evading ? { key: 'down', tone: 'cool', role: 'status', body: <><b>{declarer.name} is on the ground.</b> {grounded}</>, words: `${declarer.name} is on the ground. ${grounded}` } : null,
     aimedNotice(state, declarer),
     reach ? { key: 'reach', tone: 'cool', role: 'status', body: reach, words: reach } : null,
   ]
@@ -163,18 +163,27 @@ const draftNames = (draft: AttackDraft): string => draft.defense?.against ?? dra
 /** Full Defense names one person: the one picked for it, else whoever the draft names. */
 const guardedKey = (picked: string | null, draft: AttackDraft): string => picked ?? draftNames(draft)
 
+/** The opponents the declarer can attack from their posture, so the window starts on one of them; else every opponent, for Full Defense. */
+function attackableKeys({ state, declarer, sheet, roster }: BodyProps, context: { fightId: string; round: number }): string[] {
+  const fighters = combatOpponents(state, declarer).map((entry) => combatFightCombatant(entry, roster)).filter((entry): entry is LubecCombatant => entry !== null)
+  const attackable = postureTargets(fighters, sheet, context).map(lubecCombatantKey)
+  // With nobody to attack, Full Defense still guards against someone: start on the first opponent.
+  return attackable.length ? attackable : combatOpponents(state, declarer).map((entry) => entry.key)
+}
+
 function DeclareBody(body: BodyProps) {
   const { state, declarer, sheet } = body
-  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, orderedOpponentKeys(state, declarer, combatOpponents(state, declarer).map((entry) => entry.key))))
+  const context = { fightId: body.fightId, round: state.round }
+  const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, orderedOpponentKeys(state, declarer, attackableKeys(body, context))))
   // Evasive Movement used this round's action: Full Defense is all that is left to declare.
   const evading = declarer.movement?.choice === 'evade'
-  // Still knocked down: no attack from the ground, so the same Full Defense only.
-  const down = downCards(sheet, { fightId: body.fightId, round: state.round }).length > 0
+  const run = useCombatRun()
+  const model = attackWindowModel({ state, attack: draftAttack(declarer), attacker: declarer, sheet, draft, fightId: body.fightId, roster: body.roster })
+  // On the ground with nobody the posture rules let them attack: the same Full Defense only.
+  const down = combatPosture(sheet, context) === 'prone' && model.targets.length === 0
   const [fullChosen, setFull] = useState(false)
   const full = evading || down || fullChosen
   const [against, setAgainst] = useState<string | null>(null)
-  const run = useCombatRun()
-  const model = attackWindowModel({ state, attack: draftAttack(declarer), attacker: declarer, sheet, draft, fightId: body.fightId, roster: body.roster })
   const parts = { body, draft, setDraft, model, run, onFull: setFull }
   const guarded = guardedKey(against, draft)
   return (

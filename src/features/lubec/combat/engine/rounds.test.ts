@@ -393,12 +393,26 @@ describe('standing during Movement', () => {
     expect(who(declared, HERO).declaration).toMatchObject({ lost: true, stopped: true, lines: [] })
     expect(state(declared).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
   })
-  it('staying down allows no attack from the ground, only Full Defense', () => {
+  it('a fighter on the ground cannot attack someone standing, only Full Defense', () => {
     const records = declaring(downMovement())
     const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
-    expect(() => act(records, { type: 'declare', actor: HERO, by: player, aim })).toThrow('Wayne is knocked down: no attack from the ground. Declare Full Defense instead.')
+    expect(() => act(records, { type: 'declare', actor: HERO, by: player, aim })).toThrow('Wayne is on the ground and cannot attack Roy, who is standing.')
     const guarded = act(records, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).records
     expect(who(guarded, HERO).proposedDeclaration).toMatchObject({ full: true, lines: [{ against: ROY }] })
+  })
+  it('two fighters on the ground cannot attack each other until the grappling rules arrive', () => {
+    const records = declaring(downMovement())
+    const royRecord = records.sheets.find((sheet) => sheet.sheetId === 'roy')!
+    royRecord.sheet = { ...royRecord.sheet, effects: [downEffect] }
+    const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
+    expect(() => act(records, { type: 'declare', actor: HERO, by: player, aim })).toThrow('Wayne and Roy are both on the ground: attacks on the ground wait for the grappling rules.')
+  })
+  it('someone standing can attack a fighter on the ground', () => {
+    const records = declaring()
+    const royRecord = records.sheets.find((sheet) => sheet.sheetId === 'roy')!
+    royRecord.sheet = { ...royRecord.sheet, effects: [downEffect] }
+    const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
+    expect(who(act(records, { type: 'declare', actor: HERO, by: player, aim }).records, HERO).proposedDeclaration).toMatchObject({ full: false, aim: { targetKey: ROY } })
   })
   it('a successful Stand clears the card, so the fighter can attack again', () => {
     const records = downMovement()

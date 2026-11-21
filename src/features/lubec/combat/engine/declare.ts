@@ -10,8 +10,8 @@ import { requireDelivered } from './initiative'
 import { withLostActions } from './stages'
 import { combatantKey } from './inputs'
 import { combatInputModifiers } from './inputModifiers'
-import { downCards } from './down'
-import type { CombatCommand, Combatant, CombatDeclaration, CombatFight, CombatHandler, CombatSheet, CombatState } from './types'
+import { requirePostureAllows } from './posture'
+import type { CombatCommand, Combatant, CombatDeclaration, CombatFight, CombatHandler, CombatRecords, CombatSheet, CombatState } from './types'
 
 /** Run's settled cost: the engine records an empty declaration, with no attack and no Defense. */
 export const RAN: CombatDeclaration = { ran: true, full: false, aim: null, frozen: null, total: 0, lines: [], sourceRevision: 0 }
@@ -88,11 +88,11 @@ function fullDefense(fight: CombatFight, declarer: Combatant, record: CombatShee
 }
 
 /** An attack and at most one named Defense line, split from the same pool in tens and frozen now. */
-function attackDeclaration(fight: CombatFight, declarer: Combatant, record: CombatSheet, command: CombatCommand): CombatDeclaration {
+function attackDeclaration(fight: CombatFight, declarer: Combatant, record: CombatSheet, command: CombatCommand, records: CombatRecords): CombatDeclaration {
   if (declarer.movement?.choice === 'evade') throw new Error(`${declarer.name} moved evasively, which uses the action: no attack this round. Declare Full Defense instead.`)
-  if (downCards(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round }).length) throw new Error(`${declarer.name} is knocked down: no attack from the ground. Declare Full Defense instead.`)
   const aim = readCombatAim(command.payload.aim)
   requireAimPeople(fight.state, declarer, aim)
+  requirePostureAllows(records, fight.state, declarer, aim.targetKey, { fightId: command.envelope.fightId, round: fight.state.round })
   const frozen = freeze(record, aim, readingFor(record, aim, fight, command.envelope.fightId))
   return { ran: false, full: false, aim, frozen, total: frozen.total, lines: aim.defense ? [aim.defense] : [], sourceRevision: frozen.sourceRevision }
 }
@@ -112,7 +112,7 @@ const declare: CombatHandler = (command, records, authority, entropy) => {
   const fight = requireLiveContext(command, records, authority)
   const declarer = requireDeclarer(fight.state, command)
   const record = canonicalSheet(fight.state, declarer, records)
-  const declaration = command.payload.full === true ? fullDefense(fight, declarer, record, command) : attackDeclaration(fight, declarer, record, command)
+  const declaration = command.payload.full === true ? fullDefense(fight, declarer, record, command) : attackDeclaration(fight, declarer, record, command, records)
   if (declarer.kind === 'npc') {
     requireGm(authority)
     return finishDeclaration(fight, declarer, declaration, entropy)

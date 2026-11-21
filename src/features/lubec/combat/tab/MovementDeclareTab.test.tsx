@@ -523,11 +523,11 @@ it('says on a down player\'s Stay down that it means no attack from the ground',
   expect(radio(/^Stay down/).textContent).toBe('Stay downNo attack from the ground this round.')
 })
 
-it('keeps a down fighter who stayed down to Full Defense when they declare', () => {
+it('keeps a fighter on the ground, with only standing opponents, to Full Defense when they declare', () => {
   currentWayne = () => { const record = wayne(); record.lubec.effects = downCard(); return record }
   mocks.roster = { characters: [currentWayne()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
   show('player', 'wayne-uid', fightAfter(...declaring()))
-  expect(screen.getByText(/No attack from the ground: declare Full Defense against one person/)).toBeTruthy()
+  expect(screen.getByText(/Nobody they can attack from the ground: declare Full Defense against one person/)).toBeTruthy()
   expect(button('Declare Full Defense')).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
 })

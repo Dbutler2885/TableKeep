@@ -7,6 +7,7 @@ import { combatInputModifiers } from './inputModifiers'
 import { requireChooseAgain } from './chooseAgain'
 import { isRoundAttack } from './roundAttacks'
 import type { CombatAim, CombatAttack, CombatCommand, Combatant, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
+import { requirePostureAllows } from './posture'
 
 const isText = (value: unknown): value is string => typeof value === 'string' && value.length > 0
 
@@ -99,6 +100,7 @@ const aim: CombatHandler = (command, records, authority) => {
   const attack = attackAt(fight.state, command, 'aim')
   const attacker = combatantOf(fight.state, attack.attackerKey)
   const next = requestedAim(fight.state, attack, attacker, command.payload.aim)
+  requirePostureAllows(records, fight.state, attacker, next.targetKey, { fightId: command.envelope.fightId, round: fight.state.round })
   const record = combatSheetOf(records, attacker)
   const repair = attackRepair(attacker, record)
   if (repair) return repairPlan(fight, attack, attacker, repair)

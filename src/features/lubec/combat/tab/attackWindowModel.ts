@@ -1,5 +1,5 @@
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
-import { lubecCombatantKey, type LubecCombatant } from '../../fight/lubecFightRequest'
+import { lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
 import { combatAttackReading, type CombatAttackSkill } from '../engine/attackMath'
 import { combatOpponents } from '../engine/attackParty'
 import { combatInputModifiers } from '../engine/inputModifiers'
@@ -7,6 +7,7 @@ import { lubecFightAttack } from '../../fight/lubecFightWeapons'
 import { combatFightingTraining } from '../engine/attackMath'
 import { evasionFor } from '../engine/evasion'
 import { isRoundAttack } from '../engine/roundAttacks'
+import { combatPosture, postureAllowsAttack } from '../engine/posture'
 import type { CombatAim, CombatAttack, CombatAttackRange, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, completeAim, sameAim, type AttackDraft, type AttackSegments } from './attackDraft'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
@@ -68,6 +69,15 @@ export type AttackWindowModel = {
 
 const readable = (entry: LubecCombatant | null): entry is LubecCombatant => entry !== null
 
+/** The opponents this attacker can attack from their posture and the target's; Defense still names any opponent. */
+export function postureTargets(targets: readonly LubecCombatant[], sheet: LubecCharacterSheet, context: { fightId: string; round: number }): LubecCombatant[] {
+  const mine = combatPosture(sheet, context)
+  return targets.filter((target) => {
+    const theirs = lubecCombatantRecord(target)?.lubec
+    return !theirs || postureAllowsAttack(mine, combatPosture(theirs, context))
+  })
+}
+
 const heldRange = (attack: CombatAttack, held: boolean): CombatAttackRange | null => (held ? attack.range ?? null : null)
 
 function windowSplit(reading: AttackReading | null, target: LubecCombatant | null, draft: AttackDraft, range: CombatAttackRange | null, evasion: number): AttackSplit | null {
@@ -89,7 +99,7 @@ export function attackWindowModel({ state, fightId, attack, attacker, roster, sh
   const reading = windowReading(attack, aim, sheet, { fightId, round: state.round })
   const range = heldRange(attack, held)
   const opponents = combatOpponents(state, attacker)
-  const targets = opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable)
+  const targets = postureTargets(opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable), sheet, { fightId, round: state.round })
   const target = windowTarget(targets, draft.targetKey)
   const ready = rollReady(attack, aim, reading) && (!isRoundAttack(state, attack) || held)
   const evasion = heldEvasion(state, attack, held)
