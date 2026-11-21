@@ -31,6 +31,8 @@ describe('pausing Firestore while the page is hidden', () => {
   it('stops every listener once the page has been hidden for the grace period, and starts them when it is shown', () => {
     const calls = network()
     renderHook(() => useFirestorePausedWhileHidden(firestore, calls))
+    // A page that has not paused leaves the client alone.
+    expect(calls.enable).not.toHaveBeenCalled()
     show('hidden')
     act(() => { vi.advanceTimersByTime(FIRESTORE_HIDDEN_GRACE_MS - 1) })
     expect(calls.disable).not.toHaveBeenCalled()
@@ -48,5 +50,6 @@ describe('pausing Firestore while the page is hidden', () => {
     show('visible')
     act(() => { vi.advanceTimersByTime(FIRESTORE_HIDDEN_GRACE_MS * 2) })
     expect(calls.disable).not.toHaveBeenCalled()
+    expect(calls.enable).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { disableNetwork, enableNetwork, type Firestore } from 'firebase/firestore'
 import { useDocumentVisibility } from './useDocumentVisibility'
 
@@ -16,12 +16,20 @@ const firestoreNetwork: Network = { disable: disableNetwork, enable: enableNetwo
  */
 export function useFirestorePausedWhileHidden(firestore: Firestore, network: Network = firestoreNetwork) {
   const visible = useDocumentVisibility()
+  const paused = useRef(false)
   useEffect(() => {
     if (visible) {
-      void network.enable(firestore)
+      // Only a pause of ours is undone: a page that never paused leaves the client alone.
+      if (paused.current) {
+        paused.current = false
+        void network.enable(firestore)
+      }
       return undefined
     }
-    const timer = window.setTimeout(() => { void network.disable(firestore) }, FIRESTORE_HIDDEN_GRACE_MS)
+    const timer = window.setTimeout(() => {
+      paused.current = true
+      void network.disable(firestore)
+    }, FIRESTORE_HIDDEN_GRACE_MS)
     return () => window.clearTimeout(timer)
   }, [visible, firestore, network])
 }
