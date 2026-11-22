@@ -962,8 +962,10 @@ button:hover {
 
 /* === Campaign settings ================================================ */
 
+/* Wide enough that a locked tab's name and its "required" badge fit one column in every theme. */
 .confirm-modal.group-modal.campaign-settings-modal {
-  width: min(94vw, 460px);
+  width: min(94vw, 500px);
+  max-width: none;
 }
 
 .settings-section {
