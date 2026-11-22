@@ -17,14 +17,16 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { deleteCampaignDeep } from '../campaign/deleteCampaignDeep'
+import { tabs } from '../navigation/tabs'
 import type { AppTab, Campaign, GroupRecord, GroupMemberRole } from '../../types/app'
 
-const KNOWN_TABS: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules']
+// Every tab the app has, so a saved tab the reader does not know is dropped and none it does know is.
+const KNOWN_TABS: readonly string[] = tabs.map((tab) => tab.id)
 
-function normalizeCampaign(id: string, groupId: string, data: Record<string, unknown>): Campaign {
+export function normalizeCampaign(id: string, groupId: string, data: Record<string, unknown>): Campaign {
   const enabledTabsRaw = Array.isArray(data.enabledTabs) ? data.enabledTabs : null
   const enabledTabs = enabledTabsRaw
-    ? (enabledTabsRaw.filter((t) => typeof t === 'string' && (KNOWN_TABS as string[]).includes(t)) as AppTab[])
+    ? (enabledTabsRaw.filter((t) => typeof t === 'string' && KNOWN_TABS.includes(t)) as AppTab[])
     : undefined
   return {
     id,

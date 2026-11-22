@@ -247,6 +247,7 @@ describe('campaign settings tabs', () => {
     ]],
     ['lubec', [
       ['character', 'Character', true],
+      ['combat', 'Combat', false],
       ['maps', 'Maps', false],
       ['items', 'Items', false],
       ['npcs', 'NPCs', false],

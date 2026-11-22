@@ -3,8 +3,8 @@ import type { NavigateFunction } from 'react-router-dom'
 import { db } from '../../../firebase'
 import type { CampaignScope } from '../../campaign/firestorePaths'
 import { campaignTabPath, type GameSystem } from '../../navigation/tabs'
+import { campaignTabEnabled } from '../../shell/shellTabs'
 import type { Campaign, Role } from '../../../types/app'
-import { lubecCombatEnabled } from './combatGate'
 import { subscribeCombat } from './combatSubscription'
 import { arrivingFightId, LUBEC_COMBAT_OFF, liveFightOf, lubecCombatTabAccess, type LubecCombatWatch, type LubecLiveFight } from './combatWatch'
 
@@ -52,13 +52,14 @@ type ShellOptions = {
   setError: (message: string) => void
 }
 
+// Only a Lubec campaign whose tab settings turn Combat on follows its fight.
 const followed = (campaign: Campaign | null, gameSystem: GameSystem): CampaignScope | null =>
-  (campaign && gameSystem === 'lubec' && lubecCombatEnabled ? { groupId: campaign.groupId, campaignId: campaign.id } : null)
+  (campaign && gameSystem === 'lubec' && campaignTabEnabled(gameSystem, campaign.enabledTabs, 'combat') ? { groupId: campaign.groupId, campaignId: campaign.id } : null)
 
-/** The workspace's fight: the shared watch, what the nav offers, and the once-per-fight move to the Combat tab. */
 /** Where the Combat tab is for this campaign; nowhere outside one. */
 export const combatPath = (campaign: Campaign | null): string => (campaign ? campaignTabPath(campaign.groupId, campaign.id, 'combat') : '')
 
+/** The workspace's fight: the shared watch, what the nav offers, and the once-per-fight move to the Combat tab. */
 export function useLubecCombatShell({ campaign, gameSystem, role, userId, navigate, setError }: ShellOptions) {
   const watch = useLubecCombatWatch(followed(campaign, gameSystem), setError)
   const path = combatPath(campaign)

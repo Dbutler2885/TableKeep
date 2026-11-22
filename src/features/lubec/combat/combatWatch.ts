@@ -6,8 +6,8 @@ import type { CombatFight } from './engine/types'
 export type LubecLiveFight = { id: string; fight: CombatFight }
 
 /**
- * The workspace's one view of the campaign's fight: whether this build and
- * campaign follow fights at all, whether the first read has arrived, and the
+ * The workspace's one view of the campaign's fight: whether the campaign
+ * follows fights at all (Lubec, with Combat on in its tab settings), whether the first read has arrived, and the
  * live fight, if there is one.
  */
 export type LubecCombatWatch = {

@@ -28,14 +28,14 @@ const { GroupShell } = await import('./GroupShell')
 const show = () => render(<GroupShell user={{ uid: 'p' } as User} username="someone" isDemoVisitor={mocks.demo} />)
 afterEach(() => { cleanup(); mocks.path = '/groups/g/campaigns/c/notes'; mocks.selected = true; mocks.campaign = true; mocks.demo = false; mocks.enabled = false })
 describe('the workspace feedback boundary', () => {
-  it('preserves workspace content on another tab while the combat gate is disabled', () => {
+  it('preserves workspace content on another tab while combat is off', () => {
     show()
     expect(screen.getByText('Campaign tab content')).toBeTruthy()
     expect(document.querySelector('.combat-cards')).toBeNull()
     expect(screen.queryByRole('button', { name: /Your turn/ })).toBeNull()
     expect(mocks.workspace.mock.lastCall![0]).toMatchObject({ activeTab: 'notes', gameSystem: 'lubec', user: { uid: 'p' } })
   })
-  it('mounts feedback around campaign content when the combat gate is enabled', () => {
+  it('mounts feedback around campaign content when combat is on', () => {
     mocks.enabled = true
     show()
     expect(screen.getByText('Campaign tab content')).toBeTruthy()
