@@ -1,0 +1,93 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDismissOnOutside } from '../../common/useDismissOnOutside'
+import { useCombatLogView } from './CombatLogContext'
+import { combatLogText, combatLogTime, type CombatLogEntry } from './combatLog'
+import type { Role } from '../../../types/app'
+import { combatActionNotice, combatActionText, type ViewerCombatAction } from './pendingActions'
+import type { CombatRoll } from './engine/combatFeedback'
+import { combatRollComparison, combatRollVerdict } from './combatRollPresentation'
+import { useCombatRollSpin } from './useCombatRollSpin'
+import { useCombatRollDismiss } from './useCombatRollDismiss'
+import { revealedEntries } from './combatReveal'
+import { LubecRollBreakdown } from '../LubecRollBreakdown'
+
+function RollNumbers({ roll, value, rolling }: { roll: CombatRoll; value: string; rolling: boolean }) {
+  const comparison = combatRollComparison(roll)
+  return (
+    <div className="rn" aria-hidden={rolling}>
+      <b key={value}>{value}</b>
+      {comparison ? <><span className="relation">{rolling ? 'TARGET' : comparison.relation}</span><strong>{comparison.target}</strong></> : <span>{roll.target}</span>}
+    </div>
+  )
+}
+
+const NO_BREAKDOWN = { name: '', target: 0, parts: null }
+
+/** Both dice under a mode with the kept one marked, and how the number the roll was made under was reached. */
+function CombatRollBreakdown({ roll }: { roll: CombatRoll }) {
+  const { name, target, parts } = roll.breakdown ?? NO_BREAKDOWN
+  return <LubecRollBreakdown dice={roll.dice ? { ...roll.dice, kept: Number(roll.roll) } : null} parts={parts} name={name} target={target} />
+}
+
+function RollDetails({ roll, detail }: { roll: CombatRoll; detail: string }) {
+  return <>
+    {detail ? <p className="roll-detail">{detail}</p> : null}
+    <CombatRollBreakdown roll={roll} />
+    {roll.extra ? <p className="rx">{roll.extra}</p> : null}
+  </>
+}
+
+type CardProps = { entry: CombatLogEntry; roll: CombatRoll; onDone: (id: string) => void; onSettled: (id: string) => void }
+
+function CombatRollCard({ entry, roll, onDone, onSettled }: CardProps) {
+  const { card, gone } = useCombatRollDismiss(entry.id, onDone)
+  const spin = useCombatRollSpin(entry.id, roll.roll)
+  // Only once the number has landed may the page behind the card show what it rolled.
+  useEffect(() => { if (!spin.rolling) onSettled(entry.id) }, [spin.rolling, entry.id, onSettled])
+  const verdict = combatRollVerdict(roll.result)
+  return (
+    <div ref={card} className={`rcard ${roll.tone} ${gone ? 'gone' : ''} ${spin.rolling ? 'rolling' : 'settled'}`} data-outcome={verdict.headline}>
+      <div className="rw"><strong className="roll-who">{roll.who}</strong><span className="roll-what"> · {roll.what}</span></div>
+      <h2 className="rr">{spin.rolling ? 'Rolling...' : verdict.headline}</h2>
+      <RollNumbers roll={roll} value={spin.value} rolling={spin.rolling} />
+      <div className="roll-details" aria-hidden={spin.rolling}><RollDetails roll={roll} detail={verdict.detail} /></div>
+    </div>
+  )
+}
+
+export function CombatRollCards() {
+  const { cards, sessionKey, finishCard, settleCard } = useCombatLogView()
+  const shown = cards.slice(0, 3)
+  return <div className="combat-cards" data-count={shown.length} role="status" aria-live="polite" aria-atomic="true">{shown.map((entry) => entry.roll ? <CombatRollCard key={JSON.stringify([sessionKey, entry.id])} entry={entry} roll={entry.roll} onDone={finishCard} onSettled={settleCard} /> : null)}</div>
+}
+
+/** Closes an open drop-down on Escape or a press anywhere outside it. */
+/**
+ * The latest entry stays visible at the top of the fight; the whole immutable log drops down over the window, newest
+ * first, scrolling on its own. It stops short of a roll still revealing.
+ */
+export function CombatTicker() {
+  const entries = revealedEntries(useCombatLogView())
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const close = useCallback(() => setOpen(false), [])
+  useDismissOnOutside(box, open, close)
+  const last = entries.at(-1)
+  return (
+    <div className="ctick" ref={box} data-open={open ? 'open' : undefined}>
+      <button type="button" className="ticker" aria-expanded={open} aria-controls="combat-history" onClick={() => setOpen(!open)}>
+        <span className="label">Table</span><span className="text">{last ? `${combatLogTime(last)} ${combatLogText(last)}` : 'Nothing yet this fight.'}</span><span className="more">All {entries.length}</span><span className="chevron" aria-hidden="true" />
+      </button>
+      <ol className="ticker-list" id="combat-history" aria-label="Combat history" hidden={!open}>{[...entries].reverse().map((entry) => <li key={entry.id}><time>{combatLogTime(entry)}</time><span>{combatLogText(entry)}</span></li>)}</ol>
+    </div>
+  )
+}
+
+export function CombatTurnNotice({ actions, round = 1, role = 'player', onReturn }: { actions: ViewerCombatAction[]; round?: number; role?: Role | null; onReturn: () => void }) {
+  if (actions.length === 0) return null
+  return (
+    <button type="button" className="yourturn" onClick={onReturn} aria-label="Your turn. Go to the Combat tab">
+      <b>Your turn</b><span>{actions.map((action) => <span className="combat-action" key={`${action.combatantKey}:${action.action}`}>{actions.length === 1 ? combatActionNotice(action, round, role) : combatActionText(action)}</span>)}Click to go back to the Combat tab.</span>
+    </button>
+  )
+}

@@ -4,7 +4,8 @@
 // dropping what you hold is free (the attack prototype's rule). Pure: gear in.
 
 import type { LubecGear, LubecItem } from './gearRecord'
-import { bothHands, handsTaken, itemsIn } from './placement'
+import { LUBEC_FREE_HANDS, lubecBothHandsRefusal, lubecHandUnusable, type LubecHandLimits } from '../handLimits'
+import { bothHands, itemsIn, lubecHandsUnavailable } from './placement'
 
 /** Which hand holds a thing: slot 0 is the left, slot 1 the right, and a thing Rule W3 says takes both, both. */
 export type LubecHands = 'left' | 'right' | 'both'
@@ -39,19 +40,31 @@ export function lubecHeld(gear: LubecGear): LubecHeld[] {
     .sort((a, b) => HAND_ORDER[a.hands] - HAND_ORDER[b.hands])
 }
 
-/** How many hands are free: 2, 1 or 0. */
-export const lubecFreeHands = (gear: LubecGear): number => 2 - handsTaken(gear).size
+/** How many hands are free and usable: 2, 1 or 0. */
+export const lubecFreeHands = (gear: LubecGear, hands: LubecHandLimits = LUBEC_FREE_HANDS): number => 2 - lubecHandsUnavailable(gear, hands).size
 
-/** Fisticuffs needs a free hand. */
-export const lubecFisticuffsOffered = (gear: LubecGear): boolean => lubecFreeHands(gear) >= 1
+/** Fisticuffs needs a free, usable hand. */
+export const lubecFisticuffsOffered = (gear: LubecGear, hands: LubecHandLimits = LUBEC_FREE_HANDS): boolean => lubecFreeHands(gear, hands) >= 1
 
-/** The hands Fisticuffs fights with: both while both are free, else the free one; null with both hands full. */
-export function lubecFisticuffsHands(gear: LubecGear): LubecHands | null {
-  const taken = handsTaken(gear)
+/** The hands Fisticuffs fights with: both while both are free and usable, else the one that is; null with neither. */
+export function lubecFisticuffsHands(gear: LubecGear, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecHands | null {
+  const taken = lubecHandsUnavailable(gear, hands)
   if (taken.size === 0) return 'both'
   return taken.size === 1 ? SLOT_HANDS[taken.has(0) ? 1 : 0] : null
 }
 
-/** Both hands are full and neither holds a weapon: there is nothing to fight with until something is dropped. */
-export const lubecHandsFullOfThings = (gear: LubecGear): boolean =>
-  !lubecFisticuffsOffered(gear) && lubecHeld(gear).every((h) => !h.weapon)
+/** Both hands are full or out of use and neither holds a usable weapon: there is nothing to fight with until something is dropped. */
+export const lubecHandsFullOfThings = (gear: LubecGear, hands: LubecHandLimits = LUBEC_FREE_HANDS): boolean =>
+  !lubecFisticuffsOffered(gear, hands) && lubecHeld(gear).every((h) => !h.weapon || lubecHeldUnusable(h, hands) !== null)
+
+/** Why a held thing cannot be used: its hand is out, or it needs both hands and they cannot both be used; null when it can. */
+export function lubecHeldUnusable(held: Pick<LubecHeld, 'hands'>, hands: LubecHandLimits): string | null {
+  if (held.hands === 'both') return lubecBothHandsRefusal(hands)
+  return lubecHandUnusable(hands, SLOT_HANDS.indexOf(held.hands))
+}
+
+/** The one thing a hand holds: the thing in that hand's slot, or a thing that takes both hands; undefined for an empty hand. */
+export function lubecHeldIn(gear: LubecGear, hand: 'left' | 'right'): LubecItem | undefined {
+  const slot = hand === 'left' ? 0 : 1
+  return itemsIn(gear, 'hands').find((i) => bothHands(i) || i.slot === slot)
+}

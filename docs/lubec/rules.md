@@ -305,32 +305,32 @@ A failed Panic Check gives no Stress by itself; any Stress on the Panic row stil
 
 ### Panic table
 
-This is Mothership's Panic table, used unchanged for now.
+Use the full current Lubec Panic table below.
+Its wording is retained, including references to Rest Saves, Damage rolls and Maximum Wounds.
+Those references do not introduce new mechanics elsewhere in Lubec.
 
 | d20 | Panic effect |
 |---:|---|
 | 1 | **ADRENALINE RUSH.** Advantage on all rolls for the next 2d10 minutes. Reduce Stress by 1d5. |
 | 2 | **NERVOUS.** Gain 1 Stress. |
-| 3 | **JUMPY.** Gain 1 Stress. All Close crewmembers gain 2 Stress. |
-| 4 | **OVERWHELMED.** Disadvantage on all rolls for the next 1d10 minutes. Increase Minimum Stress by 1. |
+| 3 | **JUMPY.** Gain 1 Stress. All Close Group members gain 2 Stress. |
+| 4 | **OVERWHEMED.** Disadvantage on all rolls for the next 1d10 minutes. Increase Minimum Stress by 1. |
 | 5 | **COWARD.** Gain a new Condition: You must make a Fear Save to engage in violence, otherwise you flee. |
 | 6 | **FRIGHTENED.** Gain a new Condition: When encountering what frightened you, make a Fear Save at Disadvantage or gain 1d5 Stress. |
 | 7 | **NIGHTMARES.** Gain a new Condition: Sleep is difficult; Rest Saves are at Disadvantage. |
-| 8 | **LOSS OF CONFIDENCE.** Gain a new Condition: Choose one Skill and lose that Skill's bonus. |
-| 9 | **DEFLATED.** Gain a new Condition: Whenever a Close crewmember fails a Save, gain 1 Stress. |
+| 8 | **LOSS OF CONFIDENCE.** Gain a new Condition: Choose one Skill and lose that Skill’s bonus. |
+| 9 | **DEFLATED.** Gain a new Condition: Whenever a Close Group member fails a Save, gain 1 Stress. |
 | 10 | **DOOMED.** Gain a new Condition: You feel cursed and unlucky. All Critical Successes are instead Critical Failures. |
-| 11 | **SUSPICIOUS.** For the next week, whenever someone joins the crew (even if they only left for a short period), make a Fear Save or gain 1 Stress. |
+| 11 | **SUSPICIOUS.** Whenever you talk to an adult outside of your family make a fear save or gain 1 stress. |
 | 12 | **HAUNTED.** Gain a new Condition: Something starts visiting the character at night. In their dreams. Out of the corner of their eye. And soon it will start making demands. |
 | 13 | **DEATH WISH.** For the next 24 hours, whenever encountering a stranger or known enemy, make a Sanity Save or immediately attack them. |
 | 14 | **PROPHETIC VISION.** Character immediately experiences an intense hallucination or vision of an impending terror or horrific event. Increase Minimum Stress by 2. |
 | 15 | **CATATONIC.** Become unresponsive and unmoving for 2d10 minutes. Reduce Stress by 1d10. |
-| 16 | **RAGE.** Advantage on all Damage rolls for the next 1d10 hours. All crewmembers gain 1 Stress. |
+| 16 | **RAGE.** Advantage on all Damage rolls for the next 1d10 hours. All Group members gain 1 Stress. |
 | 17 | **SPIRALING.** Gain a new Condition: Panic Checks are at Disadvantage. |
 | 18 | **COMPOUNDING PROBLEMS.** Roll twice on this table. Increase your Minimum Stress by 1. |
-| 19 | **HEART ATTACK / SHORT CIRCUIT (ANDROIDS).** Reduce Maximum Wounds by 1. Disadvantage on all rolls for 1d10 hours. Increase Minimum Stress by 1. |
-| 20 | **RETIRE.** Roll up a new character to play. |
-
-In Lubec, "crew" and "crewmembers" mean the kid's group.
+| 19 | **HEART ATTACK.** Reduce Maximum Wounds by 1. Disadvantage on all rolls for 1d10 hours. Increase Minimum Stress by 1. |
+| 20 | **Mind in Tatters.** You have stopped making sense and you are no longer able to live in this world |
 
 How to run the rows:
 
@@ -340,6 +340,9 @@ How to run the rows:
 - Doomed is handled by the player, as written.
 - Rows that give Stress to the group (Jumpy, Rage, Deflated) are applied to the whole group by the GM.
 - Reduce and increase Stress and Minimum Stress as the row says; Stress never drops below Minimum Stress.
+
+> **Not yet decided:** the Panic table's references to Rest Saves, Damage rolls and reducing Maximum Wounds are not fully defined by Lubec's core rules.
+> Do not substitute a Trauma change, a different roll or a new limit without a table ruling.
 
 ### Stress Recovery
 
@@ -355,15 +358,30 @@ The game does not reduce Stress for self-care, altruism, solidarity, truth-telli
 
 ### Trauma and the Death Table
 
-A character rolls on the **Death Table** when:
+A **Death Save** uses the adapted Death Table below.
+Make one when any of these events happens:
 
-- their Trauma reaches 4 (5 for a Tough); or
-- a wound calls for it: an Immediate Death Save, or a Death Save countdown that runs out.
+- Trauma first reaches or passes 4 (5 for a Tough).
+- A later event adds Trauma while the character is at or above that threshold, including a bleeding timer firing or a manual Trauma increase.
+- A wound calls for an **Immediate Death Save**, whatever the Trauma total; being a Tough does not delay it.
+- A failed landing Body Save left a Critical countdown running and that countdown reaches its end.
+
+An Immediate Death Save and crossing the Trauma threshold from the same wound are one Death Save with both reasons.
+A later Critical countdown is a separate Death Save.
+A successful prevention Body Save prevents the d4 timer only; it never prevents a Death Save required by accumulated Trauma.
+Lowering Trauma never erases a Death Save already due.
+Ending a wound effect does not remove Trauma.
 
 The GM rolls the d10 hidden: they shake it in a cup and leave it face down.
 It is revealed only when someone spends a turn checking the character's vitals.
+Resolve the roll privately at the table.
+Table Keep gives the GM a reminder and the Death Table; acknowledging the reminder rolls nothing and applies nothing.
+The app does not show players a Death result or track a dying countdown.
 
 ### Death Table
+
+Read the d10 as 0-9.
+This is the adapted Mothership table, with result 0's lost maximum Health replaced by +1d5 Minimum Stress.
 
 | d10 | Result |
 |---:|---|
@@ -372,10 +390,15 @@ It is revealed only when someone spends a turn checking the character's vitals.
 | 3-4 | You are comatose. Only extraordinary measures can return you to the waking world. |
 | 5-9 | You have died. Roll up a new character. |
 
-Unconsciousness can come from a wound row (knocked unconscious) or from the Death Table.
-Either way, the character is Out of the fight.
+Reaching the Trauma threshold or becoming unconscious does not automatically make the character Out.
+Unconscious characters skip unresolved Movement, Action and Defense but remain targets in the fight.
+The GM records Comatose or Dead on the sheet when appropriate; only the GM may set, clear or change those conditions.
+Either condition blocks unresolved stages and Defense without deleting the character, undoing resolved rolls or clearing wounds.
+The GM can use Out separately to make a character unavailable as a target.
+A Death Save reminder does not pause combat automatically.
 
-> **Not yet decided:** whether to keep this table (Mothership's Death Table, with 1d5 Minimum Stress in place of lost maximum Health, since Lubec has no Health), soften it, or replace it.
+> **Not yet decided:** what intervention prevents death on result 1-2, and which extraordinary measures can end a coma.
+> The table gives no further treatment procedure for these results.
 
 ### Morale
 
@@ -403,16 +426,29 @@ A kid who cannot do real damage stops by roleplay; there is no stalemate rule.
 ### Effects and how long they last
 
 A wound, a Panic result or anything else that changes a character for a while is an **effect** on the character, and each effect notes what caused it.
-Effects stack.
+One wound may create several linked Effect cards, each with its own recovery steps.
+Only the current step of a card applies; later steps replace it when reached.
+Effects from different cards stack, as described in "Stacking wounds".
 
-The game tracks what happens in fights, not how many days pass.
-When an effect changes after a Long Rest (for example, a Severe Concussion stepping down from -40 Handle to -10), the player makes that change at the table.
-A duration that is rolled (such as "2d10 minutes") is rolled when the effect starts and written on it; nobody counts it down.
+The game tracks combat rounds, not how many days pass.
+During a fight Table Keep counts down round effects and d4 timers automatically at round boundaries.
+Long Rests, treatment, putting a joint back and minute-based endings are resolved at the table.
+Use **Step down** on the relevant card to record that its current recovery condition has been met.
+Step down removes the current step, or clears a card with no further step.
+On a PC sheet its owner or the GM can do this; an NPC sheet requires the GM.
+Clearing one card never clears its sibling cards or removes Trauma.
+
+Recovery changes ongoing penalties only.
+It never repeats the hit, Dazed, knockdown, drop, Trauma, Stress or a landing Save.
+A delayed speech-recovery Save or the specified waking Save is made once when that recovery point is reached (see "Concussion and waking" and "Recovery, treatment and lasting consequences").
+A rolled duration such as 2d10 minutes is rolled once when the effect starts and written on the card; there is no automatic minute countdown.
 
 ### Long Rest
 
-A **Long Rest** is a full night's sleep somewhere reasonably safe.
+A **Long Rest** is provisionally a full night's sleep somewhere reasonably safe.
 It is the same night that allows a Recovery Save (see "Stress Recovery").
+"After 2 Long Rests" counts from the injury, not two more after the first rest.
+Each wound row's schedule is its whole ordinary recovery; no ordinary wound requires a doctor or hospital.
 
 ### Clocks
 
@@ -423,7 +459,6 @@ A chase is run on a clock (see "Chases").
 Injuries are effects, not clocks: an effect with only one or two steps of recovery is not worth a clock.
 
 > **Not yet decided:** where the line between an effect and a clock falls, for example clocks only for recoveries of three or more steps.
-
 
 ## What a character brings to a fight
 
@@ -584,13 +619,42 @@ Some movement uses up your action, and then you have no attack and no Defense th
 
 ### When effects start
 
-Every effect of a hit starts **the round after the hit**.
-A target who is wounded this round still moves, attacks and defends as declared for the rest of this round.
-Being put **Out** is the exception: it happens at once (see "Out").
+Every effect of a located wound starts **immediately when the wound lands**.
+The six located tables are Fisticuffs, Blunt Force, Cutting, Piercing, Gunshot and Thrown Objects.
+A reduced or lasting step that follows a temporary step begins only when that earlier step ends.
+"If survived" consequences are recorded immediately without waiting for a survival decision; their recovery schedule still applies.
+Dodgeball retains its separate elimination rules and next-round effect timing.
+
+New penalties, roll modes, restrictions and dropped items apply to every roll the wounded character has not yet made this round.
+Never reroll an already resolved roll.
+If a declared Attack/Defense split no longer fits the available pool, repair it before the next unresolved roll.
+Before either part has been used, choose a legal Defense allocation and calculate the attack remainder.
+After one part has been used, its spent allocation stays locked and the other receives the remaining pool, or 0 if nothing remains.
+Keep any still-legal weapon and target; repair needs no Check or extra penalty.
+
+Losing the next Action Stage takes this round's Action, including Defense, if the character's own attack turn has not yet opened or been passed; otherwise it takes next round's.
+A Full Defense, Run or automatic declaration with no attack turn remains unresolved for the round, so an Action loss also takes its remaining Defense.
+Losing Movement takes next round's Movement, since Movement resolves before attacks.
+Overlapping stage losses combine: a stage already lost is not charged again.
 
 Timers count rounds.
-A "+1 Trauma in d4 turns" or "Death Save in d4 turns" timer that starts in round *r* runs out at the end of round *r* + d4.
-A d4 of 1 still gives the wounded character the next round's action.
+A d4 timer rolled in round R ends at the end of round R+d4, before the following round starts.
+The landing round does not use up a countdown round: a 1 rolled in round 3 fires at the end of round 4.
+A brief penalty "until the end of the next round" applies for the rest of the landing round and all of the following round, then expires even if no matching roll was made.
+Sneak Attack wounds before initiative land in round 0; their next round is round 1.
+Countdowns keep running for unconscious, Comatose, Dead and Out characters who remain in the fight.
+
+### Ending combat with wound effects
+
+Rest-of-combat effects and knocked-down cards end with the fight.
+An unfinished round window, lost-stage card or countdown becomes a card with **suggested N minutes - resolve by hand**, using its remaining rounds as minutes.
+For Dazed, use the larger of the remaining Movement and Action counts.
+These are suggestions, not a running clock.
+For an unfinished bleed, add +1 Trauma with the counter when due at the table, then Step down to clear its card.
+For an unfinished Critical countdown, the GM resolves the Death Save privately when due, then clears the card.
+Clearing such a card never applies the outcome automatically.
+Its penalties still apply to Core Checks until cleared, but it contributes no stages or combat roll penalties in a later fight.
+Manual, minute-based, Long Rest, treatment and lasting cards keep their existing schedules.
 
 ### Choosing again
 
@@ -601,7 +665,8 @@ You can change your declaration only for what has gone:
 - If your declared weapon is no longer in your hand, you may pick another weapon or attack you can make now, or pick up an item from the ground with your action (it goes into a free hand and your turn ends), or pass.
 - If both are still there, you must attack as declared.
 
-Your Defense lines stay as declared either way.
+Your still-legal Defense lines stay as declared.
+If a wound makes the split illegal, repair it as described in "When effects start".
 
 ## Movement
 
@@ -620,7 +685,9 @@ Walking covers a fixed distance and leaves your action free.
 - **Full run (sprinting):** you run your full Speed in units, but you make no attack and roll no Defense that round. Speed 65 runs 6 units, 60 meters.
 - **Partial run:** you run half your Speed and keep your full attack and Defense. Halve the Speed first, then take units: Speed 65 runs on Speed 32, so 3 units, 30 meters.
 
-Wounds that limit movement give **half Movement**: halve the distance you can walk or run.
+The final wound tables replace old half-Movement penalties with Speed Check Disadvantage for the same duration.
+Speed Check Disadvantage alone does not remove Run or Evasive Movement.
+Explicit no-run, no-evasive and crawl-only restrictions remove those choices as written.
 
 ### Evasive Movement
 
@@ -652,7 +719,10 @@ It succeeds; the tens digit is 4, half of 4 is 2, so ranged attacks at her this 
 
 Standing up after being knocked down takes your movement and your action for the round.
 Roll Speed first (d100 at or under your Speed): on a success, standing up takes only your movement and you keep your action.
-On a failure you have no attack and no Defense that round, because both are part of your action.
+On a failure you gain the usual failed-Check Stress and have no attack and no Defense that round, because both are part of your action.
+Active Speed or Physical Check Disadvantage applies to this Check.
+While down, choose Stay down or Stand; you cannot Run or move evasively.
+Staying down does not by itself prevent an attack, Defense or picking up an item.
 
 Knocked down means you fell down.
 Nobody holds you down unless they declared a grapple.
@@ -729,7 +799,13 @@ What moving things costs, in actions (you get one action a round):
 | Taking armor off | What putting it on costs |
 | Move a thing to the other hand | Free |
 
-> **Not yet decided:** the rules for dropped weapons (what happens when a wound knocks a weapon loose, and getting it back).
+A wound's automatic drop puts the struck hand's whole held stack onto the Floor, including a two-handed item held in that hand.
+An empty hand drops nothing and needs no retention Check.
+For "dropped unless a Handle Check succeeds", roll against Handle before this wound's own penalties; earlier active wounds still apply.
+A failed retention Check gives the usual failed-Check Stress and drops the item.
+Recovering it uses the ordinary pick-up rules.
+An unusable arm or a hand that cannot grip is unavailable for holding, attacking, picking up, catching or reloading.
+An explicit two-handed-action restriction prevents two-handed weapons and attacks.
 
 ### Heavy weapons and Minimum Strength
 
@@ -1033,18 +1109,20 @@ If Impact comes to 0 or less, the attack hits but causes no wound and nothing el
 
 ### Severity and Trauma
 
-Each wound row has a severity, and the severity sets the **Trauma** the wound gives.
+Each row gives its own severity, Trauma and consequences.
+Use the row's actual recovery schedule rather than inferring one from severity.
 
-| Severity | Trauma | What it means |
+| Severity | Trauma | Meaning |
 |---|---:|---|
-| Minor | 0 | A short shock: a round or less. |
-| Serious | +1 | A real injury. Heals after 1 Long Rest. |
-| Severe | +2 | A bad injury. Steps down to a lighter one after 1 Long Rest and heals after 2. |
-| Critical | +2 | Lose the next Action Stage, and a Death Save in d4 turns unless someone stabilizes you first. Needs real medical care. |
-| Catastrophic | +4 | Immediate Death Save. |
+| Minor | 0 | A brief shock or penalty, as the row says. |
+| Serious | +1 | An injury with the row's recovery steps. |
+| Severe | +2 | A worse injury, sometimes with lasting consequences. |
+| Critical | +2 | A Death Save in d4 rounds unless the landing Body Save prevents the countdown, plus the row's other effects. |
+| Catastrophic | +4 | An Immediate Death Save, plus the row's other effects. |
 
-Trauma adds up.
-When it reaches the class's threshold, the character rolls on the Death Table (see "Trauma and the Death Table").
+Trauma accumulates even after effects recover.
+Concussion success may replace the listed Trauma where the row explicitly says so.
+Gunshot Head 4 and 5+ retain their listed +2 and +4 Trauma regardless of the separate concussion Save.
 
 ### Which wound table
 
@@ -1063,826 +1141,897 @@ The last row of each part covers every higher Impact too.
 
 ### Wound terms
 
+These terms apply to all six final tables.
+Settled terms take precedence over older wording; the rows below already include the Gunshot head corrections described in "Concussion and waking".
+In row text, "Lasting" sometimes labels the ongoing temporary injury; its explicit rest schedule still controls.
+A lasting consequence after that schedule has no automatic recovery endpoint.
+
 | Term | Meaning |
 |---|---|
-| **Now / Lasting** | "Now" effects last a round or less. "Lasting" effects start the next round and stay until the wound heals. |
-| **Lose the next Movement Stage** | You cannot move next round. |
-| **Lose the next Action Stage** | No attack, no Defense, no reload and no other action next round. |
-| **Dazed** | Lasts one round: you lose the next Movement Stage and the next Action Stage. Dazed alone has no lasting penalty and no Trauma. |
-| **Knocked down** | You fall down. See "Standing up from prone". |
-| **Knocked unconscious** | You are Out of the fight. |
-| **Minor Concussion** | Dazed, and -10 Handle until a Long Rest. |
-| **Severe Concussion** | Dazed and -40 Handle. After one Long Rest the penalty steps down to -10; after a second it clears. The step-down does not make you Dazed again. |
-| **Half Movement** | Halve the distance you can walk or run. A wound that limits movement gives half Movement and no Evasive Movement, with no Body Save. |
-| **No Evasive Movement** | You cannot choose Evasive Movement. |
-| **Next attack / next roll / next Check at Disadvantage** | The very next roll of that kind is at Disadvantage, then the effect ends. "With that arm" or "with that hand" means the next roll using it. |
-| **Disadvantage on Checks involving exertion** | Apply Disadvantage to those Checks as written. |
-| **Strenuous exertion impossible** | You cannot do it, as written. |
-| **Handle penalty** (such as "-20 Handle") | Take that much off Handle for the actions the row names, for as long as it says. It makes the action harder, never impossible. |
-| **Dropped unless a Handle Check succeeds** | Make a Handle Check; on a failure, whatever that hand holds falls to the ground. |
-| **Bleeding timer** | +1 Trauma in d4 turns unless someone stabilizes the wound with First Aid first. A bleeding wound gives its extra Trauma once. |
-| **Death Save in d4 turns unless stabilized** | Roll on the Death Table when the timer runs out, unless someone stabilizes you first. |
-| **Immediate Death Save** | Roll on the Death Table now, whatever your Trauma. Being a Tough does not delay it. |
-| **Stabilize / First Aid** | Takes an action and hands on the casualty, from someone with First Aid or better. It stops a bleeding timer or a Death Save countdown. It does not remove the wound or its Trauma. |
-| **Real medical care** | A doctor or a hospital, beyond First Aid. |
-| **Crawl only without help** | You cannot stand or walk; you can crawl, or be carried or helped along. |
-| **Reduced** | A dislocated joint put back in place. |
-| **Dominant / other hand** | Some hand wounds hit harder on your dominant hand. If it is not settled which hand was hit, roll d4: 1-2 the other hand, 3-4 the dominant hand. |
-| **Long Rest** | A full night's sleep somewhere reasonably safe. |
+| Impact | The number that picks the row. Attack Quality plus the weapon's base, plus the Strength Roll for melee; armor subtracts first. Impact 0 or less is a hit with no wound. |
+| Severity and Trauma | Minor 0 Trauma; Serious +1; Severe +2; Critical +2 and a Death Save countdown; Catastrophic +4 and an Immediate Death Save. Trauma accumulates. Ending a wound effect does not remove Trauma. |
+| Death Save | Made when Trauma reaches 4 (5 for a Tough). Uses the adapted Death Table (see "Trauma and the Death Table"); result 0 replaces lost maximum Health with +1d5 Minimum Stress. |
+| Immediate Death Save | Make the Death Save now, whatever the Trauma total. Being Tough does not delay it. |
+| Critical countdown | When the wound lands, make one Body Save. Success prevents the countdown; failure means a Death Save in d4 turns. Does not prevent a separate Death Save from accumulated Trauma. |
+| Bleeding timer | When the wound lands, make one Body Save. Success prevents the extra Trauma; failure means +1 Trauma in d4 turns. One-time, not repeating. |
+| Slow bleed | Where a Blunt Force or Thrown Objects row specifies it: +1 Trauma every 30 minutes until stabilized with Basic First Aid. Repeats until treated. |
+| Vital / capped | A vital location's bands start one Impact sooner. A capped location never goes past its named severity, however high the Impact. |
+| Check | Roll d100 equal to or under the named Stat. A failed Stat Check normally gives +1 Stress. |
+| Physical Check | A Strength, Speed or Handle Check, including attacks. "Physical Checks at Disadvantage" also puts the character's attacks at Disadvantage. |
+| Body Save | Roll d100 equal to or under Body. A failed Save gives +1 Stress. |
+| Advantage / Disadvantage | Roll twice and keep the better / worse roll. On an attack with Disadvantage, the attack fails if either roll fails; if both succeed, use the lower roll. |
+| Brief Check penalty | "X Checks at Disadvantage until the end of the next round" applies to every such Check for the rest of the current round and all of the next round, then expires whether or not one was made. There are no "next attack" or "next Check" effects. Immediate wound Checks (such as keeping hold of an item) are separate. |
+| Movement Stage / Action Stage | Each combat round is a Movement Stage then an Action Stage, resolved in turn order. Defense is part of the Action Stage. Losing the next Action Stage means the next one not yet resolved, which can be this round, and loses attack, Defense, reload and every other action. Movement always resolves before anyone is wounded, so losing the next Movement Stage always means next round. |
+| Dazed | Lose the next Movement and Action Stages. "Next" means the next one the character has not yet resolved, so an Action Stage not yet taken this round is lost. "Dazed for 1d4 turns" loses that many. |
+| Knocked down | Drop to the ground. If the character has not yet resolved their Action Stage this round, they lose it, including Defense. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Any Speed or Physical Check Disadvantage the character already has applies to that Speed Check. |
+| Knocked unconscious | Unconscious for 2d10 minutes. Increase Minimum Stress by 1d5. |
+| Minor Concussion | Body Save. Success: Dazed only, 0 Trauma instead of +1. Failure: Dazed and `-10 Handle` until 1 Long Rest. |
+| Severe Concussion | Body Save. Success: a Minor Concussion instead (Dazed and `-10 Handle` until 1 Long Rest), +1 Trauma instead of +2, no lasting effect. Failure: Dazed and `-30 Handle`; after 1 Long Rest `-10 Handle`; after 2 Long Rests the penalty clears, leaving *Persistent concussion*, lasting `-10 Intellect`. |
+| Handle penalty | Subtract the stated amount from Handle in general, for the stated duration, whichever hand or arm was hit. It makes actions harder, never impossible. Dropping a held item and losing a limb's use still apply only to the struck limb. |
+| Stat floor | No penalty, temporary or lasting, can lower a core Stat (Strength, Speed, Handle, Intellect, Charm, Body) below 10. Penalties still add up; the result is simply never less than 10. Skill bonuses apply on top of the floored Stat (Handle 10 with a +15 skill rolls at 25). |
+| Arm unusable / cannot grip | A real loss of the limb's use, not a penalty: the arm or hand cannot hold, attack or work until the row says otherwise. |
+| Item dropped | "Whatever that hand holds is dropped" happens automatically. "...unless a Handle Check succeeds" lets a successful Check keep hold. |
+| Speed Check Disadvantage | Replaces every old "half Movement" wound penalty, for the same duration. It does not by itself stop running or Evasive Movement. |
+| Cannot run | The character cannot run for the stated duration. |
+| Evasive Movement | Declared in the Movement Stage; ranged attacks against the evader take a Handle penalty set by their Speed roll. "No Evasive Movement" means it cannot be declared for the stated duration. |
+| Crawl only without help | Cannot stand or walk unaided. Can crawl, be carried or be helped along. |
+| Rest of combat | Until the fight ends. Same as "rest of the fight". |
+| Turn | One round. "d4 turns", "1d4 turns" and "the next turn" all count rounds. |
+| Long Rest | Provisionally a full night's sleep somewhere reasonably safe. "After 2 Long Rests" counts from when the wound was received, not two more after the first. |
+| Recovery | Each row's combat or Long Rest endpoint is the whole recovery. No ordinary wound needs a doctor or hospital to recover. A recovery step changes ongoing penalties only; it never repeats knockdown, Dazed, a Save or the hit. |
+| Lasting consequence | A lasting consequence stays after the temporary penalties end, with no recovery endpoint and no medical-care condition. Ordinary lasting Stat penalties are `-10`; rows that state a different amount for the worst wounds or lost anatomy keep it. Lost anatomy (an eye, an ear, fingers, a limb) stays lost. A named injury with no stated penalty adds nothing yet. |
+| Basic First Aid / treated | A provisional Skill: an action with hands on the casualty. It does not remove the wound or its Trauma. "Until treated" means until someone gives this care. It stops slow bleed; d4 bleeding timers and Critical countdowns use the Body Save instead. |
+| Put back in place | A dislocated joint reduced, ending "unusable until put back in place". |
+| Out | Dodgeball elimination, leaving the fight or a separate GM decision; unconsciousness does not automatically cause Out. See "Out". |
 
-> **Not yet decided:**
-> the exact meaning of Long Rest, "until recovered", "physical Check" and how long being knocked unconscious lasts (until decided, read them as above, "until the GM judges it healed", "a Strength, Speed or Handle Check", and "the rest of the fight");
-> whether a wound that rules out sprinting or exertion also rules out melee swings while still allowing gunfire;
-> whether handedness becomes something every character records;
-> whether First Aid needs a Check to stabilize.
+The Stat floor cannot raise a naturally lower uninjured value to 10.
+It covers Strength, Speed, Handle, Intellect, Charm and Body; Fear and Sanity retain a floor of 0.
+When several modifiers apply, multiply fractions and round down, add flat effect and gear changes, apply "Handle drops to 10", then apply the floor.
+Skill bonuses apply afterwards, and Effective Handle remains capped at 100.
 
-### Wound Checks and Saves
+### Concussion and waking
 
-Some rows ask the target for a Body Save or a Handle Check.
-The target rolls it right away: d100 at or under their Body or Handle as it stands now.
-The row says what success and failure do.
-A failed Save gives +1 Stress, and a failed Stat Check gives the class's usual Stress, as always.
+**Minor Concussion:** make a Body Save at landing.
+Success leaves Dazed only and gives 0 Trauma instead of +1.
+Failure leaves Dazed and -10 Handle until 1 Long Rest, with +1 Trauma.
+The failed Save also gives the ordinary +1 Stress.
 
-### Stacking wounds
+**Severe Concussion:** make a Body Save at landing.
+Success gives a Minor Concussion instead: Dazed, -10 Handle until 1 Long Rest, +1 Trauma instead of +2, and no lasting Intellect penalty.
+Do not make another Minor Concussion Save.
+Failure gives Dazed and -30 Handle; after 1 Long Rest this becomes -10 Handle; after 2 Long Rests the Handle penalty ends, leaving Persistent concussion with lasting -10 Intellect.
+Failure retains +2 Trauma and gives the ordinary +1 Stress.
 
-Wound results stack: each new wound adds its own Trauma and effects.
-Trauma always adds up.
+**Gunshot Head 3** uses that Severe Concussion success without a temporary Intellect penalty.
+**Gunshot Head 4 and 5+** use the same concussion Save and recovery, but keep +2 and +4 Trauma respectively regardless of its result.
+Head 4 has a separate Body Save against its Critical countdown.
+Their lasting -10 and -20 Intellect are the whole lasting Intellect loss; do not add a further -10 for the embedded concussion.
 
-> **Not yet decided:** how Disadvantage stacks across wounds (one pair of dice, or more), and whether Handle penalties from different wounds add up or only the worst counts.
+**Knocked unconscious:** roll 2d10 minutes and +1d5 Minimum Stress once when it happens.
+Unconsciousness blocks unresolved stages and Defense but does not set Out or remove the character as a target.
+Clear the unconscious card by hand when the duration is over at the table.
+Only **Fisticuffs Head 9** calls for a Severe Concussion Body Save at Disadvantage on waking.
+Success gives -10 Handle until the first Long Rest after the injury.
+Failure gives -30 Handle, then -10 after the first Long Rest, then lasting -10 Intellect after the second.
+This waking Save does not repeat Dazed or charge Trauma or Minimum Stress again; the original +2 Trauma stands.
+A failed waking Save still gives the ordinary +1 Stress.
+Fisticuffs Neck 9 adds no concussion aftermath.
 
-### Lasting injuries
+### Wound Checks, Saves and timers
 
-Some wounds leave a named **lasting injury**.
-The wound row says what it does until it heals.
+Roll landing branches and Saves once and keep their results.
+A row's d2 selects its branch before any Save that branch needs.
+Concussion Saves, timer-prevention Saves and retention Checks are separate rolls with separate purposes.
+They read the sheet as it stood before this wound, including earlier wounds but excluding this wound's own new penalties.
+A failed Body Save adds +1 Stress; a failed Stat Check gives +1 Stress, or +2 for an Overachiever.
 
-| Lasting injury | Wounds that give it (table, part, Impact) |
-|---|---|
-| Broken jaw | Blunt Force head 4; Thrown Objects head 4; Fisticuffs head 7 |
-| Lost eye | Piercing head 6 |
-| Damaged eye | Cutting head 5 |
-| Scarred face | Cutting head 6 |
-| Damaged throat | Blunt Force neck 5; Gunshot neck 3; Piercing neck 5, 6; Cutting neck 5; Thrown Objects neck 5 |
-| Broken ribs | Blunt Force torso 4, 5, 6; Thrown Objects torso 4, 5, 6; Fisticuffs torso 7 |
-| Chest wound | Gunshot torso 4; Piercing torso 5, 6 |
-| Internal injury | Blunt Force waist 6; Gunshot waist 4; Piercing waist 5, 6; Thrown Objects waist 6 |
-| Lodged object | Gunshot torso 3; Gunshot waist 3; Piercing head 7; Piercing torso 4; Piercing waist 4 |
-| Broken pelvis | Blunt Force groin 6+; Gunshot groin 4; Thrown Objects groin 6+ |
-| Damaged hip | Piercing groin 7 |
-| Dislocated shoulder | Blunt Force upper arm and shoulder 5; Thrown Objects upper arm and shoulder 5; Fisticuffs upper arm and shoulder 7+ |
-| Damaged shoulder | Piercing upper arm and shoulder 6, 7 |
-| Broken arm | Blunt Force upper arm and shoulder 6+; Blunt Force forearm 5, 6+; Gunshot upper arm and shoulder 4; Gunshot forearm 4+; Thrown Objects upper arm and shoulder 6+; Thrown Objects forearm 5, 6+; Fisticuffs forearm 7+ |
-| Broken hand | Blunt Force hand 5, 6+; Gunshot hand 3, 4+; Piercing hand 6+; Thrown Objects hand 5, 6+; Fisticuffs hand 7+ |
-| Cut muscle | Piercing thigh 7; Cutting neck 6; Cutting torso 7; Cutting waist 6, 7; Cutting groin 7; Cutting upper arm and shoulder 6, 7; Cutting thigh 7 |
-| Cut tendons | Piercing forearm 6+; Cutting forearm 6+; Cutting shin and feet 6+; Cutting hand 6+ |
-| Lost fingers | Cutting hand 6+ |
-| Broken leg | Blunt Force thigh 6+; Blunt Force shin and feet 6+; Gunshot thigh 4; Gunshot shin and feet 4+; Thrown Objects thigh 6+; Thrown Objects shin and feet 6+ |
-| Damaged knee or ankle | Blunt Force shin and feet 5; Piercing shin and feet 6+; Thrown Objects shin and feet 5; Fisticuffs shin and feet 7+ |
+For a **d4 bleeding timer**, make a Body Save when the wound lands.
+Success prevents the extra Trauma entirely.
+Failure rolls a d4: at the end of the due round gain +1 Trauma once, not every round.
+For a **Critical countdown**, make a Body Save when the wound lands.
+Success prevents the countdown; failure rolls a d4 and makes a Death Save due at the end of that countdown.
+If a row gives both a bleed and a Critical countdown, make one prevention Body Save for both.
+On failure roll and record a separate d4 for each timer.
+First Aid does not cancel either d4 timer after that Save.
+Gunshot head concussion and Critical prevention use separate Body Saves.
 
-A character who survives a Critical or Catastrophic wound carries it as a lasting injury named after the wound, such as *Neck artery* or *Skull fracture*.
+**Slow bleed**, in Blunt Force Waist 6, Blunt Force Forearm 6+ and Thrown Objects Waist 6, is different: gain +1 Trauma every 30 minutes until Basic First Aid.
+It has no landing prevention Save or automatic round tick.
+Track its minutes and add Trauma by hand; treatment stops future slow-bleed gains without removing Trauma already taken.
+
+### Stacking wounds and roll modes
+
+Each new wound adds its Trauma and cards independently.
+Flat penalties from different active cards add together, subject to the Stat floor.
+Two sources of Advantage still give only one Advantage; two sources of Disadvantage still give only one Disadvantage.
+Advantage and Disadvantage together cancel to a normal roll.
+Physical Check modes include Strength, Speed and Handle Checks, attacks and Defense.
+Task-specific modes apply only to the named task.
+Duration and branch dice never take Advantage or Disadvantage.
+
+Core Checks and Saves keep the lower roll for Advantage and the higher for Disadvantage.
+Attacks, Defense and Strength Rolls for Impact rank success first, then the higher successful roll as better.
+With Disadvantage an attack fails if either die fails; if both succeed use the lower roll.
+For an attack number of 80, Disadvantage on 72 and 89 misses; on 72 and 34 it uses 34.
+Initiative and the Evasive Movement Speed Check also read Speed and Physical modes.
+
+### Recovery, treatment and lasting consequences
+
+The row's combat or Long Rest endpoint is its whole ordinary recovery.
+No doctor, hospital or additional recovery gate is implied.
+After 2 Long Rests means two rests since the injury, not three.
+Record each rest by stepping down the relevant card once, without repeating the hit's immediate effects.
+
+**Basic First Aid** is provisionally a Skill and takes an action with hands on the casualty.
+"Until treated" means until that care is given, recorded with Step down.
+It stops slow bleed but does not remove wounds, Trauma, unrelated cards or d4 timers.
+**Put back in place** means reducing a dislocated joint; Step down records that the unusable-joint step has ended.
+There is no automatic First Aid action, reduction Check, rest receipt or game clock in Table Keep.
+
+For a delayed speech-recovery Body Save, roll only when recovery reaches that step.
+Success leaves no speech-related Charm reminder; failure gives ordinary failed-Save Stress and leaves the specified lasting reminder.
+It is not a new landing Save.
+
+Lasting penalties have no automatic endpoint and no medical-care condition.
+Ordinary lasting Stat penalties are -10, but a row's deliberate larger penalty for a worst wound or lost anatomy remains as written.
+Lost anatomy stays lost.
+For Cutting Hand 6+, roll 1d5 fingers from the struck hand: lasting -5 Handle per finger, up to -25.
+This replaces the older percentage-loss rule.
+Crushed or destroyed hands that say **Handle drops to 10** set Handle to 10 rather than subtracting 60.
+A named lasting injury with no stated penalty adds no extra penalty.
+
+Discretionary Charm wording is a reminder: **the GM may call for Disadvantage on a relevant Charm Check**.
+It never changes the Charm score automatically, even when a row phrases it as "-10 Charm at GM discretion".
+Speech impairment itself is a displayed restriction without a further automatic rule.
+
+> **Not yet decided:** Basic First Aid's final Skill definition and whether care needs a Check; whether handedness becomes a required character field; the exact boundary of a Long Rest beyond the provisional night's-sleep definition; and the interpretation of any surviving narrative exertion restriction not explicitly resolved by a row.
+> Table Keep supplies no automatic treatment or joint-reduction Check; do not infer a new procedure from a recovery label.
 
 ## Wound tables
 
 Each table below has one block per part of the body.
-Shin and feet share one block in every table: the knee belongs to the shin and the ankle to the foot.
+Shin and feet share one block except in Fisticuffs, which gives them separate blocks.
+The knee belongs to the shin and the ankle to the foot.
 Upper arm includes the shoulder and armpit, forearm includes the elbow, and hand includes the wrist.
 
 ### Fisticuffs wound table
 
-For punches and kicks.
-
-#### Fisticuffs: head
+#### Fisticuffs: Head
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Rocked.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Cover up / flinch.** Next attack at Disadvantage. |
-| 3 | Minor | 0 | **Seeing stars.** Next relevant physical Check at Disadvantage. |
-| 4 | Serious | +1 | **Knocked down.** |
-| 5 | Serious | +1 | **Minor Concussion.** Body Save. Success: Only Dazed, and 0 Trauma instead of +1. Failure: Minor Concussion, which is Dazed and -10 Handle until a Long Rest. |
-| 6 | Serious | +1 | **Eye / face injury.** -20 Handle on ranged and visually precise actions until recovered. |
-| 7 | Serious | +1 | **Broken jaw or cheekbone.** Lose the next Action Stage. Speech and eating badly impaired. Lasting injury: Broken jaw. |
-| 8 | Severe | +2 | **Severe Concussion.** Body Save. Success: A Minor Concussion instead (Dazed and -10 Handle until a Long Rest), and +1 Trauma instead of +2. Failure: Dazed and -40 Handle; after a Long Rest the penalty steps down to -10, and after a second Long Rest it clears. |
-| 9 | Severe | +2 | **Knocked unconscious.** Out of the fight; concussion consequences afterward. |
+| 2 | Minor | 0 | **Cover up / flinch.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Seeing stars.** Physical Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Knocked down.** Drop to the ground. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. |
+| 5 | Serious | +1 | **Broken jaw or cheekbone.** Lose the next Action Stage. Speech and eating badly impaired until 1 Long Rest. After 1 Long Rest: *Missing teeth or visibly altered jaw*, lasting `-10 Charm` at GM discretion. |
+| 6 | Serious | +1 | **Eye / face injury.** `-20 Handle` on ranged and visually precise actions until 1 Long Rest. After 1 Long Rest: *Damaged vision*, lasting `-10 Handle` on ranged and visually precise actions. |
+| 7 | Serious | +1 | **Minor Concussion.** Body Save:<br>• **Success:** Dazed only; 0 Trauma instead of +1.<br>• **Failure:** Dazed and `-10 Handle` until a Long Rest; +1 Trauma. |
+| 8 | Severe | +2 | **Severe Concussion.** Body Save. Success: a Minor Concussion instead (Dazed and `-10 Handle` until 1 Long Rest), and +1 Trauma instead of +2. Failure: Dazed and `-30 Handle`. After 1 Long Rest: `-10 Handle`. After 2 Long Rests: the Handle penalty clears; *Persistent concussion*, lasting `-10 Intellect`. |
+| 9 | Severe | +2 | **Knocked unconscious.** Unconscious for 2d10 minutes. Increase minimum Stress by 1d5; concussion consequences afterward. |
 | 10+ | Catastrophic | +4 | **Catastrophic head injury.** Immediate Death Save. |
 
-#### Fisticuffs: neck
+#### Fisticuffs: Neck
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Flinch.** Next attack at Disadvantage. |
-| 3 | Minor | 0 | **Choking.** Next relevant physical Check at Disadvantage. |
-| 4 | Serious | +1 | **Knocked down, gagging.** |
+| 2 | Minor | 0 | **Flinch.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Choking.** Physical Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Knocked down, gagging.** Drop to the ground. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. |
 | 5 | Serious | +1 | **Throat punch.** Dazed. Speech hoarse until a Long Rest. |
-| 6 | Serious | +1 | **Wrenched neck.** -20 Handle on upper-body actions until recovered. |
-| 7 | Serious | +1 | **Wrenched neck.** -20 Handle on upper-body actions until recovered. |
-| 8 | Severe | +2 | **Blow to the side of the neck.** Knocked unconscious. Out of the fight. |
-| 9 | Severe | +2 | **Blow to the side of the neck.** Knocked unconscious. Out of the fight. |
+| 6 | Serious | +1 | **Wrenched neck.** `-10 Handle` until 1 Long Rest. |
+| 7 | Serious | +1 | **Wrenched neck.** `-10 Handle` until 1 Long Rest. |
+| 8 | Severe | +2 | **Wrenched neck.** `-10 Handle` until 2 Long Rests. |
+| 9 | Severe | +2 | **Blow to the side of the neck.** Knocked unconscious for 2d10 minutes. Increase minimum Stress by 1d5. |
 | 10+ | Catastrophic | +4 | **Catastrophic neck injury.** Immediate Death Save. |
 
-#### Fisticuffs: torso
+#### Fisticuffs: Torso - cap Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Driven back.** Knocked back out of striking reach. Lose the next Movement Stage, so the attacker chooses whether to step in and attack again or keep them back. |
-| 2 | Minor | 0 | **Cover up.** Next attack at Disadvantage. |
-| 3 | Minor | 0 | **Winded.** Next relevant physical Check at Disadvantage. |
-| 4 | Serious | +1 | **Doubled over.** Knocked down. |
+| 1 | Minor | 0 | **Driven back.** Knocked out of striking reach; lose the next Movement Stage. |
+| 2 | Minor | 0 | **Cover up.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Winded.** Physical Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Doubled over.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. |
 | 5 | Serious | +1 | **Breath knocked out.** Dazed. |
-| 6 | Serious | +1 | **Rib injury.** Badly bruised or cracked ribs. Disadvantage on Strength and Speed Checks involving strenuous exertion. Half Movement. No Evasive Movement. |
-| 7 | Serious | +1 | **Broken rib(s).** Physical Checks involving exertion at Disadvantage. Half Movement. No Evasive Movement or heavy lifting. Lasting injury: Broken ribs. |
-| 8+ | Severe | +2 | **Body shot drop.** Knocked down and Dazed. Disadvantage on all physical Checks until a Long Rest. |
+| 6 | Serious | +1 | **Bruised ribs.** Disadvantage on Strength and Speed Checks until after 1 Long Rest. No Evasive Movement until after 1 Long Rest. |
+| 7 | Serious | +1 | **Broken rib(s).** Physical Checks at Disadvantage until after 2 Long Rests. |
+| 8+ | Severe | +2 | **Body shot drop.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Disadvantage on all physical Checks until 1 Long Rest. |
 
-#### Fisticuffs: waist
+#### Fisticuffs: Waist - cap Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Driven back.** Knocked back out of striking reach. Lose the next Movement Stage, so the attacker chooses whether to step in and attack again or keep them back. |
-| 2 | Minor | 0 | **Cover up.** Next attack at Disadvantage. |
-| 3 | Minor | 0 | **Winded.** Next relevant physical Check at Disadvantage. |
-| 4 | Serious | +1 | **Doubled over.** Knocked down. |
+| 1 | Minor | 0 | **Driven back.** Knocked out of striking reach; lose the next Movement Stage. |
+| 2 | Minor | 0 | **Cover up.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Winded.** Physical Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Doubled over.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. |
 | 5 | Serious | +1 | **Breath knocked out.** Dazed. |
-| 6 | Serious | +1 | **Body injury.** Disadvantage on physical Checks involving exertion. Another Serious-or-worse physical wound before a Long Rest needs a Body Save or the victim is Dazed. |
-| 7 | Serious | +1 | **Liver or kidney shot.** Knocked down, then Body injury: Disadvantage on physical Checks involving exertion. Another Serious-or-worse physical wound before a Long Rest needs a Body Save or the victim is Dazed. |
-| 8+ | Severe | +2 | **Body shot drop.** Knocked down and Dazed. Disadvantage on all physical Checks until a Long Rest. |
+| 6 | Serious | +1 | **Deep tissue bruising.** Disadvantage on physical Checks until after 1 Long Rest. |
+| 7 | Serious | +1 | **Liver or kidney shot.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Disadvantage on physical Checks until after 1 Long Rest. |
+| 8+ | Severe | +2 | **Body shot drop.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Disadvantage on all physical Checks until 1 Long Rest. |
 
-#### Fisticuffs: groin
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Off line.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Flinch.** Next attack at Disadvantage. |
-| 3 | Minor | 0 | **Winded.** Next relevant physical Check at Disadvantage. |
-| 4+ | Serious | +1 | **Groin shot.** Knocked down and Dazed. |
-
-#### Fisticuffs: upper arm and shoulder
+#### Fisticuffs: Groin - cap Serious
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 2 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 3 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 4 | Serious | +1 | **Shoulder injury.** -20 Handle on fighting, grappling, climbing, throwing and other upper-body actions. Two-handed actions likewise. |
-| 5 | Serious | +1 | **Shoulder injury.** -20 Handle on fighting, grappling, climbing, throwing and other upper-body actions. Two-handed actions likewise. |
-| 6 | Serious | +1 | **Shoulder injury.** -20 Handle on fighting, grappling, climbing, throwing and other upper-body actions. Two-handed actions likewise. |
-| 7+ | Serious | +1 | **Dislocated shoulder.** Arm unusable until the shoulder is reduced, then -20 Handle on actions with that arm until recovered. Lasting injury: Dislocated shoulder. |
+| 1 | Minor | 0 | **A near miss.** Not near enough. Lose the next Movement Stage. |
+| 2 | Minor | 0 | **Low blow.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Direct hit.** A dull ache reaches your stomach. Physical Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Crushing blow.** You hit the ground without a word. Knocked down and Dazed. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. |
+| 5+ | Serious | +1 | **Mashed soft tissue.** The pain is immediate. Inspecting the damage can wait. Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Disadvantage on physical Checks until after 1 Long Rest. |
 
-#### Fisticuffs: forearm
+#### Fisticuffs: Upper arm or shoulder
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 2 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 3 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 4 | Serious | +1 | **Hand / wrist injury.** If the fiction has not set which hand, roll d4: 1-2 other hand, 3-4 dominant hand. -20 Handle (dominant) or -10 (other) on actions with that hand. A penalty, not a ban: the character can still punch, shoot, grapple, reload and use tools. |
-| 5 | Serious | +1 | **Hand / wrist injury.** If the fiction has not set which hand, roll d4: 1-2 other hand, 3-4 dominant hand. -20 Handle (dominant) or -10 (other) on actions with that hand. A penalty, not a ban: the character can still punch, shoot, grapple, reload and use tools. |
-| 6 | Serious | +1 | **Hand / wrist injury.** If the fiction has not set which hand, roll d4: 1-2 other hand, 3-4 dominant hand. -20 Handle (dominant) or -10 (other) on actions with that hand. A penalty, not a ban: the character can still punch, shoot, grapple, reload and use tools. |
-| 7+ | Serious | +1 | **Broken forearm.** Arm unusable for fighting, climbing, carrying or heavy work until treated. Lasting injury: Broken arm. |
+| 1 | Minor | 0 | **Shoulder checked.** Attacks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Stinging biceps.** Strength Checks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Arm jolted.** Attacks at Disadvantage until the end of the next round. Strength Checks at Disadvantage until the end of the next round. |
+| 4 | Minor | 0 | **Bruised upper arm.** Punches and throws are at Disadvantage until the end of the next round. |
+| 5 | Minor | 0 | **Sore shoulder.** Attacks, grappling and climbing are at Disadvantage until the end of the next round. |
+| 6 | Serious | +1 | **Heavy shoulder bruise.** `-10 Handle` until after 1 Long Rest. |
+| 7+ | Serious | +1 | **Deep muscle bruise.** `-20 Handle` until after 1 Long Rest. The arm remains usable. |
 
-#### Fisticuffs: hand
+#### Fisticuffs: Forearm
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 2 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 3 | Minor | 0 | **Arm knocked aside.** Next attack with that arm at Disadvantage. |
-| 4 | Serious | +1 | **Hand / wrist injury.** If the fiction has not set which hand, roll d4: 1-2 other hand, 3-4 dominant hand. -20 Handle (dominant) or -10 (other) on actions with that hand. A penalty, not a ban: the character can still punch, shoot, grapple, reload and use tools. |
-| 5 | Serious | +1 | **Hand / wrist injury.** If the fiction has not set which hand, roll d4: 1-2 other hand, 3-4 dominant hand. -20 Handle (dominant) or -10 (other) on actions with that hand. A penalty, not a ban: the character can still punch, shoot, grapple, reload and use tools. |
-| 6 | Serious | +1 | **Hand / wrist injury.** If the fiction has not set which hand, roll d4: 1-2 other hand, 3-4 dominant hand. -20 Handle (dominant) or -10 (other) on actions with that hand. A penalty, not a ban: the character can still punch, shoot, grapple, reload and use tools. |
-| 7+ | Serious | +1 | **Fractured hand / wrist.** The hand is badly compromised. -40 Handle on actions with that hand. No heavy grip or precise work with it until treated. Lasting injury: Broken hand. |
+| 1 | Minor | 0 | **Grip jolted.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
+| 2 | Minor | 0 | **Guard knocked aside.** Defense rolls at Disadvantage until the end of the next round, regardless of which hand is used. |
+| 3 | Minor | 0 | **Stung forearm.** Checks are at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Bruised forearm.** Checks are at Disadvantage for the rest of the fight. |
+| 5 | Serious | +1 | **Sore forearm.** `-10 Handle` on Checks for the rest of the fight. |
+| 6 | Serious | +1 | **Heavy forearm bruise.** Whatever that hand holds is dropped. `-10 Handle` on Checks using hands until after 1 Long Rest. |
+| 7+ | Serious | +1 | **Deep forearm bruise.** Whatever that hand holds is dropped. `-20 Handle` on Checks using hands until after 1 Long Rest. |
 
-#### Fisticuffs: thigh
+#### Fisticuffs: Hand
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Catch their fist.** Make a Handle Check. Success: catch the attacker's fist and gain Advantage on attacks until the end of the next round. Failure: no effect, no wound and no Stress from this Check. |
+| 2 | Minor | 0 | **Hand knocked open.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
+| 3 | Minor | 0 | **Stung fingers.** Checks for precise work at Disadvantage until the end of the next round. |
+| 4 | Minor | 0 | **Battered knuckles.** Punches at Disadvantage until the end of the next round. |
+| 5 | Serious | +1 | **Swollen hand.** `-10 Handle` until after 1 Long Rest. |
+| 6+ | Serious | +1 | **Badly bruised hand.** `-20 Handle` until after 1 Long Rest. The character can still grip, attack, reload and use tools. |
+
+#### Fisticuffs: Thigh
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
 | 2 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Dead leg.** Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Legs kicked out.** Knocked down. |
-| 5 | Serious | +1 | **Legs kicked out.** Knocked down. |
-| 6 | Serious | +1 | **Dead leg.** Half Movement until a Long Rest. |
-| 7+ | Serious | +1 | **Leg buckles.** Knocked down, then half Movement until a Long Rest. |
+| 3 | Minor | 0 | **Dead leg.** Lose the next Movement Stage. Speed Checks are at Disadvantage for the rest of combat. |
+| 4 | Minor | 0 | **Legs kicked out.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Speed Checks are at Disadvantage for the rest of combat. |
+| 5 | Minor | 0 | **Legs kicked out.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Speed Checks are at Disadvantage for the rest of combat. |
+| 6 | Serious | +1 | **Dead leg.** Cannot run or use Evasive Movement until 1 Long Rest. |
+| 7+ | Serious | +1 | **Leg buckles.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Cannot run until 1 Long Rest. |
 
-#### Fisticuffs: shin and feet
+#### Fisticuffs: Shin (including knee)
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
 | 2 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Dead leg.** Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Legs kicked out.** Knocked down. |
-| 5 | Serious | +1 | **Legs kicked out.** Knocked down. |
-| 6 | Serious | +1 | **Knee / ankle injury.** Half Movement. No Evasive Movement. |
-| 7+ | Serious | +1 | **Fractured or dislocated knee / ankle.** Knocked down. Half Movement after standing. No Evasive Movement until treated. Lasting injury: Damaged knee or ankle. |
+| 3 | Minor | 0 | **Dead leg.** Lose the next Movement Stage. Speed Checks are at Disadvantage for the rest of combat. |
+| 4 | Minor | 0 | **Legs kicked out.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Speed Checks are at Disadvantage for the rest of combat. |
+| 5 | Minor | 0 | **Legs kicked out.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Speed Checks are at Disadvantage for the rest of combat. |
+| 6 | Serious | +1 | **Knee injury.** Cannot run. No Evasive Movement. Both restrictions last until 1 Long Rest. |
+| 7 | Serious | +1 | **Knee buckles.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Cannot run. No Evasive Movement. Both restrictions last until 1 Long Rest. |
+| 8+ | Severe | +2 | **Fractured shin or knee.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Speed Checks are at Disadvantage until 1 Long Rest. No Evasive Movement until treated. After 1 Long Rest: *Lasting limp*, `-10 Speed`. |
+
+#### Fisticuffs: Foot (including ankle)
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
+| 2 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
+| 3 | Minor | 0 | **Stung foot.** Lose the next Movement Stage. Speed Checks are at Disadvantage for the rest of combat. |
+| 4 | Minor | 0 | **Foot jolted.** Lose the next Movement Stage. Speed Checks are at Disadvantage for the rest of combat. |
+| 5 | Minor | 0 | **Foot swept out.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Speed Checks are at Disadvantage for the rest of combat. |
+| 6 | Minor | 0 | **Bruised foot.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Speed Checks are at Disadvantage for the rest of combat. |
+| 7+ | Serious | +1 | **Sprained ankle.** Knocked down. Standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only. Cannot run or use Evasive Movement until 1 Long Rest. |
 
 ### Blunt Force wound table
 
-For blunt swings: bats, clubs, pipes.
-
-#### Blunt Force: head
+#### Blunt Force: Head - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Rocked.** Lose the next Movement Stage. |
-| 2 | Serious | +1 | **Minor Concussion.** Body Save. Success: Only Dazed, and 0 Trauma instead of +1. Failure: Now: Dazed. Lasting: -10 Handle. After 1 Long Rest: healed. |
-| 3 | Serious | +1 | **Eye / face injury.** Now: Dazed. Lasting: -20 Handle on ranged and visually precise actions. After 1 Long Rest: healed. |
-| 4 | Serious | +1 | **Broken jaw or cheekbone.** Now: Lose the next Action Stage. Lasting (Broken jaw): Speech and eating badly impaired. After 1 Long Rest: healed. |
-| 5 | Severe | +2 | **Severe Concussion.** Body Save. Success: A Minor Concussion instead, and +1 Trauma instead of +2: Now: Dazed. Lasting: -10 Handle. After 1 Long Rest: healed. Failure: Now: Dazed. Lasting: -40 Handle. After 1 Long Rest: -10 Handle. After 2 Long Rests: healed. |
-| 6+ | Catastrophic | +4 | **Skull fracture.** Immediate Death Save. |
+| 2 | Serious | +1 | **Eye / face injury.** Dazed. `-20 Handle` on ranged and visually precise actions until 1 Long Rest. After 1 Long Rest: *Damaged vision*, lasting `-10 Handle` on ranged and visually precise actions. |
+| 3 | Serious | +1 | **Broken jaw or cheekbone.** Lose the next Action Stage. Speech and eating badly impaired until 1 Long Rest. After 1 Long Rest: *Missing teeth or visibly altered jaw*, lasting `-10 Charm` at GM discretion. |
+| 4 | Serious | +1 | **Minor Concussion.** Body Save. Failure: Dazed and `-10 Handle` until 1 Long Rest. Success: Dazed only; 0 Trauma instead of +1. |
+| 5 | Severe | +2 | **Severe Concussion.** Body Save. Failure: Dazed and `-30 Handle`. After 1 Long Rest: `-10 Handle`. After 2 Long Rests: the Handle penalty clears; *Persistent concussion*, lasting `-10 Intellect`. Success: Minor Concussion-Dazed and `-10 Handle` until 1 Long Rest; +1 Trauma instead of +2. |
+| 6+ | Catastrophic | +4 | **Skull fracture.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body`, `-10 Intellect` and `+4 minimum Stress`. |
 
-#### Blunt Force: neck
+#### Blunt Force: Neck - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Clipped.** Next attack at Disadvantage. |
-| 2 | Serious | +1 | **Wrenched neck.** Now: Lose the next Movement Stage. Lasting: -20 Handle on upper-body actions. After 1 Long Rest: healed. |
+| 1 | Minor | 0 | **Clipped.** Attacks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Wrenched neck.** `-10 Handle` for the rest of combat. |
 | 3 | Serious | +1 | **Throat strike.** Lose the next Action Stage, choking. |
-| 4 | Serious | +1 | **Bruised windpipe.** Now: Lose the next Action Stage. Lasting: Speech badly impaired. Half Movement. No Evasive Movement. After 1 Long Rest: healed. |
-| 5 | Severe | +2 | **Fractured larynx.** Now: Dazed. Bleeding timer (the airway is swelling shut): +1 Trauma in d4 turns unless First Aid. Lasting (Damaged throat): Speech badly impaired. Disadvantage on all physical Checks. After 1 Long Rest: speech badly impaired only. After 2 Long Rests: healed. |
-| 6+ | Catastrophic | +4 | **Broken neck or crushed windpipe.** Immediate Death Save. |
+| 4 | Serious | +1 | **Bruised windpipe.** Lose the next Action Stage. Speech badly impaired until 1 Long Rest. |
+| 5 | Severe | +2 | **Fractured larynx.** Unable to speak until 1 Long Rest; afterward, speech badly impaired until 2 Long Rests. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: *Permanently hoarse or altered voice*, lasting `-10 Charm`. |
+| 6+ | Catastrophic | +4 | **Broken neck or crushed windpipe.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Blunt Force: torso
+#### Blunt Force: Torso
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Driven back.** Knocked back out of striking reach. Lose the next Movement Stage, so the attacker chooses whether to step in and attack again or keep them back. |
-| 2 | Minor | 0 | **Winded.** Next relevant physical Check at Disadvantage. |
-| 3 | Serious | +1 | **Bruised ribs.** Lasting: Disadvantage on Strength and Speed Checks involving exertion. No Evasive Movement. After 1 Long Rest: healed. |
-| 4 | Serious | +1 | **Broken rib(s).** Lasting (Broken ribs): Physical Checks involving exertion at Disadvantage. Half Movement. No Evasive Movement or heavy lifting. After 1 Long Rest: healed. |
-| 5 | Serious | +1 | **Broken rib(s).** Now: Knocked down. Lasting (Broken ribs): Physical Checks involving exertion at Disadvantage. Half Movement. No Evasive Movement or heavy lifting. After 1 Long Rest: healed. |
-| 6 | Severe | +2 | **Caved ribs.** Now: Dazed. Lasting (Broken ribs): Strength Checks automatically fail. Half Movement. No Evasive Movement. After 1 Long Rest: as Broken rib(s) at Impact 4. After 2 Long Rests: healed. |
-| 7+ | Catastrophic | +4 | **Crushed chest, stopped heart or broken upper back.** Immediate Death Save. |
+| 1 | Minor | 0 | **Driven back.** Knocked out of striking reach; lose the next Movement Stage. |
+| 2 | Minor | 0 | **Winded.** Physical Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Bruised ribs.** Strength and Speed Checks at Disadvantage until 1 Long Rest. |
+| 4 | Serious | +1 | **Broken rib(s).** Physical Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Broken rib(s).** Knocked down. Physical Checks at Disadvantage until 1 Long Rest. |
+| 6 | Severe | +2 | **Caved ribs.** Knocked down. Physical Checks at Disadvantage until 2 Long Rests. |
+| 7+ | Catastrophic | +4 | **Crushed chest, stopped heart or broken upper back.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Blunt Force: waist
+#### Blunt Force: Waist
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Doubled over.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Gut punch.** Next relevant physical Check at Disadvantage. |
-| 3 | Serious | +1 | **Body injury.** Lasting: Disadvantage on physical Checks involving exertion. Another Serious-or-worse physical wound in that time needs a Body Save or the victim is Dazed. After 1 Long Rest: healed. |
-| 4 | Serious | +1 | **Body injury.** Lasting: Disadvantage on physical Checks involving exertion. Another Serious-or-worse physical wound in that time needs a Body Save or the victim is Dazed. After 1 Long Rest: healed. |
-| 5 | Serious | +1 | **Kidney blow.** Now: Dazed. Lasting: the Body injury above. After 1 Long Rest: healed. |
-| 6 | Severe | +2 | **Internal bleeding.** Now: Bleeding timer: +1 Trauma in d4 turns unless First Aid. Lasting (Internal injury): Disadvantage on all physical Checks. After 1 Long Rest: as Body injury at Impact 3. After 2 Long Rests: healed. |
-| 7+ | Catastrophic | +4 | **Ruptured liver or spleen, or broken lower spine.** Immediate Death Save. |
+| 2 | Minor | 0 | **Gut blow.** Physical Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Deep tissue bruising.** Physical Checks at Disadvantage for the rest of combat. |
+| 4 | Serious | +1 | **Deep tissue bruising.** Physical Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Kidney blow.** Knocked down. Physical Checks at Disadvantage until 1 Long Rest. |
+| 6 | Severe | +2 | **Internal bleeding.** Gain +1 Trauma every half-hour unless stabilized with Basic First Aid. Physical Checks at Disadvantage until 2 Long Rests. |
+| 7+ | Catastrophic | +4 | **Ruptured liver or spleen, or broken lower spine.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Blunt Force: groin
+#### Blunt Force: Groin - cap Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Off line.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Flinch.** Next attack at Disadvantage. |
-| 3 | Serious | +1 | **Groin strike.** Knocked down and Dazed. |
-| 4 | Serious | +1 | **Groin strike.** Knocked down and Dazed. |
-| 5 | Serious | +1 | **Damaged hip.** Lasting: Half Movement. No Evasive Movement. After 1 Long Rest: healed. |
-| 6+ | Severe | +2 | **Broken pelvis.** Now: Knocked down. Lasting (Broken pelvis): Crawl only without help. Disadvantage on all physical Checks. After 1 Long Rest: as Damaged hip at Impact 5. After 2 Long Rests: healed. |
+| 2 | Minor | 0 | **Flinch.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Groin strike.** Knocked down. |
+| 4 | Serious | +1 | **Heavy groin strike.** Knocked down. Speed Checks at Disadvantage for the rest of combat. |
+| 5 | Serious | +1 | **Damaged hip.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 6+ | Severe | +2 | **Broken pelvis.** Crawl only without help; all physical Checks at Disadvantage. After 1 Long Rest: walking is possible, with all physical Checks still at Disadvantage. After 2 Long Rests: healed. |
 
-#### Blunt Force: upper arm and shoulder
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Stinger.** Next attack at Disadvantage. |
-| 2 | Minor | 0 | **Numb arm.** Next roll using that arm at Disadvantage. |
-| 3 | Serious | +1 | **Shoulder injury.** Lasting: -20 Handle on fighting, grappling, climbing, throwing and other upper-body actions, and on two-handed actions. After 1 Long Rest: healed. |
-| 4 | Serious | +1 | **Shoulder injury.** Lasting: -20 Handle on fighting, grappling, climbing, throwing and other upper-body actions, and on two-handed actions. After 1 Long Rest: healed. |
-| 5 | Serious | +1 | **Dislocated shoulder.** Lasting (Dislocated shoulder): Arm unusable until reduced, then -20 Handle with that arm. After 1 Long Rest: healed. |
-| 6+ | Severe | +2 | **Broken upper arm or collarbone.** Now: Lose the next Action Stage. Lasting (Broken arm): Arm unusable; if forced, -40 Handle. After 1 Long Rest: as Shoulder injury at Impact 3. After 2 Long Rests: healed. |
-
-#### Blunt Force: forearm
+#### Blunt Force: Upper arm or shoulder - cap Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Stinger.** Next attack with that arm at Disadvantage. |
+| 1 | Minor | 0 | **Stinger.** Attacks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Numb arm.** Rolls at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Shoulder injury.** `-20 Handle` for the rest of combat. |
+| 4 | Serious | +1 | **Shoulder injury.** `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Dislocated shoulder.** Arm unusable until the shoulder is put back in place; afterward, *Lingering shoulder injury*, lasting `-10 Handle`. |
+| 6+ | Severe | +2 | **Broken upper arm or collarbone.** Arm unusable. After 1 Long Rest: usable with `-20 Handle`. After 2 Long Rests: healed. |
+
+#### Blunt Force: Forearm - cap Severe
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Stinger.** Attacks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Knocked loose.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Serious | +1 | **Forearm injury.** Lasting: -20 Handle (dominant side) or -10 (other side) on actions with that hand. After 1 Long Rest: healed. |
-| 4 | Serious | +1 | **Forearm injury.** Lasting: -20 Handle (dominant side) or -10 (other side) on actions with that hand. After 1 Long Rest: healed. |
-| 5 | Serious | +1 | **Broken forearm.** Lasting (Broken arm): Arm unusable for fighting, climbing, carrying or heavy work. After 1 Long Rest: healed. |
-| 6+ | Severe | +2 | **Shattered forearm (bone through skin).** Now: Bleeding timer: +1 Trauma in d4 turns unless First Aid. Lasting (Broken arm): Arm unusable; if forced, -40 Handle. After 1 Long Rest: as Broken forearm at Impact 5. After 2 Long Rests: healed. |
+| 3 | Serious | +1 | **Forearm injury.** `-20 Handle` for the rest of combat. |
+| 4 | Serious | +1 | **Forearm injury.** `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Sprained forearm.** `-30 Handle` until 1 Long Rest. |
+| 6+ | Severe | +2 | **Shattered forearm, bone through skin.** Gain +1 Trauma every 30 minutes unless stabilized with Basic First Aid. Arm unusable until 1 Long Rest. After 1 Long Rest: arm usable; *Poorly recovered forearm*, lasting `-10 Handle`. |
 
-#### Blunt Force: hand
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Stung hand.** Next roll with that hand at Disadvantage. |
-| 2 | Minor | 0 | **Knocked loose.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Serious | +1 | **Hand / wrist injury.** Lasting: -20 Handle (dominant) or -10 (other) on actions with that hand. After 1 Long Rest: healed. |
-| 4 | Serious | +1 | **Hand / wrist injury.** Lasting: -20 Handle (dominant) or -10 (other) on actions with that hand. After 1 Long Rest: healed. |
-| 5 | Serious | +1 | **Fractured hand / wrist.** Lasting (Broken hand): -40 Handle with that hand. No heavy grip or precise work with it. After 1 Long Rest: healed. |
-| 6+ | Severe | +2 | **Crushed hand.** Now: Lose the next Action Stage. Lasting (Broken hand): Hand unusable. After 1 Long Rest: as Fractured hand / wrist at Impact 5. After 2 Long Rests: healed. |
-
-#### Blunt Force: thigh
+#### Blunt Force: Hand - cap Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Driven back.** Knocked back out of striking reach. Lose the next Movement Stage, so the attacker chooses whether to step in and attack again or keep them back. |
-| 2 | Minor | 0 | **Dead leg.** Next relevant physical Check at Disadvantage. |
-| 3 | Serious | +1 | **Deep thigh bruise.** Lasting: Half Movement. No Evasive Movement. After 1 Long Rest: healed. |
-| 4 | Serious | +1 | **Deep thigh bruise.** Lasting: Half Movement. No Evasive Movement. After 1 Long Rest: healed. |
-| 5 | Serious | +1 | **Leg buckles.** Now: Knocked down. Lasting: the deep thigh bruise above. After 1 Long Rest: healed. |
-| 6+ | Severe | +2 | **Broken thighbone.** Now: Knocked down. Lasting (Broken leg): Crawl only without help. Disadvantage on all physical Checks. After 1 Long Rest: as Deep thigh bruise at Impact 3. After 2 Long Rests: healed. |
+| 1 | Minor | 0 | **Stung hand.** Rolls at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Knocked loose.** Whatever that hand holds is dropped. |
+| 3 | Serious | +1 | **Hand / wrist injury.** Whatever that hand holds is dropped. `-20 Handle` for the rest of combat. |
+| 4 | Serious | +1 | **Hand / wrist injury.** Whatever that hand holds is dropped. `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Fractured hand / wrist.** Whatever that hand holds is dropped. `-40 Handle` until 1 Long Rest. |
+| 6+ | Severe | +2 | **Crushed hand.** Whatever that hand holds is dropped. Actions requiring two hands are impossible; Handle drops to 10. After 1 Long Rest: two-handed actions are possible again and the penalty becomes `-40 Handle`. After 2 Long Rests: *Lasting hand damage*, `-10 Handle`. |
 
-#### Blunt Force: shin and feet
+#### Blunt Force: Thigh - cap Severe
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Driven back.** Knocked out of striking reach; lose the next Movement Stage. |
+| 2 | Minor | 0 | **Dead leg.** Physical Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Deep thigh bruise.** Speed Checks at Disadvantage for the rest of combat. |
+| 4 | Serious | +1 | **Deep thigh bruise.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Leg buckles.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 6+ | Severe | +2 | **Broken thighbone.** Crawl only without help until 1 Long Rest. After that, walking is possible with Speed Checks at Disadvantage. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
+
+#### Blunt Force: Shin and feet - cap Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Off balance.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Barked shin / stamped foot.** Next Speed Check at Disadvantage. |
+| 2 | Minor | 0 | **Barked shin / stamped foot.** Speed Checks at Disadvantage until the end of the next round. |
 | 3 | Serious | +1 | **Swept.** Knocked down. |
-| 4 | Serious | +1 | **Knee / ankle injury.** Lasting: Half Movement. No Evasive Movement. After 1 Long Rest: healed. |
-| 5 | Serious | +1 | **Fractured or dislocated knee / ankle.** Now: Knocked down. Lasting (Damaged knee or ankle): Half Movement. No Evasive Movement. After 1 Long Rest: healed. |
-| 6+ | Severe | +2 | **Shattered knee, shin or ankle.** Now: Knocked down. Lasting (Broken leg): Crawl only without help. After 1 Long Rest: as Knee / ankle injury at Impact 4. After 2 Long Rests: healed. |
+| 4 | Serious | +1 | **Knee / ankle injury.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Fractured or dislocated knee / ankle.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 6+ | Severe | +2 | **Shattered knee, shin or ankle.** Crawl only without help until 1 Long Rest. After that, walking is possible with Speed Checks at Disadvantage. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
 
 ### Cutting wound table
 
-For slashes and edged throws: knives, broken glass, hatchets, axes.
-
-#### Cutting: head
+#### Cutting: Head - vital, capped at Critical
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Scalp or face cut.** Blood runs into the eyes. Next attack at Disadvantage. |
-| 2 | Minor | 0 | **Cut across the brow.** Blood runs into the eyes. Next attack and next Check at Disadvantage. |
-| 3 | Serious | +1 | **Scalp cut, bleeding hard.** Next attack at Disadvantage. Bleeding timer. |
-| 4 | Serious | +1 | **Face slash near the eye.** -20 Handle on ranged and visually precise actions until treated. Bleeding timer. |
-| 5 | Severe | +2 | **Eye cut.** Lose the next Action Stage. -20 Handle on ranged and visually precise actions until real medical care. Bleeding timer. Lasting injury: Damaged eye. |
-| 6 | Severe | +2 | **Cheek laid open or ear cut off.** Dazed. Speech impaired. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. Lasting injury: Scarred face. |
-| 7+ | Critical | +2 | **Temple artery opened, or scalp laid open to the bone.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 1 | Minor | 0 | **Scalp or face cut.** Blood runs into the eyes. Attacks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Cut across the brow.** Blood runs into the eyes. All Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Scalp cut, bleeding hard.** Attacks at Disadvantage until the end of the next round. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Serious | +1 | **Face slash near the eye.** `-20 Handle` on ranged and visually precise actions until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 5 | Severe | +2 | **Eye cut.** Lose the next Action Stage. `-20 Handle` on ranged and visually precise actions until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: *Damaged vision*, lasting `-10 Handle` on ranged and visually precise actions. |
+| 6 | Severe | +2 | **Cheek laid open or ear cut off.** Dazed. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests, beginning immediately. Lasting: *Scarred face*; a lost ear remains lost. |
+| 7+ | Critical | +2 | **Temple artery opened, or scalp laid open to the bone.** Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
 
-#### Cutting: neck
+#### Cutting: Neck - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Nick.** Next attack at Disadvantage. |
+| 1 | Minor | 0 | **Nick.** Attacks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Shallow cut across the neck.** Lose the next Movement Stage. |
-| 3 | Serious | +1 | **Bleeding cut.** Bleeding timer. |
-| 4 | Serious | +1 | **Long neck cut.** Lose the next Action Stage. Bleeding timer. |
-| 5 | Severe | +2 | **Windpipe opened.** Whisper only. Disadvantage on all physical Checks. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. Lasting injury: Damaged throat. |
-| 6 | Severe | +2 | **Back of the neck cut deep.** Lose the next Action Stage. -20 Handle on all actions and no Evasive Movement until real medical care. Bleeding timer. Lasting injury: Cut muscle. |
-| 7 | Critical | +2 | **Neck vein opened.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 8 | Critical | +2 | **Neck artery opened.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 3 | Serious | +1 | **Bleeding cut.** Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Serious | +1 | **Long neck cut.** Dazed (lose the next Movement and Action Stages). Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 5 | Severe | +2 | **Windpipe opened.** Whisper only until 1 Long Rest. After 1 Long Rest: Body Save. Failure: *Speech damaged*, lasting `-10 Charm` at GM discretion. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Back of the neck cut deep.** Dazed. `-20 Handle` until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 7 | Critical | +2 | **Neck vein opened.** Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
+| 8 | Critical | +2 | **Neck artery opened.** Dazed. Death Save in d4 turns unless a Body Save succeeds. |
 | 9+ | Catastrophic | +4 | **Throat cut through.** Immediate Death Save. |
 
-#### Cutting: torso
+#### Cutting: Torso
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Slash across the chest.** Disadvantage on the next physical roll. |
-| 2 | Minor | 0 | **Shallow cut across the ribs.** Next attack at Disadvantage. |
-| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Next attack at Disadvantage. |
-| 4 | Serious | +1 | **Long chest cut.** Bleeding timer. |
-| 5 | Serious | +1 | **Chest muscle cut.** Disadvantage on Strength Checks involving the arms. Bleeding timer. |
-| 6 | Severe | +2 | **Gash to the ribs.** Half Movement. Disadvantage on Strength Checks and Body Saves. Bleeding timer. |
-| 7 | Severe | +2 | **Back laid open.** Lose the next Action Stage. Disadvantage on all physical Checks. No Evasive Movement. Bleeding timer. Lasting injury: Cut muscle. |
-| 8 | Critical | +2 | **Chest wall opened.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9 | Critical | +2 | **Cut between the ribs into the lung.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 1 | Minor | 0 | **Slash across the chest.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Shallow cut across the ribs.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Attacks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Long chest cut.** Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 5 | Serious | +1 | **Chest muscle cut.** Strength Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Gash to the ribs.** Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 7 | Severe | +2 | **Back laid open.** A deep slash parts the muscles across the back. Dazed. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: *Cut muscle*, lasting `-1d10 Body` (roll once). |
+| 8 | Critical | +2 | **Chest wall opened.** Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
+| 9 | Critical | +2 | **Cut between the ribs into the lung.** Knocked down (drop to the ground; standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only). Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
 | 10+ | Catastrophic | +4 | **Chest hewn open.** Immediate Death Save. |
 
-#### Cutting: waist
+#### Cutting: Waist
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Slash across the belly or side.** Disadvantage on the next physical roll. |
-| 2 | Minor | 0 | **Cut across the belt line.** Next attack at Disadvantage. |
-| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Next attack at Disadvantage. |
-| 4 | Serious | +1 | **Flesh wound.** Disadvantage on strenuous physical Checks until a Long Rest. |
-| 5 | Serious | +1 | **Long belly cut.** Bleeding timer. |
-| 6 | Severe | +2 | **Belly muscles cut through.** Disadvantage on all physical Checks. Bleeding timer. Lasting injury: Cut muscle. |
-| 7 | Severe | +2 | **Lower back cut deep.** Knocked down. Half Movement. No Evasive Movement. Disadvantage on all physical Checks. Bleeding timer. Lasting injury: Cut muscle. |
-| 8 | Critical | +2 | **Belly laid open.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9 | Critical | +2 | **Belly laid open, bowel cut.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 10+ | Catastrophic | +4 | **Cut through to the spine.** Immediate Death Save. |
+| 1 | Minor | 0 | **Slash across the belly or side.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Cut across the belt line.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Attacks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Flesh wound.** Physical Checks at Disadvantage for the rest of combat. |
+| 5 | Serious | +1 | **Long belly cut.** Physical Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Belly muscles cut through.** Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: lasting `-10` to Body Saves. |
+| 7 | Severe | +2 | **Lower back cut deep.** Knocked down (drop to the ground; standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only). Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: lasting `-10 Strength`. |
+| 8 | Critical | +2 | **Belly laid open.** Dazed. Death Save in d4 turns unless a Body Save succeeds. If survived: lasting `-10 Body`. |
+| 9 | Critical | +2 | **Belly laid open, bowel cut.** Knocked down (drop to the ground; standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only). Dazed. Death Save in d4 turns unless a Body Save succeeds. If survived: lasting `-10 Body`. |
+| 10+ | Catastrophic | +4 | **Cut through to the spine.** Immediate Death Save. If survived: lasting `-10 Body`. |
 
-#### Cutting: groin
+#### Cutting: Groin
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Cut.** Disadvantage on the next physical roll. |
+| 1 | Minor | 0 | **Cut.** Physical Checks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Cut at the hip.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Cut across the top of the thigh.** Lose the next Movement Stage. Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Hip or inner-thigh cut.** Half Movement until treated and recovered. |
-| 5 | Serious | +1 | **Heavy bleeding.** Bleeding timer. |
-| 6 | Severe | +2 | **Gash across the groin.** Half Movement. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. |
-| 7 | Severe | +2 | **Hip muscles cut through.** Knocked down. Crawl only without help until real medical care. Bleeding timer. Lasting injury: Cut muscle. |
-| 8 | Critical | +2 | **Big artery at the groin.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9 | Critical | +2 | **Big artery at the groin, cut through.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 3 | Minor | 0 | **Cut across the top of the thigh.** Lose the next Movement Stage. Speed Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Hip or inner-thigh cut.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Inner-thigh cut, heavy bleeding.** Speed Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Gash across the groin.** Physical Checks at Disadvantage until 2 Long Rests, beginning immediately. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 7 | Severe | +2 | **Hip muscles cut through.** Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 1 Long Rest: walking is possible, but physical Checks remain at Disadvantage. Lasting: *Cut muscle*, `-10 Speed`. |
+| 8 | Critical | +2 | **Big artery at the groin.** Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
+| 9 | Critical | +2 | **Big artery at the groin, cut through.** Knocked down (drop to the ground; standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only). Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
 | 10+ | Catastrophic | +4 | **Pelvic artery cut through.** Immediate Death Save. |
 
-#### Cutting: upper arm and shoulder
+#### Cutting: Upper arm or shoulder
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Slash across the arm.** Next roll with that arm at Disadvantage. |
+| 1 | Minor | 0 | **Slash across the arm.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Sleeve and skin cut.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Minor | 0 | **Long shallow cut.** Next roll with that arm at Disadvantage, and whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 4 | Serious | +1 | **Arm wound.** -20 Handle with that arm until treated and recovered. |
-| 5 | Serious | +1 | **Long arm cut.** -20 Handle with that arm. Bleeding timer. |
-| 6 | Severe | +2 | **Muscle cut through.** Arm unusable for force or precision; if forced, -40 Handle. Lasting injury: Cut muscle. |
-| 7 | Severe | +2 | **Shoulder cut to the bone.** Lose the next Action Stage. Arm unusable for force or precision; if forced, -40 Handle. Bleeding timer. Lasting injury: Cut muscle. |
-| 8 | Critical | +2 | **Arm artery.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9 | Critical | +2 | **Armpit artery.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 10+ | Catastrophic | +4 | **Arm hewn through at the shoulder.** Immediate Death Save. |
+| 3 | Minor | 0 | **Long shallow cut.** Handle rolls, including attacks, at Disadvantage until the end of the next round. Whatever that hand holds is dropped unless a Handle Check succeeds. |
+| 4 | Serious | +1 | **Arm wound.** `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Long arm cut.** `-20 Handle` until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Muscle cut through.** Arm unusable. After 1 Long Rest: arm usable, with `-40 Handle`. After 2 Long Rests: the temporary penalty clears. Lasting: *Cut muscle*, `-10 Handle`. |
+| 7 | Severe | +2 | **Shoulder cut to the bone.** Arm unusable. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 1 Long Rest: arm usable, with `-40 Handle`. After 2 Long Rests: the temporary penalty clears. Lasting: *Cut muscle*, `-1d20 Handle` (roll once). |
+| 8 | Critical | +2 | **Arm artery.** Dazed. Death Save in d4 turns unless a Body Save succeeds. |
+| 9 | Critical | +2 | **Armpit artery.** Knocked down (drop to the ground; standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only). Death Save in d4 turns unless a Body Save succeeds. |
+| 10+ | Catastrophic | +4 | **Arm cut off.** Immediate Death Save. If survived: lasting Handle halved, `-10 Charm`, `-10 Speed` and `-10 Body`. |
 
-#### Cutting: forearm
+#### Cutting: Forearm - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Defensive cut.** Next roll with that arm at Disadvantage. |
+| 1 | Minor | 0 | **Defensive cut.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Cut on the outside of the forearm.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Minor | 0 | **Long defensive cut.** Next roll with that arm at Disadvantage, and whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 4 | Serious | +1 | **Bleeding forearm cut.** Bleeding timer. |
-| 5 | Serious | +1 | **Tendons nicked.** -20 Handle with that hand. Whatever it holds is dropped unless a Handle Check succeeds. |
-| 6+ | Severe | +2 | **Wrist slashed.** Hand cannot grip until real medical care. Bleeding timer. Lasting injury: Cut tendons. |
+| 3 | Minor | 0 | **Long defensive cut.** Handle rolls, including attacks, at Disadvantage until the end of the next round. Whatever that hand holds is dropped unless a Handle Check succeeds. |
+| 4 | Serious | +1 | **Bleeding forearm cut.** Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 5 | Serious | +1 | **Tendons nicked.** `-10 Handle` until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Whatever that hand holds is dropped unless a Handle Check succeeds. |
+| 6+ | Severe | +2 | **Wrist slashed.** Whatever that hand holds is dropped. Hand cannot grip for the rest of combat. `-40 Handle` until 1 Long Rest, then `-20 Handle` until 2 Long Rests. After 2 Long Rests: the temporary penalty clears. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Lasting: *Cut tendons*, `-10 Handle`. |
 
-#### Cutting: hand
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Cut fingers.** Next roll with that hand at Disadvantage. |
-| 2 | Minor | 0 | **Cut across the back of the hand.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Minor | 0 | **Fingers cut grabbing at the blade.** Next roll with that hand at Disadvantage, and whatever it holds is dropped unless a Handle Check succeeds. |
-| 4 | Serious | +1 | **Cut palm.** -20 Handle with that hand until treated and recovered. Whatever it holds is dropped unless a Handle Check succeeds. |
-| 5 | Serious | +1 | **Finger tendons nicked.** -40 Handle with that hand. No heavy grip or precise work with it until treated. |
-| 6+ | Severe | +2 | **Tendons cut or fingers lost.** Hand unusable until real medical care. Bleeding timer. Lasting injury: Cut tendons or Lost fingers. |
-
-#### Cutting: thigh
+#### Cutting: Hand - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Shallow cut.** Disadvantage on the next physical roll. |
+| 1 | Minor | 0 | **Cut fingers.** Whatever that hand holds is dropped. |
+| 2 | Minor | 0 | **Cut across the back of the hand.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Fingers cut grabbing at the blade.** Whatever that hand holds is dropped. Handle rolls, including attacks, at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Cut palm.** Whatever that hand holds is dropped. `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Finger tendons cut.** Whatever that hand holds is dropped. `-40 Handle` until 1 Long Rest. |
+| 6+ | Severe | +2 | **Fingers lost.** Whatever that hand holds is dropped. Actions requiring two hands are impossible until 1 Long Rest; Handle drops to 10 until 1 Long Rest. After 1 Long Rest: two-handed actions become possible, with `-20 Handle` until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Roll 1d5 once for the number of fingers lost from that hand; they remain lost. After 2 Long Rests: lasting `-5 Handle` per lost finger (up to `-25 Handle`). |
+
+#### Cutting: Thigh
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Shallow cut.** Physical Checks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Cut on the outer thigh.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Leg wound.** Half Movement until treated and recovered. |
-| 5 | Serious | +1 | **Long thigh gash.** Half Movement. Bleeding timer. |
-| 6 | Severe | +2 | **Major bleeding.** Half Movement. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. |
-| 7 | Severe | +2 | **Thigh muscle cut through.** Knocked down. Crawl only without help until real medical care. Bleeding timer. Lasting injury: Cut muscle. |
-| 8 | Critical | +2 | **Thigh artery.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9 | Critical | +2 | **Thigh artery, cut through.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 10+ | Catastrophic | +4 | **Leg hewn through.** Immediate Death Save. |
+| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Speed Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Leg wound.** Lose the next Movement Stage. Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Long thigh gash.** Lose the next Movement Stage. Speed Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Major bleeding.** Lose the next Movement Stage. Physical Checks at Disadvantage until 2 Long Rests, beginning immediately. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 7 | Severe | +2 | **Thigh muscle cut through.** Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 1 Long Rest: walking is possible, but physical Checks remain at Disadvantage. Lasting: *Cut muscle*, `-10 Speed`. |
+| 8 | Critical | +2 | **Thigh artery.** Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
+| 9 | Critical | +2 | **Thigh artery, cut through.** Knocked down (drop to the ground; standing uses Movement and Action unless a Speed Check succeeds, in which case it uses Movement only). Lose the next Action Stage. Death Save in d4 turns unless a Body Save succeeds. |
+| 10+ | Catastrophic | +4 | **Leg hewn through.** Immediate Death Save. If survived: lasting *Missing leg*. Only one leg remains; Speed is reduced to one quarter. `-10 Charm` or `+10 Charm`, at GM discretion. |
 
-#### Cutting: shin and feet
+#### Cutting: Shin and feet - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Shallow cut.** Next Speed Check at Disadvantage. |
+| 1 | Minor | 0 | **Shallow cut.** Speed Checks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Cut across the shin or foot.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Leg / foot wound.** Half Movement until treated and recovered. |
-| 5 | Serious | +1 | **Calf gash.** Half Movement. No Evasive Movement. |
-| 6+ | Severe | +2 | **Tendon behind the knee or ankle cut.** Knocked down. Crawl only without help until real medical care. Lasting injury: Cut tendons. |
+| 3 | Minor | 0 | **Long shallow cut.** Lose the next Movement Stage. Speed Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Leg / foot wound.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Calf / foot gash.** Speed Checks at Disadvantage until 1 Long Rest. Cannot run or use Evasive Movement until 1 Long Rest. |
+| 6+ | Severe | +2 | **Tendon behind the knee or ankle cut.** Crawl only without help until 1 Long Rest. After 1 Long Rest: walking is possible, with Speed Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: the temporary penalty clears. Walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
 
 ### Piercing wound table
 
-For stabs and pointed throws: knives, spikes, nails, points.
-
-#### Piercing: head
+#### Piercing: Head
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Point skids off the skull.** Blood runs into the eyes. Next attack at Disadvantage. |
-| 2 | Minor | 0 | **Point across the brow.** Blood runs into the eyes. Next attack and next Check at Disadvantage. |
-| 3 | Minor | 0 | **Point catches the jaw.** Lose the next Movement Stage. Next attack at Disadvantage. |
-| 4 | Serious | +1 | **Stab through the cheek.** Speech impaired. Bleeding timer. |
-| 5 | Serious | +1 | **Point glances off the eye socket.** Dazed. -20 Handle on ranged and visually precise actions until recovered. |
-| 6 | Severe | +2 | **Eye put out.** Lose the next Action Stage. -20 Handle on ranged and visually precise actions until real medical care. Lasting injury: Lost eye. |
-| 7 | Severe | +2 | **Point lodged in the skull.** Dazed. Bleeding timer. -20 Handle on all actions until real medical care removes it; First Aid stabilizes but cannot remove it. Lasting injury: Lodged object. |
-| 8 | Critical | +2 | **Stab through the temple.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9 | Critical | +2 | **Stab through the eye socket.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 10+ | Catastrophic | +4 | **Into the brain.** Immediate Death Save. |
+| 1 | Minor | 0 | **Point skids off the skull.** Blood runs into the eyes. Attacks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Point across the brow.** Blood runs into the eyes. All Checks at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Point catches the jaw.** Attacks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Stab through the cheek.** Speech impaired until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 5 | Serious | +1 | **Point glances off the eye socket.** Dazed. `-20 Handle` on ranged and visually precise actions until 1 Long Rest. After 1 Long Rest: *Damaged vision*, lasting `-10 Handle` on ranged and visually precise actions. |
+| 6 | Severe | +2 | **Eye put out.** Lose the next Action Stage. `-20 Handle` on ranged and visually precise actions until 2 Long Rests. After 2 Long Rests: *Lost eye*, lasting `-10 Handle` on ranged and visually precise actions. The eye remains lost. |
+| 7 | Severe | +2 | **Point lodged in the skull.** Dazed. Gain +1 Trauma in d4 turns unless a Body Save succeeds. `-20 Handle` until 2 Long Rests. After 2 Long Rests: *Persistent head injury*, lasting `-10 Intellect`. |
+| 8 | Critical | +2 | **Stab through the temple.** Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. If survived: lasting `-10 Intellect`. |
+| 9 | Critical | +2 | **Stab through the eye socket.** Knocked down. Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. If survived: *Lost eye*, lasting `-10 Handle` on ranged and visually precise actions. The eye remains lost. |
+| 10+ | Catastrophic | +4 | **Into the brain.** Immediate Death Save. If survived: lasting `-20 Intellect`. |
 
-#### Piercing: neck
+#### Piercing: Neck - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Nick.** Next attack at Disadvantage. |
-| 2 | Minor | 0 | **Grazing jab.** Lose the next Movement Stage. |
-| 3 | Serious | +1 | **Bleeding puncture.** Bleeding timer. |
-| 4 | Serious | +1 | **Stab beside the windpipe.** Lose the next Action Stage. Bleeding timer. |
-| 5 | Severe | +2 | **Windpipe punctured.** Whisper only. Disadvantage on all physical Checks. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. Lasting injury: Damaged throat. |
-| 6 | Severe | +2 | **Stab through the throat, choking on blood.** Lose the next Action Stage. Whisper only. Disadvantage on all physical Checks until real medical care. Bleeding timer. Lasting injury: Damaged throat. |
-| 7 | Critical | +2 | **Neck vein opened.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 8 | Critical | +2 | **Neck artery opened.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 1 | Minor | 0 | **Nick.** Attacks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Grazing jab.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Bleeding puncture.** Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Serious | +1 | **Stab beside the windpipe.** Dazed. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 5 | Severe | +2 | **Windpipe punctured.** Physical Checks at Disadvantage until 2 Long Rests, beginning immediately. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Whisper only until 1 Long Rest. After 1 Long Rest: make a Body Save; failure leaves *Speech damaged*, lasting `-10 Charm` at GM discretion. |
+| 6 | Severe | +2 | **Stab through the throat, choking on blood.** Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Dazed. Unable to speak until 1 Long Rest; afterward, speech badly impaired until 2 Long Rests. After 2 Long Rests: *Permanently altered voice*, lasting `-10 Charm` at GM discretion. |
+| 7 | Critical | +2 | **Neck vein opened.** Dazed. Death Save in d4 turns unless a Body Save succeeds. |
+| 8 | Critical | +2 | **Neck artery opened.** Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. |
 | 9+ | Catastrophic | +4 | **Blade into the spine.** Immediate Death Save. |
 
-#### Piercing: torso
+#### Piercing: Torso - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Jab turned by a rib.** Disadvantage on the next physical roll. |
-| 2 | Minor | 0 | **Point in the chest muscle.** Next attack at Disadvantage. |
-| 3 | Serious | +1 | **Puncture between the ribs.** Bleeding timer. |
-| 4 | Serious | +1 | **Stab stopped by a rib or Point lodged (blade tip, glass or nail left in).** Roll d2. 1: *Stab stopped by a rib*: Disadvantage on Strength and Speed Checks involving exertion; half Movement and no Evasive Movement. 2: *Point lodged (blade tip, glass or nail left in)*: -20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it. Lasting injury: Lodged object. |
-| 5 | Severe | +2 | **Stab into the chest.** Half Movement. Disadvantage on Strength Checks and Body Saves. Strenuous exertion impossible. Lasting injury: Chest wound. |
-| 6 | Severe | +2 | **Lung nicked.** Lose the next Action Stage. Half Movement. No Evasive Movement. Disadvantage on all physical Checks. Bleeding timer. Lasting injury: Chest wound. |
-| 7 | Critical | +2 | **Lung punctured.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 8 | Critical | +2 | **Major vessel in the chest.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9+ | Catastrophic | +4 | **Heart.** Immediate Death Save. |
+| 1 | Minor | 0 | **Jab turned by a rib.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Point in the chest muscle.** Attacks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Puncture between the ribs.** Physical Checks at Disadvantage for the rest of combat. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Serious | +1 | Roll d2. **1 - Stab stopped by a rib:** Strength and Speed Checks at Disadvantage until 1 Long Rest. **2 - Point lodged:** a blade tip, glass or nail is left in; `-10 Strength` and `-10 Speed` until 1 Long Rest. |
+| 5 | Severe | +2 | **Stab into the chest.** Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body`. |
+| 6 | Severe | +2 | **Lung nicked.** Dazed. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: *Chest wound*, lasting `-10 Body`. |
+| 7 | Critical | +2 | **Lung punctured.** Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. Death Save in d4 turns unless a Body Save succeeds. If survived: lasting `-10 Body`. |
+| 8 | Critical | +2 | **Major vessel in the chest.** Knocked down. Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. |
+| 9+ | Catastrophic | +4 | **Heart.** Immediate Death Save. If survived: lasting `-20 Body`. |
 
-#### Piercing: waist
+#### Piercing: Waist - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Jab into the side.** Disadvantage on the next physical roll. |
+| 1 | Minor | 0 | **Jab into the side.** Physical Checks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Point skids off the hip bone.** Lose the next Movement Stage. |
-| 3 | Serious | +1 | **Shallow gut stab.** Disadvantage on physical Checks involving exertion. Bleeding timer. |
-| 4 | Serious | +1 | **Stab into the side muscles or Point lodged (blade tip, glass or nail left in).** Roll d2. 1: *Stab into the side muscles*: Disadvantage on physical Checks; half Movement and no Evasive Movement. 2: *Point lodged (blade tip, glass or nail left in)*: -20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it. Lasting injury: Lodged object. |
-| 5 | Severe | +2 | **Deep gut stab, bleeding inside.** Disadvantage on all physical Checks. Bleeding timer. Lasting injury: Internal injury. |
-| 6 | Severe | +2 | **Kidney stab.** Dazed. Disadvantage on all physical Checks. Bleeding timer. Lasting injury: Internal injury. |
-| 7 | Critical | +2 | **Bowel or kidney.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 8 | Critical | +2 | **Liver.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9+ | Catastrophic | +4 | **Main artery or spine.** Immediate Death Save. |
+| 3 | Serious | +1 | **Shallow gut stab.** Physical Checks at Disadvantage for the rest of combat. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Serious | +1 | **Stab through the flank.** Physical Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 5 | Severe | +2 | **Deep gut stab, bleeding inside.** Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: lasting `-10 Body`. |
+| 6 | Severe | +2 | **Kidney stab.** Dazed. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: *Internal injury*, lasting `-10 Body`. |
+| 7 | Critical | +2 | **Bowel or kidney.** Dazed. Death Save in d4 turns unless a Body Save succeeds. If survived: lasting `-10 Body`. |
+| 8 | Critical | +2 | **Liver.** Knocked down. Dazed. Death Save in d4 turns unless a Body Save succeeds. If survived: lasting `-10 Body`. |
+| 9+ | Catastrophic | +4 | **Main artery or spine.** Immediate Death Save. If survived: lasting `-10 Body`. |
 
-#### Piercing: groin
+#### Piercing: Groin
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Jab.** Disadvantage on the next physical roll. |
+| 1 | Minor | 0 | **Jab.** Physical Checks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Jab at the hip.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Point glances off the pelvis.** Lose the next Movement Stage. Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Puncture at the hip.** Half Movement until treated and recovered. |
-| 5 | Serious | +1 | **Inner-thigh stab, heavy bleeding.** Bleeding timer. |
-| 6 | Severe | +2 | **Deep groin stab.** Half Movement. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. |
-| 7 | Severe | +2 | **Stab into the hip joint.** Knocked down. Crawl only without help until real medical care. Lasting injury: Damaged hip. |
-| 8 | Critical | +2 | **Big artery at the groin.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 9 | Critical | +2 | **Big artery at the groin, opened wide.** Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 10+ | Catastrophic | +4 | **Pelvic artery opened.** Immediate Death Save. |
+| 3 | Minor | 0 | **Point glances off the pelvis.** Lose the next Movement Stage. Speed Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Puncture at the hip.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Inner-thigh stab, heavy bleeding.** Speed Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Deep groin stab.** Physical Checks at Disadvantage until 2 Long Rests, beginning immediately. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 7 | Severe | +2 | **Stab into the hip joint.** Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. After 1 Long Rest: walking is possible, but physical Checks remain at Disadvantage. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
+| 8 | Critical | +2 | **Big artery at the groin.** Knocked down. Dazed. Physical Checks at Disadvantage until 2 Long Rests. Death Save in d4 turns unless a Body Save succeeds. |
+| 9 | Critical | +2 | **Big artery at the groin, opened wide.** Knocked down. Dazed. Physical Checks at Disadvantage until 2 Long Rests. Death Save in d4 turns unless a Body Save succeeds. If survived: lasting `-10 Speed`. |
+| 10+ | Catastrophic | +4 | **Pelvic artery opened.** Knocked down. Dazed. Physical Checks at Disadvantage until 2 Long Rests. Immediate Death Save. If survived: lasting `-10 Speed`. |
 
-#### Piercing: upper arm and shoulder
+#### Piercing: Upper arm or shoulder - capped at Critical
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Jab into the arm.** Next roll with that arm at Disadvantage. |
+| 1 | Minor | 0 | **Jab into the arm.** Handle rolls at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Point in the shoulder.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Minor | 0 | **Jab into the biceps.** Next roll with that arm at Disadvantage, and whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 4 | Serious | +1 | **Puncture through the arm muscle.** -20 Handle with that arm until treated and recovered. |
-| 5 | Serious | +1 | **Shoulder stab.** -20 Handle with that arm. Strenuous use impossible until treated. |
-| 6 | Severe | +2 | **Stab into the shoulder joint.** Arm unusable for force or precision; if forced, -40 Handle. Lasting injury: Damaged shoulder. |
-| 7 | Severe | +2 | **Stab under the collarbone.** Lose the next Action Stage. Arm unusable for force or precision; if forced, -40 Handle. Bleeding timer. Lasting injury: Damaged shoulder. |
-| 8+ | Critical | +2 | **Armpit artery, or into the chest under the shoulder.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 3 | Minor | 0 | **Jab into the biceps.** Handle rolls at Disadvantage until the end of the next round. Whatever that hand holds is dropped unless a Handle Check succeeds. |
+| 4 | Serious | +1 | **Puncture through the arm muscle.** `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Shoulder stab.** `-30 Handle` until 1 Long Rest. |
+| 6 | Severe | +2 | **Stab into the shoulder joint.** Arm unusable until 1 Long Rest. After 1 Long Rest: arm usable, with `-40 Handle` until 2 Long Rests. After 2 Long Rests: *Damaged shoulder*, lasting `-10 Handle`. |
+| 7 | Severe | +2 | **Stab under the collarbone.** Arm unusable until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 1 Long Rest: arm usable, with `-40 Handle` until 2 Long Rests. After 2 Long Rests: *Damaged shoulder*, lasting `-10 Handle`. |
+| 8+ | Critical | +2 | **Armpit artery, or into the chest under the shoulder.** Dazed. Death Save in d4 turns unless a Body Save succeeds. |
 
-#### Piercing: forearm
+#### Piercing: Forearm - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Jab caught on the arm.** Next roll with that arm at Disadvantage. |
+| 1 | Minor | 0 | **Jab caught on the arm.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Point skids along the bone.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Minor | 0 | **Shallow puncture.** Next roll with that arm at Disadvantage, and whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 4 | Serious | +1 | **Puncture through the forearm.** -20 Handle with that hand until treated and recovered. |
-| 5 | Serious | +1 | **Stab between the forearm bones.** -20 Handle with that hand. Bleeding timer. |
-| 6+ | Severe | +2 | **Stab through the wrist.** Hand cannot grip until real medical care. Bleeding timer. Lasting injury: Cut tendons. |
+| 3 | Minor | 0 | **Shallow puncture.** Handle rolls, including attacks, at Disadvantage until the end of the next round. Whatever that hand holds is dropped unless a Handle Check succeeds. |
+| 4 | Serious | +1 | **Puncture through the forearm.** `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Stab between the forearm bones.** `-20 Handle` until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6+ | Severe | +2 | **Stab through the wrist.** Whatever that hand holds is dropped. Hand cannot grip for the rest of combat. `-40 Handle` until 1 Long Rest, then `-20 Handle` until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: *Cut tendons*, lasting `-10 Handle`. |
 
-#### Piercing: hand
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Jab to the knuckles.** Next roll with that hand at Disadvantage. |
-| 2 | Minor | 0 | **Nicked fingers.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Minor | 0 | **Point between the knuckles.** Next roll with that hand at Disadvantage, and whatever it holds is dropped unless a Handle Check succeeds. |
-| 4 | Serious | +1 | **Puncture in the palm.** -20 Handle with that hand until treated and recovered. |
-| 5 | Serious | +1 | **Stab through the hand.** -40 Handle with that hand. No heavy grip or precise work with it until treated. |
-| 6+ | Severe | +2 | **Hand bones split.** Hand unusable until real medical care. Bleeding timer. Lasting injury: Broken hand. |
-
-#### Piercing: thigh
+#### Piercing: Hand - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Jab into the thigh.** Disadvantage on the next physical roll. |
+| 1 | Minor | 0 | **Jab to the knuckles.** Whatever that hand holds is dropped. |
+| 2 | Minor | 0 | **Nicked fingers.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
+| 3 | Minor | 0 | **Point between the knuckles.** Whatever that hand holds is dropped. Handle rolls at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Puncture in the palm.** Whatever that hand holds is dropped. `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Stab through the hand.** Whatever that hand holds is dropped. `-40 Handle` until 1 Long Rest. |
+| 6+ | Severe | +2 | **Hand bones split.** Whatever that hand holds is dropped. Actions requiring two hands are impossible until 1 Long Rest; Handle drops to 10 until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 1 Long Rest: two-handed actions become possible, with `-40 Handle` until 2 Long Rests. After 2 Long Rests: *Lasting hand damage*, `-10 Handle`. |
+
+#### Piercing: Thigh - capped at Critical
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Jab into the thigh.** Physical Checks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Point in the outer thigh.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Stab glances off the thighbone.** Lose the next Movement Stage. Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Thigh stab.** Half Movement until treated and recovered. |
-| 5 | Serious | +1 | **Thigh stab, bleeding.** Half Movement. Bleeding timer. |
-| 6 | Severe | +2 | **Major bleeding.** Half Movement. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. |
-| 7 | Severe | +2 | **Stab to the bone through the thigh muscle.** Knocked down. Half Movement. No Evasive Movement. Bleeding timer. Lasting injury: Cut muscle. |
-| 8+ | Critical | +2 | **Thigh artery.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 3 | Minor | 0 | **Stab glances off the thighbone.** Lose the next Movement Stage. Speed Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Thigh stab.** Lose the next Movement Stage. Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Thigh stab, bleeding.** Lose the next Movement Stage. Speed Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 6 | Severe | +2 | **Major bleeding.** Lose the next Movement Stage. Physical Checks at Disadvantage until 2 Long Rests, beginning immediately. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 7 | Severe | +2 | **Stab to the bone through the thigh muscle.** Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 1 Long Rest: walking is possible, but physical Checks remain at Disadvantage. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
+| 8+ | Critical | +2 | **Thigh artery.** Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Death Save in d4 turns unless a Body Save succeeds. After 1 Long Rest: walking is possible, but physical Checks remain at Disadvantage. After 2 Long Rests, if survived: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
 
-#### Piercing: shin and feet
+#### Piercing: Shin and feet - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Jab.** Next Speed Check at Disadvantage. |
+| 1 | Minor | 0 | **Jab.** Speed Checks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Point in the calf or the top of the foot.** Lose the next Movement Stage. |
-| 3 | Minor | 0 | **Stab glances off the shinbone.** Lose the next Movement Stage. Next Speed Check at Disadvantage. |
-| 4 | Serious | +1 | **Calf or foot puncture.** Half Movement until treated and recovered. |
-| 5 | Serious | +1 | **Stab through the calf or foot.** Half Movement. No Evasive Movement. |
-| 6+ | Severe | +2 | **Point into the knee or ankle joint.** Knocked down. Crawl only without help until real medical care. Lasting injury: Damaged knee or ankle. |
+| 3 | Minor | 0 | **Stab glances off the shinbone.** Lose the next Movement Stage. Speed Checks at Disadvantage until the end of the next round. |
+| 4 | Serious | +1 | **Calf or foot puncture.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Stab through the calf or foot.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 6+ | Severe | +2 | **Point into the knee or ankle joint.** Crawl only without help until 1 Long Rest. After 1 Long Rest: walking is possible, with Speed Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
 
 ### Thrown Objects wound table
 
-For blunt throws: rocks, bottles, bricks, a thrown tool. The Dodgeball has its own table.
-
-#### Thrown Objects: head
+#### Thrown Objects: Head - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Ducked into it.** Lose the next Movement Stage. |
-| 2 | Serious | +1 | **Rock to the head, Minor Concussion.** Body Save. Success: Only Dazed, and 0 Trauma instead of +1. Failure: Minor Concussion, which is Dazed and -10 Handle until a Long Rest. |
-| 3 | Serious | +1 | **Struck in the face.** Dazed. -20 Handle on ranged and visually precise actions until recovered. |
-| 4 | Serious | +1 | **Broken nose or cheekbone.** Lose the next Action Stage. Visually precise actions at Disadvantage until treated. Lasting injury: Broken jaw. |
-| 5 | Severe | +2 | **Severe Concussion.** Body Save. Success: A Minor Concussion instead (Dazed and -10 Handle until a Long Rest), and +1 Trauma instead of +2. Failure: Dazed and -40 Handle; after a Long Rest the penalty steps down to -10, and after a second Long Rest it clears. |
-| 6+ | Catastrophic | +4 | **Skull fracture.** Immediate Death Save. |
+| 2 | Serious | +1 | **Rock to the head.** Minor Concussion. Body Save. Success: only Dazed, and 0 Trauma instead of +1. Failure: Dazed and `-10 Handle` until 1 Long Rest. |
+| 3 | Serious | +1 | **Struck in the face.** Dazed. `-20 Handle` on ranged and visually precise actions until 1 Long Rest. After 1 Long Rest: lasting `-10 Handle` on ranged and visually precise actions. |
+| 4 | Serious | +1 | **Broken nose or cheekbone.** Lose the next Action Stage. Visually precise actions at Disadvantage until 1 Long Rest. After 1 Long Rest: lasting `-10 Charm` at GM discretion. |
+| 5 | Severe | +2 | **Severe Concussion.** Body Save. Success: Dazed and `-10 Handle` until 1 Long Rest; +1 Trauma instead of +2. Failure: Dazed and `-30 Handle`. After 1 Long Rest: `-10 Handle`. After 2 Long Rests: the Handle penalty clears; lasting `-10 Intellect`. |
+| 6+ | Catastrophic | +4 | **Skull fracture.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body`, `-10 Intellect` and `+4 minimum Stress`. |
 
-#### Thrown Objects: neck
+#### Thrown Objects: Neck - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Clipped.** Next attack at Disadvantage. |
-| 2 | Serious | +1 | **Wrenched neck.** Lose the next Movement Stage. -20 Handle on upper-body actions until recovered. |
-| 3 | Serious | +1 | **Throat strike.** Lose the next Action Stage, choking. |
-| 4 | Serious | +1 | **Bruised windpipe.** Lose the next Action Stage. Speech badly impaired. Half Movement. No Evasive Movement. |
-| 5 | Severe | +2 | **Fractured larynx.** Dazed. Disadvantage on all physical Checks. Bleeding timer (the airway is swelling shut): +1 Trauma in d4 turns unless First Aid. Lasting injury: Damaged throat. |
-| 6+ | Catastrophic | +4 | **Crushed windpipe or broken neck.** Immediate Death Save. |
+| 1 | Minor | 0 | **Clipped.** Attacks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Wrenched neck.** `-10 Handle` for the rest of combat. |
+| 3 | Serious | +1 | **Throat strike.** Choking. Lose the next Action Stage. |
+| 4 | Serious | +1 | **Bruised windpipe.** Lose the next Action Stage. Speech badly impaired until 1 Long Rest. |
+| 5 | Severe | +2 | **Fractured larynx.** Unable to speak until 1 Long Rest; afterward, speech badly impaired until 2 Long Rests. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: permanently hoarse voice, lasting `-10 Charm` at GM discretion. |
+| 6+ | Catastrophic | +4 | **Crushed windpipe or broken neck.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Thrown Objects: torso
+#### Thrown Objects: Torso
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Thump.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Winded.** Next relevant physical Check at Disadvantage. |
-| 3 | Serious | +1 | **Bruised ribs.** Disadvantage on Strength and Speed Checks involving exertion. Half Movement. No Evasive Movement. |
-| 4 | Serious | +1 | **Broken rib(s).** Physical Checks involving exertion at Disadvantage. Half Movement. No Evasive Movement or heavy lifting. Lasting injury: Broken ribs. |
-| 5 | Serious | +1 | **Broken rib(s).** Knocked down. Physical Checks involving exertion at Disadvantage. Half Movement. No Evasive Movement or heavy lifting. Lasting injury: Broken ribs. |
-| 6 | Severe | +2 | **Caved ribs.** Dazed. Half Movement. Disadvantage on Strength Checks and Body Saves. Strenuous exertion is impossible. Lasting injury: Broken ribs. |
-| 7+ | Catastrophic | +4 | **Crushed chest or stopped heart.** Immediate Death Save. |
+| 2 | Minor | 0 | **Winded.** Physical Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Bruised ribs.** Strength and Speed Checks at Disadvantage until 1 Long Rest. |
+| 4 | Serious | +1 | **Broken rib(s).** Physical Checks at Disadvantage until 2 Long Rests. |
+| 5 | Serious | +1 | **Broken rib(s).** Knocked down. Physical Checks at Disadvantage until 2 Long Rests. |
+| 6 | Severe | +2 | **Caved ribs.** Knocked down. Dazed. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body`. |
+| 7+ | Catastrophic | +4 | **Crushed chest or stopped heart.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Thrown Objects: waist
+#### Thrown Objects: Waist
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Thump in the gut.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Doubled over.** Next relevant physical Check at Disadvantage. |
-| 3 | Serious | +1 | **Body injury.** Disadvantage on physical Checks involving exertion. Another Serious-or-worse physical wound before a Long Rest needs a Body Save or the victim is Dazed. |
-| 4 | Serious | +1 | **Body injury.** Disadvantage on physical Checks involving exertion. Another Serious-or-worse physical wound before a Long Rest needs a Body Save or the victim is Dazed. |
-| 5 | Serious | +1 | **Kidney blow.** Dazed, then the Body injury above. |
-| 6 | Severe | +2 | **Internal bleeding.** Disadvantage on all physical Checks. Bleeding timer: +1 Trauma in d4 turns unless First Aid. Lasting injury: Internal injury. |
-| 7+ | Catastrophic | +4 | **Ruptured liver or spleen.** Immediate Death Save. |
+| 2 | Minor | 0 | **Doubled over.** Physical Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Deep tissue bruising.** Physical Checks at Disadvantage for the rest of combat. |
+| 4 | Serious | +1 | **Deep tissue bruising.** Physical Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Kidney blow.** Knocked down. Physical Checks at Disadvantage until 1 Long Rest. |
+| 6 | Severe | +2 | **Internal bleeding.** Gain +1 Trauma every 30 minutes until treated with Basic First Aid. Physical Checks at Disadvantage until 2 Long Rests. |
+| 7+ | Catastrophic | +4 | **Ruptured liver or spleen.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Thrown Objects: groin
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Flinch.** Next attack at Disadvantage. |
-| 2 | Minor | 0 | **Flinch.** Next attack at Disadvantage. |
-| 3 | Serious | +1 | **Groin strike.** Knocked down and Dazed. |
-| 4 | Serious | +1 | **Groin strike.** Knocked down and Dazed. |
-| 5 | Serious | +1 | **Damaged hip.** Half Movement. No Evasive Movement. |
-| 6+ | Severe | +2 | **Broken pelvis.** Knocked down. Crawl only without help. Disadvantage on all physical Checks. Lasting injury: Broken pelvis. |
-
-#### Thrown Objects: upper arm and shoulder
+#### Thrown Objects: Groin - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Stinger.** Next attack at Disadvantage. |
-| 2 | Minor | 0 | **Numb arm.** Next roll using that arm at Disadvantage. |
-| 3 | Serious | +1 | **Shoulder injury.** -20 Handle on fighting, grappling, climbing, throwing and other upper-body actions. Two-handed actions likewise. |
-| 4 | Serious | +1 | **Shoulder injury.** -20 Handle on fighting, grappling, climbing, throwing and other upper-body actions. Two-handed actions likewise. |
-| 5 | Serious | +1 | **Dislocated shoulder.** Arm unusable until reduced, then -20 Handle with that arm until recovered. Lasting injury: Dislocated shoulder. |
-| 6+ | Severe | +2 | **Broken collarbone.** Arm unusable; if forced, -40 Handle. Lose the next Action Stage. Lasting injury: Broken arm. |
+| 1 | Minor | 0 | **Flinch.** Attacks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Low blow.** Lose the next Movement Stage. Attacks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Groin strike.** Knocked down. |
+| 4 | Serious | +1 | **Heavy groin strike.** Knocked down. Speed Checks at Disadvantage for the rest of combat. |
+| 5 | Serious | +1 | **Damaged hip.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 6+ | Severe | +2 | **Broken pelvis.** Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. After 1 Long Rest: walking is possible, but Physical Checks remain at Disadvantage. |
 
-#### Thrown Objects: forearm
+#### Thrown Objects: Upper arm or shoulder - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Blocked it.** Next attack with that arm at Disadvantage. |
+| 1 | Minor | 0 | **Stinger.** Attacks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Numb arm.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Shoulder injury.** `-20 Handle` for the rest of combat. |
+| 4 | Serious | +1 | **Shoulder injury.** `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Dislocated shoulder.** Whatever that hand holds is dropped. Arm unusable until the shoulder is put back in place; afterward, lasting `-10 Handle`. |
+| 6+ | Severe | +2 | **Broken collarbone.** Whatever that hand holds is dropped. Arm unusable until 1 Long Rest. After 1 Long Rest: arm usable, with `-20 Handle` until 2 Long Rests. |
+
+#### Thrown Objects: Forearm - capped at Severe
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Blocked it.** Attacks at Disadvantage until the end of the next round. |
 | 2 | Minor | 0 | **Knocked loose.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Serious | +1 | **Forearm injury.** -20 Handle (dominant side) or -10 (other side) on actions with that hand. |
-| 4 | Serious | +1 | **Forearm injury.** -20 Handle (dominant side) or -10 (other side) on actions with that hand. |
-| 5 | Serious | +1 | **Broken forearm.** Arm unusable for fighting, climbing, carrying or heavy work until treated. Lasting injury: Broken arm. |
-| 6+ | Severe | +2 | **Shattered forearm.** Arm unusable; if forced, -40 Handle. Lose the next Action Stage. Lasting injury: Broken arm. |
+| 3 | Serious | +1 | **Forearm injury.** `-20 Handle` for the rest of combat. |
+| 4 | Serious | +1 | **Forearm injury.** `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Sprained forearm.** `-30 Handle` until 1 Long Rest. |
+| 6+ | Severe | +2 | **Shattered forearm.** Whatever that hand holds is dropped. Arm unusable until 1 Long Rest. After 1 Long Rest: arm usable; lasting `-10 Handle`. |
 
-#### Thrown Objects: hand
+#### Thrown Objects: Hand - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Stung hand.** Next roll with that hand at Disadvantage. |
-| 2 | Minor | 0 | **Knocked loose.** Whatever that hand holds is dropped unless a Handle Check succeeds. |
-| 3 | Serious | +1 | **Jammed fingers.** -20 Handle (dominant) or -10 (other) on actions with that hand. |
-| 4 | Serious | +1 | **Jammed fingers.** -20 Handle (dominant) or -10 (other) on actions with that hand. |
-| 5 | Serious | +1 | **Fractured hand / wrist.** -40 Handle with that hand. No heavy grip or precise work with it until treated. Lasting injury: Broken hand. |
-| 6+ | Severe | +2 | **Crushed hand.** Hand unusable until real medical care. Lose the next Action Stage. Lasting injury: Broken hand. |
+| 1 | Minor | 0 | **Stung hand.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Knocked loose.** Whatever that hand holds is dropped. |
+| 3 | Serious | +1 | **Jammed fingers.** Whatever that hand holds is dropped. `-20 Handle` for the rest of combat. |
+| 4 | Serious | +1 | **Jammed fingers.** Whatever that hand holds is dropped. `-20 Handle` until 1 Long Rest. |
+| 5 | Serious | +1 | **Fractured hand / wrist.** Whatever that hand holds is dropped. `-40 Handle` until 1 Long Rest. |
+| 6+ | Severe | +2 | **Crushed hand.** Whatever that hand holds is dropped. Actions requiring two hands are impossible until 1 Long Rest; Handle drops to 10 until 1 Long Rest. After 1 Long Rest: two-handed actions become possible, with `-40 Handle` until 2 Long Rests. After 2 Long Rests: lasting `-10 Handle`. |
 
-#### Thrown Objects: thigh
+#### Thrown Objects: Thigh - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
 | 1 | Minor | 0 | **Thump.** Lose the next Movement Stage. |
-| 2 | Minor | 0 | **Dead leg.** Next relevant physical Check at Disadvantage. |
-| 3 | Serious | +1 | **Deep thigh bruise.** Half Movement until a Long Rest. No Evasive Movement. |
-| 4 | Serious | +1 | **Deep thigh bruise.** Half Movement until a Long Rest. No Evasive Movement. |
-| 5 | Serious | +1 | **Leg buckles.** Knocked down, then the deep thigh bruise above. |
-| 6+ | Severe | +2 | **Broken thighbone.** Knocked down. Crawl only without help. Disadvantage on all physical Checks. Lasting injury: Broken leg. |
+| 2 | Minor | 0 | **Dead leg.** Physical Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Deep thigh bruise.** Speed Checks at Disadvantage for the rest of combat. |
+| 4 | Serious | +1 | **Deep thigh bruise.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Leg buckles.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 6+ | Severe | +2 | **Broken thighbone.** Crawl only without help until 1 Long Rest. After 1 Long Rest: walking is possible, with Speed Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
 
-#### Thrown Objects: shin and feet
+#### Thrown Objects: Shin and feet - capped at Severe
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Barked shin / stubbed foot.** Next Speed Check at Disadvantage. |
-| 2 | Minor | 0 | **Barked shin / stubbed foot.** Next Speed Check at Disadvantage. |
-| 3 | Serious | +1 | **Knee / ankle injury.** Half Movement. No Evasive Movement. |
-| 4 | Serious | +1 | **Knee / ankle injury.** Half Movement. No Evasive Movement. |
-| 5 | Serious | +1 | **Fractured or dislocated knee / ankle.** Knocked down. Half Movement after standing. No Evasive Movement until treated. Lasting injury: Damaged knee or ankle. |
-| 6+ | Severe | +2 | **Shattered knee, shin or ankle.** Knocked down. Crawl only without help. Lasting injury: Broken leg. |
+| 1 | Minor | 0 | **Barked shin / stubbed foot.** Speed Checks at Disadvantage until the end of the next round. |
+| 2 | Minor | 0 | **Hard knock to the shin or foot.** Lose the next Movement Stage. Speed Checks at Disadvantage until the end of the next round. |
+| 3 | Serious | +1 | **Knee / ankle injury.** Speed Checks at Disadvantage for the rest of combat. |
+| 4 | Serious | +1 | **Knee / ankle injury.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 5 | Serious | +1 | **Fractured or dislocated knee / ankle.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 6+ | Severe | +2 | **Shattered knee, shin or ankle.** Crawl only without help until 1 Long Rest. After 1 Long Rest: walking is possible, with Speed Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
 
 ### Gunshot wound table
 
-For firearms.
-
-#### Gunshot: head
+#### Gunshot: Head - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Serious | +1 | **Bullet glances off the skull.** Minor Concussion. Body Save. Success: Only Dazed, and 0 Trauma instead of +1. Failure: Minor Concussion, which is Dazed and -10 Handle until a Long Rest. |
-| 2 | Serious | +1 | **Face, jaw or ear wound.** Lose the next Action Stage. Speech badly impaired. -20 Handle on ranged and visually precise actions until treated. |
-| 3 | Severe | +2 | **Skull hit.** Severe Concussion. Body Save. Success: A Minor Concussion instead (Dazed and -10 Handle until a Long Rest), and +1 Trauma instead of +2. Failure: Dazed and -40 Handle; after a Long Rest the penalty steps down to -10, and after a second Long Rest it clears. |
-| 4 | Critical | +2 | **Bullet in the skull.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 5+ | Catastrophic | +4 | **Brain.** Immediate Death Save. |
+| 1 | Serious | +1 | **Bullet glances off the skull.** Minor Concussion. Body Save. Success: only Dazed, and 0 Trauma instead of +1. Failure: Minor Concussion, which is Dazed and `-10 Handle` until 1 Long Rest. |
+| 2 | Serious | +1 | **Face, jaw or ear wound.** Lose the next Action Stage. Speech badly impaired until 1 Long Rest. `-20 Handle` on ranged and visually precise actions until 1 Long Rest. After 1 Long Rest: *Facial injury*, lasting `-10 Charm` at GM discretion. |
+| 3 | Severe | +2 | **Skull hit.** Severe Concussion. Body Save. Success: Minor Concussion-Dazed, with `-10 Handle` until 1 Long Rest; +1 Trauma instead of +2. Failure: Dazed and `-30 Handle`. After 1 Long Rest: `-10 Handle`. After 2 Long Rests: the Handle penalty clears; *Persistent concussion*, lasting `-10 Intellect`. |
+| 4 | Critical | +2 | **Bullet in the skull.** Apply the Skull hit concussion effects at Impact 3, including Dazed, its concussion Body Save, penalties and recovery. Retain +2 Trauma regardless of the concussion Save. Death Save in d4 turns unless a separate Body Save succeeds. If survived, lasting: `-10 Intellect`, `-10 Body`, and `+4 minimum Stress`. The concussion adds no lasting Intellect of its own: this is the wound's whole lasting Intellect loss. |
+| 5+ | Catastrophic | +4 | **Brain.** Immediate Death Save. If survived: apply the Skull hit concussion effects at Impact 3, including Dazed, its concussion Body Save, penalties and recovery. Retain +4 Trauma regardless of the concussion Save. If survived, lasting: `-20 Intellect`, `-20 Body`, and `+8 minimum Stress`. The concussion adds no lasting Intellect of its own: this is the wound's whole lasting Intellect loss. |
 
-#### Gunshot: neck
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Serious | +1 | **Bleeding graze.** Bleeding timer: +1 Trauma in d4 turns unless First Aid. |
-| 2 | Serious | +1 | **Through the side of the neck.** Lose the next Action Stage. Bleeding timer. |
-| 3 | Severe | +2 | **Windpipe hit.** Whisper only. Disadvantage on all physical Checks. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest. Lasting injury: Damaged throat. |
-| 4 | Critical | +2 | **Neck artery or vein.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 5+ | Catastrophic | +4 | **Spine or neck vessels destroyed.** Immediate Death Save. |
-
-#### Gunshot: torso
+#### Gunshot: Neck - vital
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Graze across the ribs.** Disadvantage on the next physical roll. |
-| 2 | Serious | +1 | **Flesh wound or Bleeding wound.** Roll d2. 1: *Flesh wound*: Disadvantage on strenuous physical Checks until a Long Rest. 2: *Bleeding wound*: Bleeding timer. |
-| 3 | Serious | +1 | **Bullet along the ribs or Lodged bullet.** Roll d2. 1: *Bullet along the ribs*: Disadvantage on physical Checks; half Movement and no Evasive Movement. 2: *Lodged bullet*: -20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it. Lasting injury: Lodged object. |
-| 4 | Severe | +2 | **Shot through the chest.** Half Movement. Disadvantage on Strength Checks and Body Saves. Strenuous exertion impossible. Lasting injury: Chest wound. |
-| 5 | Critical | +2 | **Lung or major vessel.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 6+ | Catastrophic | +4 | **Heart or upper spine.** Immediate Death Save. |
+| 1 | Serious | +1 | **Bleeding graze.** Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 2 | Serious | +1 | **Through the side of the neck.** Dazed. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 3 | Severe | +2 | **Windpipe hit.** Choking on blood. Dazed. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: *Permanently altered voice*, lasting `-10 Charm` at GM discretion. |
+| 4 | Critical | +2 | **Neck artery or vein.** Knocked down. Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body` and `+2 minimum Stress`. |
+| 5+ | Catastrophic | +4 | **Spine or neck vessels destroyed.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Gunshot: waist
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Graze across the side.** Disadvantage on the next physical roll. |
-| 2 | Serious | +1 | **Flesh wound through the side or Bleeding wound.** Roll d2. 1: *Flesh wound through the side*: Disadvantage on strenuous physical Checks until a Long Rest. 2: *Bleeding wound*: Bleeding timer. |
-| 3 | Serious | +1 | **Bullet through the side muscles or Lodged bullet.** Roll d2. 1: *Bullet through the side muscles*: Disadvantage on physical Checks; half Movement and no Evasive Movement. 2: *Lodged bullet*: -20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it. Lasting injury: Lodged object. |
-| 4 | Severe | +2 | **Gut shot.** Disadvantage on all physical Checks. Bleeding timer. Lasting injury: Internal injury. |
-| 5 | Critical | +2 | **Liver, kidney or bowel.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 6+ | Catastrophic | +4 | **Main artery or lower spine.** Immediate Death Save. |
-
-#### Gunshot: groin
+#### Gunshot: Torso
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Graze.** Disadvantage on the next physical roll. |
-| 2 | Serious | +1 | **Hip flesh wound.** Half Movement until treated and recovered. |
-| 3 | Serious | +1 | **Heavy bleeding.** Bleeding timer. |
-| 4 | Severe | +2 | **Shattered hip or pelvis.** Knocked down. Crawl only without help. Lasting injury: Broken pelvis. |
-| 5 | Critical | +2 | **Big artery at the groin.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-| 6+ | Catastrophic | +4 | **Pelvic vessels destroyed.** Immediate Death Save. |
+| 1 | Minor | 0 | **Graze across the ribs.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Flesh wound.** Physical Checks at Disadvantage until 1 Long Rest. Roll d2. **2 - Bleeding wound:** also gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 3 | Serious | +1 | **Bullet along the ribs.** Physical Checks at Disadvantage until 2 Long Rests. Roll d2. **2 - Bleeding wound:** also gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Severe | +2 | **Shot through the chest.** Dazed. Gain +1 Trauma in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body`. |
+| 5 | Critical | +2 | **Lung or major vessel.** Knocked down. Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body` and `+2 minimum Stress`. |
+| 6+ | Catastrophic | +4 | **Heart or upper spine.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Gunshot: upper arm and shoulder
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Graze.** Disadvantage on the next physical roll. |
-| 2 | Serious | +1 | **Arm wound.** Through-and-through muscle wound. -20 Handle with that arm until treated and recovered. |
-| 3 | Serious | +1 | **Damaged shoulder.** -20 Handle with that arm. Strenuous use impossible until treated. |
-| 4 | Severe | +2 | **Shattered arm.** Unusable for force or precision; if forced, -40 Handle. Lasting injury: Broken arm. |
-| 5+ | Critical | +2 | **Armpit artery, or into the chest under the shoulder.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
-
-#### Gunshot: forearm
+#### Gunshot: Waist
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Graze.** Next roll with that arm at Disadvantage. |
-| 2 | Serious | +1 | **Arm wound.** -20 Handle with that arm until treated and recovered. |
-| 3 | Serious | +1 | **Chipped bone.** -20 Handle with that arm. Bleeding timer. |
-| 4+ | Severe | +2 | **Shattered forearm.** Unusable for force or precision; if forced, -40 Handle. Lasting injury: Broken arm. |
+| 1 | Minor | 0 | **Graze across the side.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Flesh wound through the side.** Physical Checks at Disadvantage until 1 Long Rest. Roll d2. **2 - Bleeding wound:** also gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 3 | Serious | +1 | **Bullet through the side muscles.** Physical Checks at Disadvantage until 2 Long Rests. Roll d2. **2 - Bleeding wound:** also gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Severe | +2 | **Gut shot.** Physical Checks at Disadvantage until 2 Long Rests. Gain +1 Trauma in d4 turns unless a Body Save succeeds. After 2 Long Rests: lasting `-10 Body`. |
+| 5 | Critical | +2 | **Liver, kidney or bowel.** Knocked down. Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body` and `+2 minimum Stress`. |
+| 6+ | Catastrophic | +4 | **Main artery or lower spine.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. After 1 Long Rest: walking is possible, but Physical Checks remain at Disadvantage. After 2 Long Rests: lasting `-20 Body` and `+4 minimum Stress`. |
 
-#### Gunshot: hand
-
-| Impact | Severity | Trauma | Wound |
-|---:|---|---:|---|
-| 1 | Minor | 0 | **Nicked hand.** Next roll with that hand at Disadvantage. Whatever it holds is dropped unless a Handle Check succeeds. |
-| 2 | Serious | +1 | **Damaged hand / wrist.** -20 Handle with that hand. |
-| 3 | Serious | +1 | **Fingers or wrist bones hit.** -40 Handle with that hand. No heavy grip or precise work with it until treated. Lasting injury: Broken hand. |
-| 4+ | Severe | +2 | **Shattered hand.** Hand unusable; if forced, -40 Handle. Lasting injury: Broken hand. |
-
-#### Gunshot: thigh
+#### Gunshot: Groin
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Graze.** Disadvantage on the next physical roll. |
-| 2 | Serious | +1 | **Leg wound.** Half Movement until treated and recovered. |
-| 3 | Serious | +1 | **Leg wound near the hip or knee or Heavy bleeding.** Roll d2. 1: *Leg wound near the hip or knee*: Half Movement; no Evasive Movement. 2: *Heavy bleeding*: Bleeding timer. |
-| 4 | Severe | +2 | **Shattered leg.** Knocked down. Crawl only without help. Lasting injury: Broken leg. |
-| 5+ | Critical | +2 | **Thigh artery.** Lose the next Action Stage. Death Save in d4 turns unless stabilized. |
+| 1 | Minor | 0 | **Graze.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Hip flesh wound.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 3 | Serious | +1 | **Heavy bleeding.** Speed Checks at Disadvantage until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Severe | +2 | **Shattered hip or pelvis.** Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. After 1 Long Rest: walking is possible, but Physical Checks remain at Disadvantage. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
+| 5 | Critical | +2 | **Big artery at the groin.** Knocked down. Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body` and `+2 minimum Stress`. |
+| 6+ | Catastrophic | +4 | **Pelvic vessels destroyed.** Immediate Death Save. Knocked down. Dazed for 1d4 turns. Crawl only without help until 1 Long Rest. Physical Checks at Disadvantage until 2 Long Rests. After 1 Long Rest: walking is possible, but Physical Checks remain at Disadvantage. After 2 Long Rests: lasting `-20 Body`, `-10 Speed` and `+4 minimum Stress`. |
 
-#### Gunshot: shin and feet
+#### Gunshot: Upper arm or shoulder - capped at Critical
 
 | Impact | Severity | Trauma | Wound |
 |---:|---|---:|---|
-| 1 | Minor | 0 | **Graze.** Disadvantage on the next physical roll. |
-| 2 | Serious | +1 | **Leg / foot wound.** Half Movement until treated and recovered. |
-| 3 | Serious | +1 | **Knee / ankle wound.** Half Movement. No Evasive Movement. |
-| 4+ | Severe | +2 | **Shattered knee, shin or ankle.** Knocked down. Crawl only without help. Lasting injury: Broken leg. |
+| 1 | Minor | 0 | **Graze.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Arm wound.** Through-and-through muscle wound. `-10 Handle` until 1 Long Rest. |
+| 3 | Serious | +1 | **Damaged shoulder.** `-20 Handle` until 1 Long Rest. |
+| 4 | Severe | +2 | **Shattered arm.** Whatever that hand holds is dropped. Arm unusable until 1 Long Rest. After 1 Long Rest: arm usable, with `-30 Handle` until 2 Long Rests. After 2 Long Rests: lasting `-10 Handle`. |
+| 5+ | Critical | +2 | **Armpit artery, or into the chest under the shoulder.** Knocked down. Dazed for 1d4 turns. Whatever that hand holds is dropped. Death Save in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body` and `+2 minimum Stress`. |
+
+#### Gunshot: Forearm - capped at Severe
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Graze.** Handle rolls, including attacks, at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Arm wound.** `-10 Handle` until 1 Long Rest. |
+| 3 | Serious | +1 | **Chipped bone.** `-20 Handle` until 1 Long Rest. Gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4+ | Severe | +2 | **Shattered forearm.** Whatever that hand holds is dropped. Arm unusable until 1 Long Rest. After 1 Long Rest: arm usable, with `-30 Handle` until 2 Long Rests. After 2 Long Rests: lasting `-10 Handle`. |
+
+#### Gunshot: Hand - capped at Severe
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Nicked hand.** Whatever that hand holds is dropped. |
+| 2 | Serious | +1 | **Damaged hand / wrist.** Whatever that hand holds is dropped. `-10 Handle` until 1 Long Rest. |
+| 3 | Serious | +1 | **Fingers or wrist bones hit.** Whatever that hand holds is dropped. `-20 Handle` until 1 Long Rest. Roll d2. **2 - Finger shot off:** 1 finger is lost; after 1 Long Rest, lasting `-5 Handle`. |
+| 4+ | Severe | +2 | **Shattered hand.** Whatever that hand holds is dropped. Roll 1d3 for fingers lost. Actions requiring two hands are impossible until 1 Long Rest; Handle drops to 10 until 1 Long Rest. After 1 Long Rest: two-handed actions become possible, with `-30 Handle` until 2 Long Rests. After 2 Long Rests: lasting `-10 Handle`, plus `-5 Handle` per lost finger. |
+
+#### Gunshot: Thigh - capped at Critical
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Graze.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Leg wound.** Lose the next Movement Stage. Speed Checks at Disadvantage until 1 Long Rest. |
+| 3 | Serious | +1 | **Leg wound near the hip or knee.** Speed Checks at Disadvantage until 1 Long Rest. Roll d2. **1 - Leg gives out:** Knocked down. **2 - Heavy bleeding:** lose the next Movement Stage; gain +1 Trauma in d4 turns unless a Body Save succeeds. |
+| 4 | Severe | +2 | **Shattered leg.** Crawl only without help until 1 Long Rest. After 1 Long Rest: walking is possible, with Speed Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
+| 5+ | Critical | +2 | **Thigh artery.** Knocked down. Dazed for 1d4 turns. Death Save in d4 turns unless a Body Save succeeds. Physical Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: lasting `-10 Body` and `+2 minimum Stress`. |
+
+#### Gunshot: Shin and feet - capped at Severe
+
+| Impact | Severity | Trauma | Wound |
+|---:|---|---:|---|
+| 1 | Minor | 0 | **Graze.** Physical Checks at Disadvantage until the end of the next round. |
+| 2 | Serious | +1 | **Leg / foot wound.** Speed Checks at Disadvantage until 1 Long Rest. |
+| 3 | Serious | +1 | **Knee / ankle wound.** Knocked down. Speed Checks at Disadvantage until 1 Long Rest. |
+| 4+ | Severe | +2 | **Shattered knee, shin or ankle.** Crawl only without help until 1 Long Rest. After 1 Long Rest: walking is possible, with Speed Checks at Disadvantage until 2 Long Rests. After 2 Long Rests: walks with a limp, lasting `-10 Speed` and `-10 Charm` at GM discretion. |
 
 ### Dodgeball wound table
 
@@ -1964,11 +2113,11 @@ When a row's catch succeeds, the ball goes into the target's free hand; with no 
 ### Going Out
 
 **Out** means a character is no longer in the fight.
-It is not only for dodgeball.
+In addition to Dodgeball elimination, leaving or a separate GM decision can set Out.
+Unconsciousness, Comatose, Dead and reaching the Death Save threshold do not automatically set Out.
 A character goes Out when:
 
 - they leave the fight (see "Leaving the fight");
-- a wound knocks them unconscious;
 - a Dodgeball row puts them Out;
 - they throw an object marked "catching this puts the thrower out", such as a dodgeball, and it is caught, or a Dodgeball row puts the thrower Out;
 - the GM takes them out of the fight, for any reason the story calls for.
@@ -2058,21 +2207,30 @@ Tommy (Handle 52, Scrapping, Strength 47) holds a baseball bat.
 Rex (an NPC, Handle 45) has a pocketknife.
 Initiative put Tommy first and Rex second, so Rex declares first.
 
-1. **Rex declares** (he is slower): he stays put and will stab Tommy, with a 10 Defense line against Tommy. His Handle pool is 45, so his attack number is 35.
-2. **Tommy declares**, having heard Rex: he stays put and will swing at Rex, with a 20 Defense line against Rex. His pool is 52 + 10 (Scrapping) = 62, so his attack number is 42.
+1. **Rex declares:** he stays put and will stab Tommy, with a 10 Defense line against Tommy.
+   His Handle pool is 45, so his attack number is 35.
+2. **Tommy declares:** he stays put and will swing at Rex, with a 20 Defense line against Rex.
+   His pool is 52 + 10 (Scrapping) = 62, so his attack number is 42.
 3. **Movement resolves:** nobody moves.
-4. **Tommy attacks first.** He rolls `36`, under 42: a hit with Quality 3.
-5. Rex rolls Defense with his 10 line: `07` is under 10, a success. Its tens digit is 0, plus 1, so it takes 1 off. Quality 2 is left.
-6. **Hit location:** blunt swing at a standing target, d100 `23`: the head. Tommy could move the hit up to 2 steps, but keeps it on the head.
+4. **Tommy attacks first.**
+   He rolls `26`, under 42: a hit with Quality 2.
+5. Rex rolls Defense with his 10 line: `07` succeeds.
+   Its tens digit is 0, plus 1, so it takes 1 off, leaving Quality 1.
+6. **Hit location:** blunt swing at a standing target, d100 `23`: the head.
+   Tommy could move the hit up to 1 step, but keeps it there.
 7. **Strength Roll:** Tommy rolls `52` against Strength 47, a failure, so it adds nothing.
-8. **Impact** = 2 (Quality) + 1 (bat) + 0 (Strength) - 0 (moved) - 0 (no helmet) = 3.
-9. **Wound:** Blunt Force, head, Impact 3: Eye / face injury, Serious, +1 Trauma. Rex is Dazed next round and has -20 Handle on ranged and visually precise actions until a Long Rest.
-10. **Rex attacks second.** His wound starts next round, so he still stabs this round. He rolls `29`, under 35: Quality 2. Tommy's 20 line rolls `25`, a failure, so nothing comes off.
-11. **Hit location:** stab, d100 `48`: the torso. Rex keeps it there.
-12. **Strength Roll:** Rex has Strength 40 and rolls `18`, adding 1.
-13. **Impact** = 2 + 0 (pocketknife) + 1 = 3. **Wound:** Piercing, torso, Impact 3: Puncture between the ribs, Serious, +1 Trauma, with a bleeding timer. This is round 1 and the timer's d4 comes up 2: unless someone stabilizes Tommy with First Aid before the end of round 3, he takes another +1 Trauma.
+8. **Impact** = 1 (Quality) + 1 (bat) + 0 (Strength) - 0 (moved) - 0 (no helmet) = 2.
+9. **Wound:** Blunt Force Head 2, Eye / face injury, Serious, +1 Trauma.
+   Rex is Dazed immediately and takes -20 Handle on ranged and visually precise actions until 1 Long Rest, followed by lasting -10 Handle on those actions.
+10. **Rex's attack is skipped.**
+    His Action has not yet resolved, so Dazed takes his unresolved Action and Defense in round 1 and his Movement in round 2.
+    His already rolled Defense stays in the log.
 
-Next round, Rex is Dazed: he cannot move, and he has no attack and no Defense.
+If the hit had landed after Rex's Action resolved, Dazed would instead take his Movement and Action in round 2.
+
+For a separate timer example, Piercing Torso 3 is Puncture between the ribs, Serious, +1 Trauma, with Physical Checks at Disadvantage for the rest of combat and a bleeding prevention Body Save.
+If that wound lands on Tommy in round 1, he fails the Save and rolls 2 on the d4, he gains +1 Stress for the failed Save and +1 Trauma at the end of round 3.
+First Aid cannot cancel this d4 timer.
 
 ### Example: a dodgeball caught
 
@@ -2092,7 +2250,8 @@ Mirelda (Speed 58) declares Evasive Movement, which uses her action, so she has 
 2. **Rex's turn:** the GM calls Medium range and, since the revolver has no range numbers yet, sets the modifier at +0. His attack number is 45 + 0 - 20 = 25.
 3. He rolls `18`, under 25: a hit with Quality 1. Defense does not work against guns, so it stands.
 4. **Hit location:** firearm, d100 `30`: the torso. Rex keeps it there. A gun makes no Strength Roll.
-5. **Impact** = 1 + 1 (revolver) = 2. **Wound:** Gunshot, torso, Impact 2, Serious, +1 Trauma. The row says roll d2: a 1 is a Flesh wound, a 2 a Bleeding wound.
+5. **Impact** = 1 + 1 (revolver) = 2. **Wound:** Gunshot, torso, Impact 2, Serious, +1 Trauma. The wound gives Physical Checks at Disadvantage until 1 Long Rest.
+Roll d2: on 2 it also gives a bleeding timer unless the landing Body Save succeeds; on failure roll d4 for when the extra +1 Trauma is due.
 
 ### Example: Minimum Strength
 
@@ -2109,7 +2268,8 @@ When the rules do not cover something, rule in their spirit.
 - Wide Stats and strong weaknesses are desirable. A naturally weak, untrained kid should be clearly different from a trained adult fighter.
 - Low ability should matter without long runs of boring, empty combat rounds.
 - High Handle should give more than accuracy: it should give room to attack while defending.
-- Movement should change tactical options. Injuries such as half Movement can decide whether a melee attacker can close with a ranged opponent.
+- Movement should change tactical options. Explicit no-run, no-evasive and crawl-only restrictions change the available movement choices.
+Speed Check Disadvantage alone does not remove Run or Evasive Movement.
 - Defense and Evasion make clean contact harder; they do not reduce the consequence of a bullet that already hit.
 - Physical Stats should show in the story of a fight: a character's body matters to how violence unfolds.
 - Successful attacks produce concrete consequences, not abstract hit points.

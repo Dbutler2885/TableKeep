@@ -1,4 +1,4 @@
-import { FieldValue } from 'firebase-admin/firestore';
+import { acceptTransfer } from './acceptTransfer.js';
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -6,10 +6,7 @@ import { onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/fire
 import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
-import { isTransferSourceAuthorized } from './transferAuthorization.js';
-import { NO_CARRYING_MESSAGE, droppedOffer, resolveTransferCarrying } from './ruleSetCarrying.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
-import { CHARACTER_BEING_UPDATED_MESSAGE, currentCharacterSchemaVersion, isCharacterAtSchemaVersion, } from './characterSchemaVersions.js';
 import { deleteCampaignSessions } from './campaignSessions.js';
 import { recapIsDue, requestRecapRerun, runSessionRecap } from './recap/sessionRecap.js';
 import { callOpenAi } from './recap/modelRequest.js';
@@ -157,6 +154,11 @@ export const getCampaignNpcs = onRequest({ region: 'us-central1', secrets: [sess
         .filter((n) => n.name.trim().length > 0);
     res.status(200).json({ npcs });
 });
+function transferIdentity(data) {
+    if (typeof data.fromCharacterId !== 'string' || typeof data.toCharacterId !== 'string')
+        return undefined;
+    return { fromCharacterId: data.fromCharacterId, toCharacterId: data.toCharacterId };
+}
 export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (request) => {
     const uid = request.auth?.uid ?? '';
     if (!uid)
@@ -167,72 +169,7 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
     if (!groupId || !campaignId || !transferId) {
         throw new HttpsError('invalid-argument', 'groupId, campaignId and transferId are required.');
     }
-    const campaignDoc = campaignRef(groupId, campaignId);
-    const transferRef = campaignDoc.collection('pendingTransfers').doc(transferId);
-    const rejection = await db.runTransaction(async (tx) => {
-        // Mirrors `isGroupMember` / `isCampaignGm` in firestore.rules: membership is
-        // held by the group, and the GM is a group admin or the campaign's gmUserId.
-        const [membershipSnap, campaignSnap] = await Promise.all([
-            tx.get(groupMemberRef(groupId, uid)),
-            tx.get(campaignDoc),
-        ]);
-        if (!membershipSnap.exists || membershipSnap.data()?.status !== 'active') {
-            throw new HttpsError('permission-denied', 'Active group membership required.');
-        }
-        if (!campaignSnap.exists) {
-            throw new HttpsError('not-found', 'Campaign no longer exists.');
-        }
-        const transferSnap = await tx.get(transferRef);
-        if (!transferSnap.exists)
-            throw new HttpsError('not-found', 'Transfer no longer exists.');
-        const transfer = transferSnap.data();
-        const isGm = membershipSnap.data()?.role === 'admin'
-            || campaignSnap.data()?.gmUserId === uid;
-        if (transfer.toUserId !== uid && !isGm) {
-            throw new HttpsError('permission-denied', 'You cannot accept this transfer.');
-        }
-        // A rule set without a carrying rule has no transfers; the offer is kept.
-        const system = campaignSnap.data()?.system;
-        const carrying = resolveTransferCarrying(system);
-        if (!carrying)
-            throw new HttpsError('failed-precondition', NO_CARRYING_MESSAGE);
-        const senderRef = campaignDoc.collection('characters').doc(transfer.fromCharacterId);
-        const receiverRef = campaignDoc.collection('characters').doc(transfer.toCharacterId);
-        const [senderSnap, receiverSnap] = await Promise.all([tx.get(senderRef), tx.get(receiverRef)]);
-        if (!senderSnap.exists || !receiverSnap.exists) {
-            tx.delete(transferRef);
-            return { code: 'not-found', message: 'Item no longer available.' };
-        }
-        const senderData = senderSnap.data();
-        const receiverData = receiverSnap.data();
-        if (!isTransferSourceAuthorized(senderData?.ownerUserId, transfer.fromUserId)) {
-            tx.delete(transferRef);
-            return { code: 'permission-denied', message: 'Transfer is not authorized.' };
-        }
-        // Admin access bypasses the rules' version floor, so the callable checks
-        // the version itself, and keeps the offer for after the migration.
-        const schemaVersion = currentCharacterSchemaVersion(system);
-        if (![senderData, receiverData].every((character) => isCharacterAtSchemaVersion(character, schemaVersion))) {
-            throw new HttpsError('failed-precondition', CHARACTER_BEING_UPDATED_MESSAGE);
-        }
-        const transferResult = carrying(senderData, receiverData, transfer);
-        // No room keeps the offer, so the receiver can make room and accept again.
-        if (!transferResult.ok && transferResult.reason === 'no_room') {
-            throw new HttpsError('failed-precondition', transferResult.message);
-        }
-        if (!transferResult.ok) {
-            tx.delete(transferRef);
-            return droppedOffer(transferResult.reason);
-        }
-        const schemaStamp = { schemaVersion, schemaWrittenAt: FieldValue.serverTimestamp() };
-        tx.set(senderRef, { ...transferResult.sender, ...schemaStamp }, { merge: true });
-        tx.set(receiverRef, { ...transferResult.receiver, ...schemaStamp }, { merge: true });
-        tx.delete(transferRef);
-        return null;
-    });
-    if (rejection)
-        throw new HttpsError(rejection.code, rejection.message);
-    return { ok: true };
+    return acceptTransfer({ db, campaign: campaignRef(groupId, campaignId), member: groupMemberRef(groupId, uid), uid, transferId, identity: transferIdentity(request.data) });
 });
 // ── Try-it-now demo sandboxes ────────────────────────────────────────────────
 /**

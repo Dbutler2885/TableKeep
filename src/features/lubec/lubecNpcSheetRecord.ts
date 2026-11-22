@@ -1,5 +1,6 @@
 import type { NpcRecord } from '../../types/app'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import { copySheetRecordBase } from '../character/characterStore/sheetRecordBase'
 
 /** What an NPC's sheet takes from the NPC itself: its id, name, portrait and token. */
 export type LubecNpcIdentity = Pick<NpcRecord, 'id' | 'name' | 'portraitPath' | 'portraitUrl' | 'portraitFocusX' | 'portraitFocusY' | 'tokenIcon'>
@@ -10,7 +11,7 @@ export type LubecNpcIdentity = Pick<NpcRecord, 'id' | 'name' | 'portraitPath' | 
  * document holds.
  */
 export function lubecNpcSheetRecord(npc: LubecNpcIdentity, stored: LubecCharacterRecord): LubecCharacterRecord {
-  return {
+  return copySheetRecordBase(stored, {
     ...stored,
     name: npc.name,
     portraitPath: npc.portraitPath ?? '',
@@ -18,5 +19,5 @@ export function lubecNpcSheetRecord(npc: LubecNpcIdentity, stored: LubecCharacte
     portraitFocusX: npc.portraitFocusX,
     portraitFocusY: npc.portraitFocusY,
     tokenIcon: npc.tokenIcon,
-  }
+  })
 }

@@ -129,3 +129,14 @@ describe.each(servers)('accepting a Lubec transfer, %s copy', (_label, transfer)
     expect(outcome.ok && outcome.sender).toEqual({ lubec: { gear: { items: [], supplies: [] } } })
   })
 })
+
+it.each(servers)('preserves negative thrown damage, ranges and future fields through the %s transfer', (_label, transfer) => {
+  const extra = { canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: [{ band: 'short', distance: 'Across the kitchen', modifier: 13 }], futureData: { inscription: 'WG' } }
+  const knife = item('knife', 'hands', 0, { kind: 'weapon', mode: 'melee', wounds: ['cut', 'pierce'], impact: 1, ...extra })
+  const outcome = transfer.acceptLubecTransfer(characterWith(gearOf([knife])), characterWith(gearOf([])), { itemId: 'knife', itemSnapshot: { ...knife } })
+  expect(outcome.ok).toBe(true)
+  if (!outcome.ok) return
+  const arrived = (outcome.receiver.lubec as { gear: StoredGear }).gear.items[0]
+  expect(parseLubecItem(arrived, 'unused')).toMatchObject({ id: 'knife', ...extra })
+  expect((outcome.sender.lubec as { gear: StoredGear }).gear.items).toEqual([])
+})

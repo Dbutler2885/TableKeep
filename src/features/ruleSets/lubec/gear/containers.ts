@@ -15,23 +15,16 @@ import { lubecDropPlan, type LubecDropFrom, type LubecUnplacedItem } from './dro
 import type { LubecCarrierRecord, LubecGear, LubecItem } from './gearRecord'
 import { LUBEC_GM_ITEM_FIELDS, type LubecGmItem } from './gmItem'
 import { lubecPrunedOverrides } from '../modifiers'
+import { lubecCopyOf } from './stock'
+export { lubecCopyOf, LUBEC_COPY_FIELDS } from './stock'
 import { onYou, place } from './placement'
+import { lubecPhysicalMovePlan } from './physicalMove'
+import type { LubecItemCommand } from './itemIdentity'
 
 export const LUBEC_STALE_MOVE = 'Someone moved that first. Nothing changed.'
 
 /** An upload can't have a private Storage rule, so a hidden thing has only drawings and icons (spec 4.6, question 6). */
 export const LUBEC_NO_HIDDEN_PICTURE = 'Pictures you uploaded cannot be hidden. Remove the picture or pick a drawing.'
-
-// Everything an item copies from stock, or from a GM's library item when it is given (Rule T2).
-// B's `img` is `picturePath` here, and a weapon's `minStrength` and `hands` come along too.
-export const LUBEC_COPY_FIELDS = [
-  'kind', 'name', 'size', 'weight', 'qty', 'note', 'mode', 'impact', 'table', 'reach', 'wounds', 'capacity', 'loaded', 'takes', 'hold',
-  'locs', 'exclusive', 'armor', 'fits', 'per', 'art', 'picturePath', 'shape', 'minStrength', 'hands',
-] as const
-
-/** A copy of the fields an item copies, which never follows later changes to `src`. */
-export const lubecCopyOf = (src: Partial<LubecItem>): Partial<LubecItem> =>
-  JSON.parse(JSON.stringify(Object.fromEntries(LUBEC_COPY_FIELDS.filter((k) => src[k] !== undefined).map((k) => [k, src[k]]))))
 
 /** The five records an item can live in. */
 export type LubecRecordRef =
@@ -55,6 +48,10 @@ export type LubecDropper = { characterId: string; characterName: string; userId:
 
 export type LubecMove = {
   itemId: string
+  /** Opt into lossless combat identity rules; created by lubecMovePhysicalBetween. */
+  physical?: LubecItemCommand
+  /** Quantity detached by a physical move; omitted means the whole record. */
+  qty?: number
   /** Where the player saw it. A GM item has no place, so it has none. */
   seen?: LubecSeenPlace
   /** Where it goes: "carrier", "carrier#pocket" or "hands#slot". Missing, it arrives by the arrival rule. A drop has none. */
@@ -115,12 +112,17 @@ function takeOutOfGear(record: GearRecord, move: LubecMove): Taken | null {
 // What a GM item's document says about the tab, not the item: its status, the drop, and when it was written.
 const GM_RECORD_FIELDS: readonly string[] = [...LUBEC_GM_ITEM_FIELDS, 'createdAt', 'updatedAt']
 
+function takenGmItem(gmItem: LubecGmItem, move: LubecMove): LubecItem {
+  if (gmItem.status !== 'library') return fieldsWithout(gmItem, GM_RECORD_FIELDS) as LubecItem
+  if (!move.copyId) throw new Error('Giving a library item makes a copy, which needs a copyId.')
+  return { ...lubecCopyOf(gmItem), id: move.copyId } as LubecItem
+}
+
 // A library item stays and the sheet gets a copy (Rule T2); a dropped item leaves the tab.
 function takeOutOfGmItems(gmItem: LubecGmItem | null, move: LubecMove): Taken | null {
   if (!gmItem || gmItem.id !== move.itemId) return null
   const library = gmItem.status === 'library'
-  if (library && !move.copyId) throw new Error('Giving a library item makes a copy, which needs a copyId.')
-  const item = (library ? { ...lubecCopyOf(gmItem), id: move.copyId } : fieldsWithout(gmItem, GM_RECORD_FIELDS)) as LubecItem
+  const item = takenGmItem(gmItem, move)
   return { item, unplaced: item, droppedFrom: '', rest: { kind: 'gm-items', item: library ? gmItem : null } }
 }
 
@@ -157,12 +159,19 @@ function putIn(record: LubecMoveRecord, taken: Taken, move: LubecMove): Put {
     const item = dropped(taken, move)
     return { ok: true, to: { kind: 'gm-items', item }, item }
   }
+  return putInGear(record, taken, move)
+}
+
+function putInGear(record: GearRecord, taken: Taken, move: LubecMove): Put {
   const gear = gearOf(record)
   if (!gear) return { ok: false, msg: LUBEC_STALE_MOVE }
   if (record.kind === 'hidden' && taken.item.picturePath) return { ok: false, msg: LUBEC_NO_HIDDEN_PICTURE }
-  const put = move.dest === undefined ? lubecReceive(gear, taken.item) : movedTo(gear, taken.item, { ...move, dest: move.dest })
+  const put = arrive(gear, taken.item, move)
   return put.ok ? { ok: true, to: withGear(record, put.gear), item: put.item } : put
 }
+
+const arrive = (gear: LubecGear, item: LubecItem, move: LubecMove) =>
+  move.dest === undefined ? lubecReceive(gear, item) : movedTo(gear, item, { ...move, dest: move.dest })
 
 /**
  * The move of `move.itemId` from one record to another, planned against both
@@ -172,6 +181,7 @@ function putIn(record: LubecMoveRecord, taken: Taken, move: LubecMove): Put {
  * room for it now.
  */
 export function lubecMovePlan(from: LubecMoveRecord, to: LubecMoveRecord, move: LubecMove): LubecMovePlan {
+  if (move.physical) return lubecPhysicalMovePlan(from, to, move, move.physical)
   const taken = takeOut(from, move)
   if (!taken) return { ok: false, msg: LUBEC_STALE_MOVE }
   const put = putIn(to, taken, move)

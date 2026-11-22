@@ -367,6 +367,13 @@
   text-transform: uppercase;
 }
 
+.shell-root[data-theme="lubec"] .lubec-gear .slot .slot-why {
+  padding: 0 0.4rem;
+  color: var(--lubec-rust);
+  font: 700 0.68rem/1.25 var(--lubec-type);
+  text-align: center;
+}
+
 .shell-root[data-theme="lubec"] .lubec-gear .slot-text {
   display: grid;
   gap: 0.15rem;

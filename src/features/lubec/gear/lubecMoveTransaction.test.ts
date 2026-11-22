@@ -9,14 +9,20 @@ import type { Firestore } from 'firebase/firestore'
 
 type Snap = { metadata: { hasPendingWrites: boolean }; get: (field: string) => unknown }
 const tx = { get: vi.fn(), set: vi.fn(), delete: vi.fn() }
+const receiptGet = vi.fn()
 const listen = vi.fn()
 const stop = vi.fn()
 
 vi.mock('firebase/firestore', async (original) => ({
   ...await original<typeof import('firebase/firestore')>(),
-  doc: (_db: unknown, path: string) => ({ path, id: path.split('/').at(-1) }),
+  doc: (parent: { path?: string }, ...segments: string[]) => {
+    const path = parent.path ? [parent.path, ...segments].join('/') : segments.join('/')
+    const ref = { path, id: path.split('/').at(-1) }
+    Object.defineProperties(ref, { parent: { value: { id: path.split('/').at(-2), path: path.split('/').slice(0, -1).join('/') } }, withConverter: { value: () => ref } })
+    return ref
+  },
   serverTimestamp: () => 'server-time',
-  runTransaction: (_db: unknown, run: (t: typeof tx) => unknown) => run(tx),
+  runTransaction: (_db: unknown, run: (t: typeof tx) => unknown) => run({ ...tx, get: (ref: { path: string }) => ref.path.includes('/writeReceipts/') ? receiptGet(ref) : tx.get(ref) }),
   onSnapshot: (ref: unknown, next: (snap: Snap) => void, fail: (err: unknown) => void) => {
     listen(ref, next, fail)
     return stop
@@ -29,7 +35,6 @@ const scope = { groupId: 'g', campaignId: 'c' }
 const base = 'groups/g/campaigns/c'
 const at = (seconds: number, nanoseconds = 0) => ({ seconds, nanoseconds })
 const quietStore = { settleSaves: vi.fn(async () => undefined) }
-const stamp = { schemaVersion: 1, schemaWrittenAt: 'server-time' }
 
 const anvil = { id: 'anvil', kind: 'thing', carrier: 'hands', slot: 0, name: 'Small anvil', size: 1, qty: 1, weight: 'normal', note: '' }
 const wayneDoc = { schemaVersion: 1, updatedAt: at(10, 5), lubec: { counters: { stress: 2 }, gear: { items: [anvil], carriers: [], overrides: [], supplies: [] } } }
@@ -49,19 +54,19 @@ const drop = { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy: 
 beforeEach(() => {
   vi.resetAllMocks()
   quietStore.settleSaves.mockResolvedValue(undefined)
+  receiptGet.mockResolvedValue(missing)
   tx.get.mockResolvedValue(exists(wayneDoc))
   snapshotsWill(snap(at(11)))
 })
 
 describe('the move transaction', () => {
-  it('drops a thing: reads the character only, writes it stamped and merged, and creates the GM item', async () => {
+  it('drops a thing: reads the character only, writes its intention and revision receipt, and creates the GM item', async () => {
     expect(await lubecMoveBetween(db, { scope, from: wayne, to: gmItems, store: quietStore, move: drop })).toEqual({ ok: true })
 
     expect(tx.get).toHaveBeenCalledExactlyOnceWith({ path: `${base}/characters/wayne`, id: 'wayne' })
     expect(tx.set).toHaveBeenCalledWith(
       { path: `${base}/characters/wayne`, id: 'wayne' },
-      { lubec: { gear: { items: [], carriers: [], overrides: [], supplies: [] } }, ...stamp, updatedAt: 'server-time' },
-      { merge: true },
+      { ...wayneDoc, lubec: { ...wayneDoc.lubec, gear: { items: [], carriers: [], overrides: [], supplies: [] } }, sheetRevision: 1, updatedAt: 'server-time' },
     )
     const { carrier: _carrier, slot: _slot, ...unplaced } = anvil
     expect(tx.set).toHaveBeenCalledWith({ path: `${base}/gmItems/anvil`, id: 'anvil' }, {
@@ -69,6 +74,8 @@ describe('the move transaction', () => {
       createdAt: 'server-time',
     })
     expect(tx.delete).not.toHaveBeenCalled()
+    expect(receiptGet.mock.invocationCallOrder[0]).toBeLessThan(tx.get.mock.invocationCallOrder[0])
+    expect(tx.set.mock.calls.find(([ref]) => ref.path.includes('/writeReceipts/'))?.[1].outcome).toMatchObject({ status: 'committed', revision: 1 })
   })
 
   it('refuses a stale move with the plain words, writes nothing and waits for no snapshot', async () => {
@@ -93,7 +100,7 @@ describe('the move transaction', () => {
     tx.get.mockImplementation(async (ref: { path: string }) => (ref.path.endsWith('gmItems/rope') ? { ...exists(rope), id: 'rope' } : exists(wayneDoc)))
 
     await lubecMoveBetween(db, { scope, from: gmItems, to: wayne, store: quietStore, move: { itemId: 'rope', copyId: 'rope-2' } })
-    expect(tx.set).toHaveBeenCalledOnce()
+    expect(tx.set).toHaveBeenCalledTimes(2)
     expect(tx.delete).not.toHaveBeenCalled()
   })
 
@@ -149,6 +156,9 @@ describe('the store around the move', () => {
     const settled: Record<string, () => void> = {}
     const store = { settleSaves: vi.fn((id: string) => new Promise<void>((resolve) => { settled[id] = resolve })) }
     const ferryman = { kind: 'npc', npcId: 'ferryman' } as const
+    // The Ferryman's own sheet, with empty hands, so each sheet's write is a real change.
+    const empty = { ...wayneDoc, lubec: { ...wayneDoc.lubec, gear: { ...wayneDoc.lubec.gear, items: [] } } }
+    tx.get.mockImplementation(async (ref: { path: string }) => exists(ref.path.endsWith('/ferryman') ? empty : wayneDoc))
 
     const moving = lubecMoveBetween(db, { scope, from: wayne, to: ferryman, store, move: { ...drop, dest: 'hands' } })
     expect(store.settleSaves.mock.calls).toEqual([['wayne'], ['ferryman']])
@@ -190,5 +200,56 @@ describe('the store around the move', () => {
     listen.mockImplementation((_ref, _next, fail: (err: unknown) => void) => queueMicrotask(() => fail(new Error('offline'))))
 
     await expect(lubecMoveBetween(db, { scope, from: wayne, to: gmItems, store: quietStore, move: drop })).rejects.toThrow('offline')
+  })
+})
+
+describe('physical move transactions', () => {
+  it('retains a generated command id and creates only the derived child document for a partial drop', async () => {
+    const { lubecMovePhysicalBetween } = await import('./lubecPhysicalMoves')
+    const { lubecCommandItemId } = await import('../../ruleSets/lubec/gear/itemIdentity')
+    const original = { ...wayneDoc, lubec: { ...wayneDoc.lubec, gear: { ...wayneDoc.lubec.gear, items: [{ ...anvil, qty: 4 }] } } }
+    tx.get.mockImplementation(async (ref: { path: string }) => ref.path.includes('/gmItems/') ? missing : exists(original))
+    const request = { scope, from: wayne, to: gmItems, store: quietStore, operationId: undefined as string | undefined, move: { ...drop, qty: 1 } }
+    expect(await lubecMovePhysicalBetween(db, request)).toEqual({ ok: true })
+    expect(request.operationId).toBeTypeOf('string')
+    const id = lubecCommandItemId({ commandId: request.operationId! }, 'split:anvil')
+    expect(tx.get.mock.calls.map(([ref]) => ref.path)).toEqual([`${base}/characters/wayne`, `${base}/gmItems/${id}`])
+    expect(tx.set.mock.calls.find(([ref]) => ref.path === `${base}/characters/wayne`)?.[1].lubec.gear.items).toEqual([{ ...anvil, qty: 3 }])
+    expect(tx.set.mock.calls.find(([ref]) => ref.path === `${base}/gmItems/${id}`)?.[1]).toMatchObject({ id, qty: 1, status: 'dropped' })
+    const receipt = tx.set.mock.calls.find(([ref]) => ref.path.includes('/writeReceipts/'))![1]
+    receiptGet.mockResolvedValue(exists(receipt))
+    tx.get.mockClear()
+    tx.set.mockClear()
+    expect(await lubecMovePhysicalBetween(db, request)).toEqual({ ok: true })
+    expect(tx.get).not.toHaveBeenCalled()
+    expect(tx.set).not.toHaveBeenCalled()
+  })
+
+  it('updates the source dropped remainder instead of deleting it and preserves supply definitions', async () => {
+    const { lubecMovePhysicalBetween } = await import('./lubecPhysicalMoves')
+    const supply = { id: 'chalk', name: 'Red chalk' }
+    const dropped = { ...anvil, carrier: '', qty: 4, status: 'dropped', takes: 'chalk', supplies: [supply] }
+    tx.get.mockImplementation(async (ref: { path: string }) => ref.path.includes('/gmItems/') ? { ...exists(dropped), id: 'anvil' } : exists(wayneDoc))
+    expect(await lubecMovePhysicalBetween(db, { scope, from: gmItems, to: wayne, store: quietStore, operationId: 'take-portion', move: { itemId: 'anvil', qty: 2 } })).toEqual({ ok: true })
+    expect(tx.delete).not.toHaveBeenCalled()
+    expect(tx.set).toHaveBeenCalledWith({ path: `${base}/gmItems/anvil`, id: 'anvil' }, { ...dropped, qty: 2, updatedAt: 'server-time' })
+    expect(tx.set.mock.calls.find(([ref]) => ref.path === `${base}/characters/wayne`)?.[1].lubec.gear.supplies).toEqual([supply])
+  })
+
+  it('derives each library copy from the logical command and output ordinal', async () => {
+    const { lubecMovePhysicalBetween } = await import('./lubecPhysicalMoves')
+    const library = { ...anvil, carrier: '', status: 'library' }
+    tx.get.mockImplementation(async (ref: { path: string }) => ref.path.includes('/gmItems/') ? { ...exists(library), id: 'anvil' } : exists(wayneDoc))
+    expect(await lubecMovePhysicalBetween(db, { scope, from: gmItems, to: wayne, store: quietStore, operationId: 'copy', role: 'stack', ordinal: 3, move: { itemId: 'anvil' } })).toEqual({ ok: true })
+    expect(tx.set.mock.calls.find(([ref]) => ref.path === `${base}/characters/wayne`)?.[1].lubec.gear.items.at(-1).id).toBe('item:copy:stack:3')
+    expect(tx.delete).not.toHaveBeenCalled()
+    expect(tx.set.mock.calls.some(([ref]) => ref.path.includes('/gmItems/'))).toBe(false)
+  })
+
+  it('refuses stale physical exports without writing a receipt or a dropped item', async () => {
+    const { lubecMovePhysicalBetween } = await import('./lubecPhysicalMoves')
+    tx.get.mockImplementation(async (ref: { path: string }) => ref.path.includes('/gmItems/') ? missing : exists(wayneDoc))
+    expect(await lubecMovePhysicalBetween(db, { scope, from: wayne, to: gmItems, store: quietStore, operationId: 'stale', move: { ...drop, seen: { carrier: 'body', slot: 1 } } })).toMatchObject({ ok: false })
+    expect(tx.set).not.toHaveBeenCalled()
   })
 })

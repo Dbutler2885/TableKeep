@@ -3,7 +3,10 @@ import type { CharacterRecord } from '../../../types/app'
 import { oseCharacterStore, readStoredCharacter } from '../lib/storedCharacterRecord'
 import { vtmCharacterStore } from '../vtmCharacterRecord'
 import { makeVtmCharacter } from '../vtmDefaults'
+import { lubecCharacterStore } from '../../ruleSets/lubec/characterParser'
+import fixture from '../../ruleSets/lubec/fixtures/stored-character.json'
 import type { CharacterStoreSaves } from './characterStoreWrites'
+import type { RevisionedSheetQueue } from './revisionedSheetQueue'
 
 const mocks = vi.hoisted(() => ({
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
@@ -58,6 +61,11 @@ describe('characterStoreCampaign', () => {
 })
 
 describe('newCharacterStoreFields', () => {
+  it('refuses the retired whole-sheet Lubec save while initial creation still serializes and stamps it', () => {
+    const character = lubecCharacterStore.parser.parse('hero', fixture.data)
+    expect(() => characterStoreSaveFields(lubecCharacterStore, character)).toThrow('Lubec saves require an edit intention, not a replacement sheet.')
+    expect(newCharacterStoreFields(lubecCharacterStore, character)).toMatchObject({ system: 'lubec', schemaVersion: 1, schemaWrittenAt: 'now' })
+  })
   it('stores a missing owner username as null', () => {
     expect(newCharacterStoreFields(vtmCharacterStore, { ...stored, ownerUsername: undefined }).ownerUsername).toBeNull()
   })
@@ -278,6 +286,24 @@ describe('settleCharacterStoreSaves', () => {
   const flush = async () => {
     for (let i = 0; i < 10; i += 1) await Promise.resolve()
   }
+
+  it('waits for a Lubec sheet\'s queued edits to finish sending, as a gear move needs', async () => {
+    // A Lubec sheet saves through its queue of edit intentions rather than a whole-record merge.
+    let finish: () => void = () => undefined
+    const queue = { state: { confirmed: {}, pending: [] } } as unknown as RevisionedSheetQueue
+    queue.running = new Promise<void>((resolve) => { finish = () => { queue.running = undefined; resolve() } })
+    const saves: CharacterStoreSaves = { ...emptyCharacterStoreSaves(), revisioned: { a: queue } }
+    let settled = false
+    void settleCharacterStoreSaves(saves, 'a').then(() => { settled = true })
+    await flush()
+    expect(settled).toBe(false)
+    expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(true)
+
+    finish()
+    await flush()
+    expect(settled).toBe(true)
+    expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(false)
+  })
 
   it('resolves at once for a character with no save outstanding', async () => {
     await expect(settleCharacterStoreSaves(emptyCharacterStoreSaves(), 'a')).resolves.toBeUndefined()

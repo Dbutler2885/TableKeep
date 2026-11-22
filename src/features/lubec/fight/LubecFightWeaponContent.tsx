@@ -1,0 +1,91 @@
+import './lubecFight.css'
+import type { LubecAttackHandle } from '../../ruleSets/lubec/gear/handPenalty'
+import { LubecFightPicture } from './LubecFightPicture'
+import { LubecHandleTerms } from '../LubecInHand'
+import { LUBEC_FISTICUFFS_ID, lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantHands, lubecCombatantWielder, type LubecCombatant } from './lubecFightRequest'
+import { lubecFightCells, lubecFightFists, type LubecFightCell } from './lubecFightWeapons'
+
+// B's glyphs for a free hand and for Fisticuffs.
+const WEAPON_GLYPH = 'M5 19L18 6l1.5-1.5M8 13l3 3M4 20l3-3'
+const FIST_GLYPH = 'M7 11V7.5a1.5 1.5 0 0 1 3 0V10M10 9.5V6.5a1.5 1.5 0 0 1 3 0V10M13 9.5V7a1.5 1.5 0 0 1 3 0v3.5M16 10V9a1.5 1.5 0 0 1 3 0v4.5c0 3.6-2.6 6.5-6.2 6.5h-1.1c-2.2 0-4-1-5.2-2.8L5 15.2a1.6 1.6 0 0 1 2.3-2.1L9 14.5'
+
+export function LubecFightGlyph({ d }: { d: string }) {
+  return (
+    <span className="pic glyph">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+    </span>
+  )
+}
+
+type Choosing = {
+  chosen: string | null
+  onChoose: (weaponId: string) => void
+  /** Drops a held thing; null for a viewer who may not. */
+  drop: ((itemId: string) => void) | null
+  busy: boolean
+}
+
+export function LubecFightCardWords({ name, line, attack }: { name: string; line: string; attack: LubecAttackHandle | null }) {
+  return (
+    <span>
+      <span className="name">{name}</span>
+      <small>{line}</small>
+      {attack ? <LubecHandleTerms attack={attack} /> : null}
+    </span>
+  )
+}
+
+function HeldCard({ cell, chosen, onChoose, drop, busy }: Choosing & { cell: Extract<LubecFightCell, { kind: 'held' }> }) {
+  const { held, item } = cell
+  return (
+    <div className={`pick-cell${held.hands === 'both' ? ' both' : ''}`}>
+      <button type="button" className="pick" disabled={!held.weapon || cell.unusable !== null} aria-pressed={chosen === held.itemId} onClick={() => onChoose(held.itemId)}>
+        <span className="where">{cell.where}</span>
+        <LubecFightPicture item={item} />
+        <LubecFightCardWords name={held.name} line={cell.unusable ?? cell.line} attack={cell.attack} />
+      </button>
+      {cell.droppable && drop ? (
+        <button type="button" className="btn line small drop" disabled={busy} aria-label={`Drop ${held.name}, free`} onClick={() => drop(held.itemId)}>Drop it, free</button>
+      ) : null}
+    </div>
+  )
+}
+
+function FreeHand({ where, unusable }: { where: string; unusable: string | null }) {
+  return (
+    <div className="pick-cell">
+      <div className="pick empty"><span className="where">{where}</span><LubecFightGlyph d={WEAPON_GLYPH} /><span><span className="name">{unusable ? 'Out of use' : 'Free'}</span>{unusable ? <small>{unusable}</small> : null}</span></div>
+    </div>
+  )
+}
+
+function FistsCard({ attacker, chosen, onChoose }: Pick<Choosing, 'chosen' | 'onChoose'> & { attacker: LubecCombatant }) {
+  const fists = lubecFightFists(lubecCombatantGear(attacker), lubecCombatantWielder(attacker), lubecCombatantFightingTraining(attacker), lubecCombatantHands(attacker))
+  return (
+    <div className="pick-cell">
+      <button type="button" className="pick" disabled={!fists.offered} aria-pressed={chosen === LUBEC_FISTICUFFS_ID} onClick={() => onChoose(LUBEC_FISTICUFFS_ID)}>
+        <span className="where">Fists and feet</span>
+        <LubecFightGlyph d={FIST_GLYPH} />
+        <LubecFightCardWords name="Fisticuffs" line={fists.offered ? fists.line : 'Hands full: drop something first'} attack={fists.offered ? fists.attack : null} />
+      </button>
+    </div>
+  )
+}
+
+type WeaponStepProps = Choosing & { attacker: LubecCombatant; said: string }
+
+/** The Weapon step (B's renderStep0): each hand, then Fisticuffs, read from Gear. */
+export function LubecFightWeaponContent({ attacker, said, ...choosing }: WeaponStepProps) {
+  const cells = lubecFightCells(lubecCombatantGear(attacker), lubecCombatantWielder(attacker), lubecCombatantHands(attacker))
+  return (
+    <div className="lubec-fight-content">
+      <p className="ask">What are you attacking with?</p>
+      <div className="picks">
+        {cells.map((cell) => (cell.kind === 'held' ? <HeldCard key={cell.where} cell={cell} {...choosing} /> : <FreeHand key={cell.where} where={cell.where} unusable={cell.unusable} />))}
+        <FistsCard attacker={attacker} chosen={choosing.chosen} onChoose={choosing.onChoose} />
+      </div>
+      {said ? <p className="note ground" role="status">{said}</p> : null}
+    </div>
+  )
+}
+

@@ -20,6 +20,7 @@ function stub(name: string) {
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
 vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCharacterTab') }))
+vi.mock('../lubec/combat/tab/LubecCombat', () => ({ LubecCombat: stub('LubecCombat') }))
 vi.mock('../lubec/fight/LubecMapFightHost', () => ({ LubecMapFightHost: ({ children }: { children: ReactNode }) => children }))
 vi.mock('../lubec/LubecNpcSheetTab', () => ({ LubecNpcSheetTab: stub('LubecNpcSheetTab') }))
 vi.mock('../common/RulesTab', () => ({ RulesTab: stub('RulesTab') }))
@@ -109,5 +110,17 @@ describe('CampaignTabContent', () => {
     render(<CampaignTabContent activeTab="maps" {...context} gameSystem={gameSystem} />)
 
     expect(mocks.mapRuleSet).toBe(ruleSets[gameSystem])
+  })
+
+  it('gives a Lubec campaign its Combat tab, wired to the campaign and the viewer', () => {
+    render(<CampaignTabContent activeTab="combat" {...context} gameSystem="lubec" role="player" />)
+
+    expect(mocks.props.LubecCombat).toMatchObject({ campaign, role: 'player', user: { uid: 'gm-1' } })
+  })
+
+  it.each(['ose', 'vtm'] as const)('gives a %s campaign no Combat tab', (gameSystem) => {
+    const { container } = render(<CampaignTabContent activeTab="combat" {...context} gameSystem={gameSystem} />)
+
+    expect(container.childElementCount).toBe(0)
   })
 })

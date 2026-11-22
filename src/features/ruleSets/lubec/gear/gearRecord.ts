@@ -17,6 +17,9 @@ export type LubecItemKind = 'thing' | 'weapon' | 'armor' | 'consumable' | 'holde
 export type LubecItemSize = 0 | 1 | 2 | 4 | 8
 export type LubecItemWeight = 'normal' | 'heavy' | 'extra'
 export type LubecWoundKind = 'cut' | 'pierce' | 'blunt' | 'gun'
+export const LUBEC_RANGE_BANDS = ['short', 'medium', 'long', 'extreme'] as const
+export type LubecRangeBand = typeof LUBEC_RANGE_BANDS[number]
+export type LubecWeaponRange = Fields & { band: LubecRangeBand; distance?: string; modifier?: number }
 
 export type LubecItem = Fields & {
   id: string
@@ -44,6 +47,13 @@ export type LubecItem = Fields & {
   check?: 'pass' | 'fail'
   mode?: 'melee' | 'firearm' | 'thrown'
   impact?: number
+  canThrow?: boolean
+  thrownImpact?: number
+  thrownWound?: LubecWoundKind
+  catchChance?: number
+  catchPutsThrowerOut?: boolean
+  /** Weapon-specific bands; omitted distances and modifiers are left to the GM. */
+  ranges?: LubecWeaponRange[]
   /** An optional override; the wound table follows the wound kind. */
   table?: string
   reach?: 'long' | 'short'
@@ -150,6 +160,16 @@ const isArmorValues: Check = (raw) => isRecord(raw) && WOUND_KINDS.every((kind) 
 
 const isLoose: Check = (raw) => raw === null || (Array.isArray(raw) && raw.length === 2 && raw.every(isCount))
 
+const optionalField = (raw: Fields, key: string, check: Check): boolean => raw[key] === undefined || check(raw[key])
+
+const isRangeDetails = (raw: Fields): boolean =>
+  optionalField(raw, 'distance', isText) && optionalField(raw, 'modifier', isWhole)
+
+const isRange: Check = (raw) =>
+  isRecord(raw) && LUBEC_RANGE_BANDS.includes(raw.band as LubecRangeBand) && isRangeDetails(raw)
+
+const isPercentage: Check = (raw) => isCount(raw) && (raw as number) <= 100
+
 // The optional fields the record models, each with the test a stored value
 // must pass to be read. One that fails reads as missing, its null case.
 const ITEM_FIELD_CHECKS = new Map<string, Check>([
@@ -161,6 +181,12 @@ const ITEM_FIELD_CHECKS = new Map<string, Check>([
   ['check', oneOf(['pass', 'fail'])],
   ['mode', oneOf(['melee', 'firearm', 'thrown'])],
   ['impact', isWhole],
+  ['canThrow', isBoolean],
+  ['thrownImpact', isWhole],
+  ['thrownWound', oneOf(WOUND_KINDS)],
+  ['catchChance', isPercentage],
+  ['catchPutsThrowerOut', isBoolean],
+  ['ranges', listOfAll(isRange)],
   ['table', isText],
   ['reach', oneOf(['long', 'short'])],
   ['wounds', listOfAll(oneOf(WOUND_KINDS))],

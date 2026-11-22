@@ -1,0 +1,141 @@
+import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
+import { lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
+import { combatAttackReading, type CombatAttackSkill } from '../engine/attackMath'
+import { combatOpponents } from '../engine/attackParty'
+import { combatInputModifiers } from '../engine/inputModifiers'
+import { lubecFightAttack } from '../../fight/lubecFightWeapons'
+import { combatFightingTraining } from '../engine/attackMath'
+import { evasionFor } from '../engine/evasion'
+import { isRoundAttack } from '../engine/roundAttacks'
+import { combatPosture, postureAllowsAttack, type CombatPosture } from '../engine/posture'
+import type { CombatAim, CombatAttack, CombatAttackRange, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
+import { attackSegments, completeAim, sameAim, type AttackDraft, type AttackSegments } from './attackDraft'
+import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
+import { lubecHandLimits } from '../../../ruleSets/lubec/handLimits'
+
+export type AttackReading = { handle: number; skill: CombatAttackSkill | null; total: number; ranged: boolean }
+
+/** Whether the table already holds exactly this aim, with its frozen numbers. */
+export const heldAim = (attack: CombatAttack, aim: CombatAim | null): boolean => attack.frozen != null && sameAim(attack.aim, aim)
+
+const frozenReading = (frozen: CombatFrozenAim): AttackReading =>
+  ({ handle: frozen.handle, skill: frozen.skill, total: frozen.total, ranged: frozen.choice.ranged === true })
+
+function sheetReading(sheet: LubecCharacterSheet, aim: CombatAim, context: { fightId: string; round: number }, mayKick: boolean): AttackReading | null {
+  const reading = combatAttackReading(sheet, combatInputModifiers(sheet, context), aim.weaponItemId, aim.attackId, mayKick)
+  return reading && { handle: reading.handle, skill: reading.skill, total: reading.total, ranged: reading.choice.ranged === true }
+}
+
+/** The frozen numbers once the table holds this exact aim; until then the same reading from the sheet in hand. */
+export function windowReading(attack: CombatAttack, aim: CombatAim | null, sheet: LubecCharacterSheet, context: { fightId: string; round: number }, mayKick: boolean): AttackReading | null {
+  if (!aim) return null
+  return heldAim(attack, aim) ? frozenReading(attack.frozen!) : sheetReading(sheet, aim, context, mayKick)
+}
+
+/** A throw or shot rolls only once the GM has ranged the very aim the table holds. */
+export function rollReady(attack: CombatAttack, aim: CombatAim | null, reading: AttackReading | null): boolean {
+  if (!reading) return false
+  return !reading.ranged || (heldAim(attack, aim) && attack.range != null)
+}
+
+export type AttackWindowInput = {
+  state: CombatState
+  fightId: string
+  attack: CombatAttack
+  attacker: Combatant
+  roster: CombatRosterRecords
+  sheet: LubecCharacterSheet
+  draft: AttackDraft
+}
+
+/** The bar and the ask over it: there only once a complete aim reads as numbers against a target. */
+export type AttackSplit = { reading: AttackReading; segments: AttackSegments; target: LubecCombatant }
+
+export type AttackWindowModel = {
+  aim: CombatAim | null
+  held: boolean
+  reading: AttackReading | null
+  range: CombatAttackRange | null
+  /** What the target's Evasive Movement takes off this attack. */
+  evasion: number
+  split: AttackSplit | null
+  ready: boolean
+  opponents: Combatant[]
+  targets: LubecCombatant[]
+  target: LubecCombatant | null
+  /** The chosen target is on the ground, which lets anyone kick. */
+  targetDown: boolean
+  /** The out-of-reach reminder for this melee aim, or null. */
+  reach: string | null
+}
+
+const readable = (entry: LubecCombatant | null): entry is LubecCombatant => entry !== null
+
+/** A target's posture: from their sheet when this viewer reads it, otherwise from what the fight publishes. */
+function targetPosture(state: CombatState, target: LubecCombatant, context: { fightId: string; round: number }): CombatPosture {
+  const theirs = lubecCombatantRecord(target)?.lubec
+  if (theirs) return combatPosture(theirs, context)
+  return state.combatants.find((entry) => entry.key === lubecCombatantKey(target))?.prone ? 'prone' : 'standing'
+}
+
+/** The opponents this attacker can attack from their posture and the target's; Defense still names any opponent. */
+export function postureTargets(state: CombatState, targets: readonly LubecCombatant[], sheet: LubecCharacterSheet, context: { fightId: string; round: number }): LubecCombatant[] {
+  const mine = combatPosture(sheet, context)
+  return targets.filter((target) => postureAllowsAttack(mine, targetPosture(state, target, context)))
+}
+
+
+const heldRange = (attack: CombatAttack, held: boolean): CombatAttackRange | null => (held ? attack.range ?? null : null)
+
+function windowSplit(reading: AttackReading | null, target: LubecCombatant | null, draft: AttackDraft, range: CombatAttackRange | null, evasion: number): AttackSplit | null {
+  if (!reading || !target) return null
+  return { reading, target, segments: attackSegments(reading.total, draft.defense?.amount ?? 0, range, evasion) }
+}
+
+/** A held ranged aim at an evader takes the evasion penalty, which the Roll will take too. */
+const heldEvasion = (state: CombatState, attack: CombatAttack, held: boolean): number =>
+  (held ? evasionFor(state, attack.aim?.targetKey, attack.frozen?.choice)?.penalty ?? 0 : 0)
+
+const windowTarget = (targets: readonly LubecCombatant[], key: string | null): LubecCombatant | null =>
+  targets.find((entry) => lubecCombatantKey(entry) === key) ?? null
+
+/** Everything the attack window shows, from the fight, the sheet in hand and the attacker's draft. */
+export function attackWindowModel({ state, fightId, attack, attacker, roster, sheet, draft }: AttackWindowInput): AttackWindowModel {
+  const aim = completeAim(draft)
+  const held = heldAim(attack, aim)
+  const context = { fightId, round: state.round }
+  const opponents = combatOpponents(state, attacker)
+  const targets = postureTargets(state, opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable), sheet, context)
+  const target = windowTarget(targets, draft.targetKey)
+  const targetDown = target !== null && targetPosture(state, target, context) === 'prone'
+  const reading = windowReading(attack, aim, sheet, context, combatFightingTraining(sheet) || targetDown)
+  const range = heldRange(attack, held)
+  const ready = rollReady(attack, aim, reading) && (!isRoundAttack(state, attack) || held)
+  const evasion = heldEvasion(state, attack, held)
+  return { aim, held, reading, range, evasion, opponents, targets, target, targetDown, ready, split: windowSplit(reading, target, draft, range, evasion), reach: reachReminder(state, attacker.key, draft.targetKey, reading) }
+}
+
+/** The attacker's own last hit knocked this target out of striking reach, and this aim is a melee one: a reminder, never a block. */
+const wasOutOfReach = (state: CombatState, attackerKey: string, targetKey: string) =>
+  state.outOfReach?.some((entry) => entry.attackerKey === attackerKey && entry.targetKey === targetKey)
+
+export function reachReminder(state: CombatState, attackerKey: string, targetKey: string | null, reading: AttackReading | null): string | null {
+  if (!targetKey || !reading || reading.ranged) return null
+  if (!wasOutOfReach(state, attackerKey, targetKey)) return null
+  const target = state.combatants.find((entry) => entry.key === targetKey)
+  const name = target ? target.name : 'Your target'
+  return `${name} is out of striking reach from your last hit; the GM rules whether this attack reaches.`
+}
+
+/** What has gone since Declare, which is all a round's attacker may choose again. */
+export type AttackGone = { target: boolean; weapon: boolean }
+
+const NOTHING_GONE: AttackGone = { target: false, weapon: false }
+
+/** A Sneak Attack is chosen fresh; a declared attack opens only for an Out target or a weapon no longer in hand. */
+export function attackGone(state: CombatState, attack: CombatAttack, sheet: LubecCharacterSheet): AttackGone {
+  if (!isRoundAttack(state, attack)) return NOTHING_GONE
+  const aim = attack.aim!
+  const target = state.combatants.find((entry) => entry.key === aim.targetKey)!.outReason !== null
+  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, true, aim.attackId, lubecHandLimits(sheet.effects)) }
+}

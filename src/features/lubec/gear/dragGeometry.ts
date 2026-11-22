@@ -13,6 +13,7 @@ import { lubecCanSwap, lubecCellsOf, lubecSpotOf, lubecSwapCost, lubecSwapItems,
 import type { LubecPackSpot } from './backpackSlots'
 import { destOf } from './itemLabels'
 import { cap1, LUBEC_DROP_DEST, theName } from './moveLabels'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /** A box on the screen, as `getBoundingClientRect` gives it. */
 export type LubecRect = { left: number; top: number; right: number; bottom: number; width: number; height: number }
@@ -74,10 +75,10 @@ const ALL_CELLS = [0, 1, 2, 3, 4]
 
 const sameCells = (a: readonly number[], b: readonly number[] | null) => b !== null && a.length === b.length && a.every((k, n) => k === b[n])
 
-type Targets = { gear: LubecGear; it: LubecItem; s: LubecDropSurface; list: LubecDropTarget[] }
+type Targets = { gear: LubecGear; it: LubecItem; s: LubecDropSurface; list: LubecDropTarget[]; hands: LubecHandLimits }
 
 function addTarget(t: Targets, dest: string, rect: Measure, mark: string | null, extra: Partial<LubecDropTarget> = {}) {
-  const pl = place(t.gear, dest, t.it, t.it.id)
+  const pl = place(t.gear, dest, t.it, t.it.id, t.hands)
   t.list.push({ dest, rect, mark, ok: pl.ok, why: pl.ok ? null : pl.msg, cost: pl.ok ? lubecMoveCost(t.it.carrier, dest) : null, ...extra })
 }
 
@@ -138,7 +139,7 @@ const canSwapWith = (it: LubecItem, o: LubecItem): boolean =>
 function swapTarget(t: Targets, box: LubecDropBox) {
   const o = t.gear.items.find((x) => x.id === box.itemId)
   if (!o || !canSwapWith(t.it, o)) return
-  const r = lubecSwapItems(t.gear, t.it, o)
+  const r = lubecSwapItems(t.gear, t.it, o, t.hands)
   t.list.push({ dest: lubecSpotOf(o), rect: box.rect, mark: box.mark, swap: o, ok: r.ok, why: r.ok ? null : r.msg, cost: r.ok ? lubecSwapCost(t.it, o) : null })
 }
 
@@ -155,8 +156,8 @@ function rowTargets(t: Targets) {
 }
 
 /** Every place `it` could be dropped on the surface, open or not. */
-export function lubecDropTargets(gear: LubecGear, it: LubecItem, s: LubecDropSurface): LubecDropTarget[] {
-  const t: Targets = { gear, it, s, list: [] }
+export function lubecDropTargets(gear: LubecGear, it: LubecItem, s: LubecDropSurface, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecDropTarget[] {
+  const t: Targets = { gear, it, s, list: [], hands }
   mainTargets(t)
   boxTargets(t)
   swapTargets(t)

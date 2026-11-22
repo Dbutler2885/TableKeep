@@ -9,6 +9,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../types/app'
 import type { LubecDice } from '../ruleSets/lubec/dice'
@@ -40,11 +41,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   query: (ref: { path: string }) => ({ path: ref.path }),
   where: () => ({}),
   deleteDoc: mocks.deleteDoc,
-  onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: { path: string }, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     return () => {
       if (mocks.listeners[ref.path]?.next === next) delete mocks.listeners[ref.path]
@@ -53,6 +57,12 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../common/mediaStorage')>()),
@@ -89,6 +99,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 // The documents as stored, by path. Every write lands here, so a remount can be fed what was last written.
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 
 const isMap = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -182,15 +193,18 @@ function mountNpcs(role: Role, uid: string) {
   return view
 }
 
-function reload(role: Role, uid: string) {
+async function reload(role: Role, uid: string) {
   cleanup()
-  return mountNpcs(role, uid)
+  let view!: ReturnType<typeof mountNpcs>
+  await act(async () => { view = mountNpcs(role, uid) })
+  await act(async () => { emitDatabase() })
+  return view
 }
 
 const flushMicrotasks = () => act(async () => { await Promise.resolve() })
 
 async function settle() {
-  act(() => vi.advanceTimersByTime(500))
+  await act(async () => { await vi.advanceTimersByTimeAsync(500) })
   for (let round = 0; round < 5; round += 1) await flushMicrotasks()
 }
 
@@ -205,10 +219,11 @@ const strip = () => screen.queryByRole('tablist', { name: 'NPC views' })
 const openTab = (name: 'Story' | 'Character sheet') => fireEvent.click(within(strip() as HTMLElement).getByRole('tab', { name }))
 
 /** Opens the NPC's Character sheet tab, after the sheet's listener has been fed. */
-function openSheetTab(name: string) {
+async function openSheetTab(name: string) {
   pickNpc(name)
   openTab('Character sheet')
-  emitDatabase()
+  await act(async () => { emitDatabase() })
+  await act(async () => { emitDatabase() })
 }
 
 const sheetOf = (name: string) => screen.getByRole('article', { name: `${name} character sheet` })
@@ -240,6 +255,8 @@ async function transaction(_db: unknown, run: (tx: unknown) => Promise<unknown>)
 }
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   database = {}
   seededRolls = []
@@ -256,7 +273,7 @@ afterEach(() => {
 })
 
 describe('the NPC tab strip', () => {
-  it('shows the GM Story and Character sheet over the NPC, with the story open first', () => {
+  it('shows the GM Story and Character sheet over the NPC, with the story open first', async () => {
     mountNpcs('gm', GM)
     pickNpc('Rene Dube')
 
@@ -266,7 +283,7 @@ describe('the NPC tab strip', () => {
     expect(mocks.listeners[RENE_SHEET]).toBeUndefined()
   })
 
-  it('gives a player no strip and never listens to a sheet: their NPCs tab is the story alone', () => {
+  it('gives a player no strip and never listens to a sheet: their NPCs tab is the story alone', async () => {
     seed({ [RENE_SHEET]: reneSheet() })
     mountNpcs('player', 'player-1')
     pickNpc('Rene Dube')
@@ -276,10 +293,10 @@ describe('the NPC tab strip', () => {
     expect(Object.keys(mocks.listeners).some((path) => path.startsWith(SHEETS))).toBe(false)
   })
 
-  it('goes back to the story from the sheet', () => {
+  it('goes back to the story from the sheet', async () => {
     seed({ [RENE_SHEET]: reneSheet() })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
     expect(sheetOf('Rene Dube')).toBeTruthy()
 
     openTab('Story')
@@ -288,10 +305,10 @@ describe('the NPC tab strip', () => {
     expect(screen.getByDisplayValue('Rene Dube')).toBeTruthy()
   })
 
-  it('keeps the sheet tab open moving to another NPC, and shows that NPC\'s own sheet, never the last one\'s', () => {
+  it('keeps the sheet tab open moving to another NPC, and shows that NPC\'s own sheet, never the last one\'s', async () => {
     seed({ [RENE_SHEET]: reneSheet() })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
 
     pickNpc('Hollis Varney')
     emitDatabase()
@@ -323,19 +340,19 @@ describe('an NPC\'s sheet', () => {
   it('writes a counter tick to the NPC\'s sheet in npcSheets and nowhere else, kept through a reload', async () => {
     seed({ [RENE_SHEET]: reneSheet() })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
 
     press('Raise Stress')
     press('Raise Trauma')
     await settle()
 
-    expect(writtenPaths()).toEqual([RENE_SHEET])
+    expect(writtenPaths()).toEqual([RENE_SHEET, RENE_SHEET])
     expect(storedSheet().lubec.counters).toEqual({ stress: 3, minimumStress: 2, trauma: 1 })
     expect(database[RENE_SHEET].name).toBe('Stored name')
     expect(database[RENE_SHEET].ownerUserId).toBe(GM)
 
-    reload('gm', GM)
-    openSheetTab('Rene Dube')
+    await reload('gm', GM)
+    await openSheetTab('Rene Dube')
 
     expect([counterValue('Stress'), counterValue('Trauma')]).toEqual(['3', '1'])
   })
@@ -343,7 +360,7 @@ describe('an NPC\'s sheet', () => {
   it('adds an effect that changes the sheet and saves it to npcSheets', async () => {
     seed({ [RENE_SHEET]: reneSheet() })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
     const effects = screen.getByLabelText('Active effects')
 
     fireEvent.click(within(effects).getByText('Add effect', { selector: 'button' }))
@@ -363,7 +380,7 @@ describe('an NPC\'s sheet', () => {
   it('rolls a Stat Check on the NPC\'s sheet, adding Stress for a failure, and stores the roll in npcSheets', async () => {
     seed({ [RENE_SHEET]: reneSheet() })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
 
     seededRolls = [60]
     fireEvent.click(circleOf('Strength'))
@@ -377,7 +394,7 @@ describe('an NPC\'s sheet', () => {
   it('finalizes a draft through the draft bar, with no Delete on it, writing to npcSheets', async () => {
     seed({ [RENE_SHEET]: reneSheet({ creationStatus: 'established_draft' }) })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
     const bar = document.querySelector('.lubec-draft-bar') as HTMLElement
     expect(within(bar).queryByText('Delete draft')).toBeNull()
 
@@ -408,16 +425,16 @@ describe('an NPC\'s Gear page', () => {
   const slotOf = (name: string) => [...document.querySelectorAll<HTMLElement>('.lubec-gear .slot.item')].find((el) => el.textContent?.includes(name)) as HTMLElement
   const storedGear = () => storedSheet().lubec.gear
 
-  function openSheet(items: Fields[]) {
+  async function openSheet(items: Fields[]) {
     seed({ [RENE_SHEET]: reneWith(items) })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
   }
 
-  it('has the same three pages as a player\'s sheet, and is empty for a sheet with no gear', () => {
+  it('has the same three pages as a player\'s sheet, and is empty for a sheet with no gear', async () => {
     seed({ [RENE_SHEET]: reneSheet() })
     mountNpcs('gm', GM)
-    openSheetTab('Rene Dube')
+    await openSheetTab('Rene Dube')
 
     expect(pageTabs().getAllByRole('button').map((tab) => tab.textContent)).toEqual(['Core sheet', 'Skills', 'Gear'])
     openGear()
@@ -426,7 +443,7 @@ describe('an NPC\'s Gear page', () => {
   })
 
   it('adds a carrier with personal the only kind, saved to npcSheets and nowhere else, kept through a reload', async () => {
-    openSheet([])
+    await openSheet([])
     openGear()
     fireEvent.click(screen.getByRole('tab', { name: 'Carriers' }))
     fireEvent.click(screen.getByRole('button', { name: '+ New carrier' }))
@@ -440,15 +457,15 @@ describe('an NPC\'s Gear page', () => {
     expect(writtenPaths()).toEqual([RENE_SHEET])
     expect(storedGear()?.carriers.map(({ name }) => name)).toEqual(['Tackle box'])
 
-    reload('gm', GM)
-    openSheetTab('Rene Dube')
+    await reload('gm', GM)
+    await openSheetTab('Rene Dube')
     openGear()
     fireEvent.click(screen.getByRole('tab', { name: 'Carriers' }))
     expect(screen.getByText('Tackle box')).toBeTruthy()
   })
 
   it('changes the backpack picture as on a player\'s sheet', async () => {
-    openSheet([])
+    await openSheet([])
     openGear()
 
     fireEvent.click(screen.getByRole('button', { name: 'Change pack' }))
@@ -459,8 +476,8 @@ describe('an NPC\'s Gear page', () => {
     expect(storedGear()?.backpackArt).toBe('teal')
   })
 
-  it('shows worn armor on the body drawing, and it counts for the location', () => {
-    openSheet([helmet])
+  it('shows worn armor on the body drawing, and it counts for the location', async () => {
+    await openSheet([helmet])
     openGear()
 
     expect(screen.getByRole('button', { name: /^Head: .*\(Hockey helmet\)$/ })).toBeTruthy()
@@ -469,7 +486,7 @@ describe('an NPC\'s Gear page', () => {
   })
 
   it('asks the GM for a heavy thing\'s Strength roll, rolled on the NPC\'s own sheet and stored in npcSheets', async () => {
-    openSheet([thing('anvil', 'Small anvil', 0, { weight: 'heavy' })])
+    await openSheet([thing('anvil', 'Small anvil', 0, { weight: 'heavy' })])
     expect(gearTab().textContent).toBe('Gear, a Strength roll to make')
     openGear()
 
@@ -479,14 +496,14 @@ describe('an NPC\'s Gear page', () => {
     fireEvent.click(within(ask).getByRole('button', { name: 'Done' }))
     await settle()
 
-    expect(writtenPaths()).toEqual([RENE_SHEET])
+    expect(writtenPaths()).toEqual([RENE_SHEET, RENE_SHEET])
     expect(storedSheet().lubec.gear?.items).toMatchObject([{ id: 'anvil', check: 'fail' }])
     expect(storedSheet().lubec.counters.stress).toBe(3)
     expect(gearTab().querySelector('.lubec-page-dot')).toBeNull()
   })
 
   it('drops a thing to the GM Items tab like any drop, out of npcSheets, and offers nothing that needs a player', async () => {
-    openSheet([thing('rope', 'Coil of rope', 0)])
+    await openSheet([thing('rope', 'Coil of rope', 0)])
     openGear()
 
     fireEvent.click(slotOf('Coil of rope'))
@@ -502,22 +519,22 @@ describe('an NPC\'s Gear page', () => {
 })
 
 describe('an NPC with no sheet', () => {
-  function openDoors() {
+  async function openDoors() {
     mountNpcs('gm', GM)
-    openSheetTab('Hollis Varney')
+    await openSheetTab('Hollis Varney')
     fireEvent.click(screen.getByRole('button', { name: 'Make a character sheet' }))
     return screen.getByRole('dialog', { name: 'New character' })
   }
 
-  it('offers the three ways a new character comes in', () => {
-    const dialog = openDoors()
+  it('offers the three ways a new character comes in', async () => {
+    const dialog = await openDoors()
 
     expect(within(dialog).getAllByRole('button').map((button) => button.querySelector('strong')?.textContent ?? button.textContent))
       .toEqual(['Import a file', 'Direct entry', 'Guided roll-up', 'Cancel'])
   })
 
   it('makes a Direct entry draft under the NPC\'s own id, owned by the GM, and opens it under the NPC\'s name', async () => {
-    const dialog = openDoors()
+    const dialog = await openDoors()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /^Direct entry/ }))
     await settle()
@@ -529,7 +546,7 @@ describe('an NPC with no sheet', () => {
   })
 
   it('makes a Guided roll-up draft under the NPC\'s own id', async () => {
-    const dialog = openDoors()
+    const dialog = await openDoors()
 
     fireEvent.click(within(dialog).getByRole('button', { name: /^Guided roll-up/ }))
     await settle()
@@ -538,7 +555,7 @@ describe('an NPC with no sheet', () => {
   })
 
   it('imports a file as the NPC\'s sheet under its own id, leaving the file\'s portrait out with a note', async () => {
-    const dialog = openDoors()
+    const dialog = await openDoors()
     fireEvent.click(within(dialog).getByRole('button', { name: /Import a file/ }))
     const portrait = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
     fireEvent.change(within(dialog).getByLabelText('Character code'), { target: { value: JSON.stringify({ ...tommyEvesFile, portrait }) } })

@@ -18,14 +18,15 @@ import {
   lubecUnloadedToast,
   type LubecLoadAct,
 } from './loadLabels'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /** What a loading act reads: the gear as it is now, the supplies and their names, and a maker of ids for a new loose stack. */
-export type LubecLoadContext = { gear: LubecGear; supplies: readonly LubecSupply[]; supplyName: LubecSupplyName; newId: () => string }
+export type LubecLoadContext = { gear: LubecGear; supplies: readonly LubecSupply[]; supplyName: LubecSupplyName; newId: () => string; hands: LubecHandLimits }
 
-/** The context for the gear as it is now: its supplies, the game's and the player's, and their names. */
-export const lubecLoadContext = (gear: LubecGear, newId: () => string): LubecLoadContext => {
+/** The context for the gear as it is now: its supplies, the game's and the player's, their names, and the hands the cards leave usable. */
+export const lubecLoadContext = (gear: LubecGear, newId: () => string, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecLoadContext => {
   const supplies = lubecSupplies(gear)
-  return { gear, supplies, supplyName: supplyNameIn(supplies), newId }
+  return { gear, supplies, supplyName: supplyNameIn(supplies), newId, hands }
 }
 
 /** The next gear, B's toast if any, and the item whose card shows after it; or why not. */
@@ -39,20 +40,20 @@ const stillHere = (gear: LubecGear, id: string) => gear.items.some((x) => x.id =
 
 /** The card's own Load or Reload, from the nearest supply on you. */
 export function lubecReloadAct(ctx: LubecLoadContext, w: LubecItem): LubecLoadResult {
-  const r = lubecReload(ctx.gear, w)
+  const r = lubecReload(ctx.gear, w, null, ctx.hands)
   return r.ok ? done(r.gear, lubecReloadedToast(w), w.id) : refused(lubecReloadRefusalText(w, r, ctx.supplyName))
 }
 
 /** Rule L5: loading `w` from this box or stack first. A loose stack that runs out leaves the sheet, so the card shows the gun. */
 export function lubecLoadIntoAct(ctx: LubecLoadContext, src: LubecItem, w: LubecItem): LubecLoadResult {
-  const r = lubecReload(ctx.gear, w, src.id)
+  const r = lubecReload(ctx.gear, w, src.id, ctx.hands)
   if (!r.ok) return refused(lubecReloadRefusalText(w, r, ctx.supplyName))
   return done(r.gear, lubecLoadedToast(r.item), stillHere(r.gear, src.id) ? src.id : w.id)
 }
 
 /** Rule L6: unloads `n`, or takes `n` out of a box, with `toast` after it. */
 function unloadAct(ctx: LubecLoadContext, i: LubecItem, n: number, toast: string): LubecLoadResult {
-  const r = lubecUnload(ctx.gear, i, n, ctx.supplies, ctx.newId)
+  const r = lubecUnload(ctx.gear, i, n, ctx.supplies, ctx.newId, ctx.hands)
   return r.ok ? done(r.gear, toast, i.id) : refused(lubecLandText(i, r, ctx.supplyName))
 }
 
@@ -84,6 +85,6 @@ export const lubecCardLoadAct = (ctx: LubecLoadContext, i: LubecItem, act: CardA
 
 /** Rule L9: the empty-weapon prompt's red Reload and fire loads, fires and uses a round in one action. */
 export function lubecReloadAndFireAct(ctx: LubecLoadContext, w: LubecItem): LubecLoadResult {
-  const r = lubecReloadAndFire(ctx.gear, w)
+  const r = lubecReloadAndFire(ctx.gear, w, ctx.hands)
   return r.ok ? done(r.gear, 'Reloaded and fired. Roll it at the table.', w.id) : refused(lubecReloadRefusalText(w, r, ctx.supplyName))
 }

@@ -1,10 +1,11 @@
 // Every Firestore read and write the NPC tab makes.
-import { deleteDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
+import { deleteDoc, onSnapshot, query, serverTimestamp, setDoc, where, type Firestore } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { NpcRecord, Role } from '../../../types/app'
 import type { CampaignScope } from '../../campaign/firestorePaths'
 import { campaignCollectionRef, campaignDocRef, npcSheetRef } from '../../campaign/firestorePaths'
 import { sanitizeTokenIconForPersistence } from '../../common/mediaFields'
+import { deleteSheetWithReceipts } from '../../character/characterStore/sheetTeardown'
 import type { NpcDocumentSnapshot } from './npcRecords'
 
 type DocsListener = (docs: NpcDocumentSnapshot[]) => void
@@ -67,9 +68,11 @@ export async function createNpcDocuments(scope: CampaignScope, npc: NpcRecord) {
   })
 }
 
-// The NPC goes with its GM notes and its character sheet, if it has one.
-export async function deleteNpcDocuments(scope: CampaignScope, npcId: string) {
-  await deleteDoc(campaignDocRef(db, scope, 'npcs', npcId))
-  await deleteDoc(campaignDocRef(db, scope, 'npcPrivate', npcId))
-  await deleteDoc(npcSheetRef(db, scope, npcId))
+// The NPC goes with its GM notes and its character sheet, if it has one. The
+// sheet and its write receipts go first, so a failure leaves the NPC listed
+// with a sheet that can still be deleted, rather than a sheet nothing lists.
+export async function deleteNpcDocuments(scope: CampaignScope, npcId: string, firestore: Firestore = db) {
+  await deleteSheetWithReceipts(firestore, npcSheetRef(firestore, scope, npcId))
+  await deleteDoc(campaignDocRef(firestore, scope, 'npcs', npcId))
+  await deleteDoc(campaignDocRef(firestore, scope, 'npcPrivate', npcId))
 }

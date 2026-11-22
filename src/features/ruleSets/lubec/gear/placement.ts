@@ -14,6 +14,7 @@ import {
   type LubecPocket,
 } from './gearRecord'
 import { layerProblem } from './armorLayers'
+import { LUBEC_FREE_HANDS, lubecBothHandsRefusal, lubecHandUnusable, type LubecHandLimits } from '../handLimits'
 import type { LubecItemDraft, LubecPlacement } from './stacks'
 
 type CarrierKind = 'pack' | 'hands' | 'body' | 'worn' | 'made'
@@ -63,6 +64,11 @@ export const bodyTaken = (gear: LubecGear, ignoreId?: string | null): Set<number
 
 const no = (msg: string): LubecPlacement => ({ ok: false, msg })
 
+export const LUBEC_HANDS_FULL = 'Both hands are full.'
+
+/** A refusal to put a thing in hand, after "No free hand for it.": nothing more when the hands are simply full, else the card that says why. */
+export const lubecNoHandWhy = (msg: string): string => (msg === LUBEC_HANDS_FULL ? '' : ` ${msg}`)
+
 const freeOf = (taken: Set<number>, want: number | null): number | undefined =>
   ([0, 1].includes(want as number) && !taken.has(want as number) ? want as number : [0, 1].find((k) => !taken.has(k)))
 
@@ -73,12 +79,28 @@ const bothHandsWhat = (it: LubecItemDraft): string => {
   return it.weight === 'extra' ? 'An extra-heavy thing' : 'A heavy thing'
 }
 
-// Rule W3.
-function placeInHands(gear: LubecGear, it: LubecItemDraft, want: number | null, ignoreId?: string | null): LubecPlacement {
+/** The hands that are full or out of use: a hand an active card takes out holds nothing more. */
+export function lubecHandsUnavailable(gear: LubecGear, hands: LubecHandLimits, ignoreId?: string | null): Set<number> {
   const taken = handsTaken(gear, ignoreId)
-  if (bothHands(it)) return taken.size ? no(`${bothHandsWhat(it)} takes both hands. Empty both hands first.`) : { ok: true, carrier: 'hands', slot: 0 }
-  const free = freeOf(taken, want)
-  return free == null ? no('Both hands are full.') : { ok: true, carrier: 'hands', slot: free }
+  for (const limit of hands.unusable) taken.add(limit.slot)
+  return taken
+}
+
+// Rule W3, with the active cards' hand limits.
+function placeBothHands(taken: Set<number>, it: LubecItemDraft, hands: LubecHandLimits): LubecPlacement {
+  const refusal = lubecBothHandsRefusal(hands)
+  if (refusal) return no(`${refusal}: ${bothHandsWhat(it).toLowerCase()} takes both hands.`)
+  return taken.size ? no(`${bothHandsWhat(it)} takes both hands. Empty both hands first.`) : { ok: true, carrier: 'hands', slot: 0 }
+}
+
+function placeInHands(gear: LubecGear, it: LubecItemDraft, want: number | null, ignoreId: string | null | undefined, hands: LubecHandLimits): LubecPlacement {
+  const taken = handsTaken(gear, ignoreId)
+  if (bothHands(it)) return placeBothHands(taken, it, hands)
+  const wanted = want === null ? null : lubecHandUnusable(hands, want)
+  if (wanted) return no(`${wanted}: that hand cannot hold anything.`)
+  const free = freeOf(lubecHandsUnavailable(gear, hands, ignoreId), want)
+  if (free != null) return { ok: true, carrier: 'hands', slot: free }
+  return no(hands.unusable.length ? `${hands.unusable.map((limit) => limit.why).join('; ')}, and no other hand is free.` : LUBEC_HANDS_FULL)
 }
 
 // Rule W4.
@@ -116,9 +138,9 @@ function placeInPockets(gear: LubecGear, c: LubecPlaceCarrier, it: LubecItemDraf
 
 const GONE = 'That place is not on this sheet any more. Pick another.'
 
-function placeAt(gear: LubecGear, c: LubecPlaceCarrier, it: LubecItemDraft, want: number | null, ignoreId?: string | null): LubecPlacement {
+function placeAt(gear: LubecGear, c: LubecPlaceCarrier, it: LubecItemDraft, want: number | null, ignoreId: string | null | undefined, hands: LubecHandLimits): LubecPlacement {
   if (c.kind === 'worn') return placeWorn(gear, it, ignoreId)
-  if (c.kind === 'hands') return placeInHands(gear, it, want, ignoreId)
+  if (c.kind === 'hands') return placeInHands(gear, it, want, ignoreId, hands)
   if (c.kind === 'body') return placeOnBody(gear, it, want, ignoreId)
   if (want != null && !c.pockets[want]) return no(GONE)
   return placeInPockets(gear, c, it, want, ignoreId)
@@ -126,15 +148,16 @@ function placeAt(gear: LubecGear, c: LubecPlaceCarrier, it: LubecItemDraft, want
 
 /**
  * Where would it go? `dest` is "carrier", "carrier#pocket", "carrier#small" or "hands#slot". Rules W1, W3, W4, A1, A3 and C1.
- * Returns where it goes, or why not. Base rules: no override. `ignoreId` is the item being moved, which leaves its own place.
+ * Returns where it goes, or why not. Base rules: no override. `ignoreId` is the item being moved, which leaves its own place;
+ * `hands` are the active cards' hand limits, which no thing gets past.
  */
-export function place(gear: LubecGear, dest: string, it: LubecItemDraft, ignoreId?: string | null): LubecPlacement {
+export function place(gear: LubecGear, dest: string, it: LubecItemDraft, ignoreId?: string | null, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecPlacement {
   const [cid, sub] = dest.split('#')
   const c = carrierOf(gear, cid)
   if (!c) return no(GONE)
   if (sub === 'small' && it.size !== 0) return no('Only small things go in small stuff. Pick a pocket, or make it Small.')
   const want = sub != null && sub !== 'small' ? Number(sub) : null
-  return placeAt(gear, c, it, want, ignoreId)
+  return placeAt(gear, c, it, want, ignoreId, hands)
 }
 
 // ---------- the main pocket ----------

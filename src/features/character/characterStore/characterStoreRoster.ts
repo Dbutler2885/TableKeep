@@ -1,3 +1,4 @@
+import { optimisticSheet } from './sheetOptimistic'
 import type { Role } from '../../../types/app'
 import { readCharacterStoreDoc, type CharacterStoreRecord, type CharacterStoreRuleSet } from './characterStoreRecord'
 import { isCharacterStoreSaveOutstanding, type CharacterStoreSaves } from './characterStoreWrites'
@@ -16,6 +17,9 @@ function readSnapshotCharacter<Character extends CharacterStoreRecord>(
   localCharacters: Character[],
 ): Character | null {
   const local = findCharacterStoreCharacter(localCharacters, docSnap.id)
+  if (ruleSet.system === 'lubec' && saves.revisioned?.[docSnap.id]) {
+    return readCharacterStoreDoc(ruleSet, docSnap.id, optimisticSheet(saves.revisioned[docSnap.id].state), local)
+  }
   if (local && isCharacterStoreSaveOutstanding(saves, docSnap.id)) return local
   return readCharacterStoreDoc(ruleSet, docSnap.id, docSnap.data() as Record<string, unknown>, local)
 }

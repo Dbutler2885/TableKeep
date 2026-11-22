@@ -1,3 +1,4 @@
+import { hasMoveReceipt, prepareMovedSheet, withMoveSheetRetries, writeMovedSheets } from './lubecMoveSheets'
 // The safe move between two records (spec 4.7): one Firestore transaction that
 // reads both records, plans the move with the pure rules against what it read
 // (`lubecMovePlan`), and writes both, or nothing. Two players moving things
@@ -18,6 +19,7 @@
 // page takes another edit.
 
 import {
+  doc as childDoc,
   onSnapshot,
   runTransaction,
   serverTimestamp,
@@ -35,7 +37,7 @@ import {
   type CampaignScope,
 } from '../../campaign/firestorePaths'
 import { lubecCharacterVersioning } from '../../ruleSets/characterMigrations'
-import { assertCharacterAtCurrentVersion, characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
+import { assertCharacterAtCurrentVersion } from '../../ruleSets/characterSchemaStamp'
 import type { StoredCharacter } from '../../ruleSets/storedCharacter'
 import {
   lubecMovePlan,
@@ -45,6 +47,7 @@ import {
 } from '../../ruleSets/lubec/gear/containers'
 import { parseLubecCarrierRecord, parseLubecGear, type LubecCarrierRecord } from '../../ruleSets/lubec/gear/gearRecord'
 import { parseLubecGmItem, type LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
+import { sheetPayload } from '../../character/characterStore/sheetIntentionEdits'
 
 /** The store that saves the sheets a move writes, as `useCharacterStore` gives it. */
 export type LubecMoveStore = {
@@ -58,6 +61,8 @@ export type LubecMoveRequest = {
   to: LubecRecordRef
   move: LubecMove
   store: LubecMoveStore
+  /** Retain the same id when retrying an uncertain acknowledgement. */
+  operationId?: string
 }
 
 export type LubecMoveResult = { ok: true } | { ok: false; msg: string }
@@ -65,7 +70,7 @@ export type LubecMoveResult = { ok: true } | { ok: false; msg: string }
 type Ref = DocumentReference<DocumentData>
 
 /** A record as the transaction read it, and the save time it carried. */
-type Read = { record: LubecMoveRecord; updatedAt: unknown }
+type Read = { record: LubecMoveRecord; updatedAt: unknown; raw: DocumentData }
 
 type Moved = { ok: true; sheets: { ref: Ref; updatedAt: unknown }[] } | { ok: false; msg: string }
 
@@ -97,27 +102,46 @@ function recordFrom(ref: LubecRecordRef, data: DocumentData | null, id: string):
   return { kind: ref.kind, carrier: data && parseLubecCarrierRecord(data, id) }
 }
 
-// A drop is never read first: a member may not read a dropped item, and the document it makes is new.
-async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSource: boolean): Promise<Read> {
-  if (ref.kind === 'gm-items' && !isSource) return { record: { kind: 'gm-items', item: null }, updatedAt: null }
+// Legacy player drops cannot read GM Items. Physical combat exports are GM commands and check conflicts.
+const unreadDrop = (ref: LubecRecordRef, isSource: boolean, physical: boolean) => ref.kind === 'gm-items' && !isSource && !physical
+
+async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSource: boolean, physical = false): Promise<Read> {
+  if (unreadDrop(ref, isSource, physical)) return { record: { kind: 'gm-items', item: null }, updatedAt: null, raw: {} }
   const snap = await tx.get(doc)
   const data = snap.exists() ? snap.data() : null
-  return { record: recordFrom(ref, data, snap.id), updatedAt: data?.updatedAt }
+  return { record: recordFrom(ref, data, snap.id), updatedAt: data?.updatedAt, raw: data ?? {} }
 }
 
 /** A value as Firestore stores it: no `undefined` anywhere in it. */
 export const stored = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 function writeGmItem(tx: Transaction, doc: Ref, before: LubecGmItem | null, after: LubecGmItem | null) {
-  if (after && !before) tx.set(doc, { ...stored(after), createdAt: serverTimestamp() })
-  if (before && !after) tx.delete(doc)
+  if (!after) {
+    if (before) tx.delete(doc)
+    return
+  }
+  if (!before) tx.set(doc, { ...stored(after), createdAt: serverTimestamp() })
+  else if (sheetPayload(before) !== sheetPayload(after)) tx.set(doc, { ...stored(after), updatedAt: serverTimestamp() })
+}
+
+function physicalDestination(doc: Ref, source: LubecMoveRecord, request: LubecMoveRequest): Ref {
+  if (!request.move.physical || request.to.kind !== 'gm-items') return doc
+  const plan = lubecMovePlan(source, { kind: 'gm-items', item: null }, request.move)
+  return plan.ok ? childDoc(doc.parent, plan.item.id) : doc
+}
+
+async function readMoveRecords(tx: Transaction, docs: readonly [Ref, Ref], request: LubecMoveRequest) {
+  const source = await readRecord(tx, docs[0], request.from, true)
+  const targetDoc = physicalDestination(docs[1], source.record, request)
+  const target = await readRecord(tx, targetDoc, request.to, false, Boolean(request.move.physical))
+  return { docs: [docs[0], targetDoc] as const, reads: [source, target] as const }
 }
 
 // A sheet's write carries the version stamp and merges, so the rest of `lubec` is left alone and the arrays go whole.
 function writeRecord(tx: Transaction, doc: Ref, before: LubecMoveRecord, after: LubecMoveRecord) {
   const at = serverTimestamp()
   if ('gear' in after) {
-    tx.set(doc, { lubec: { gear: stored(after.gear) }, ...characterSchemaStamp(lubecCharacterVersioning), updatedAt: at }, { merge: true })
+    return // Sheet intentions are prepared and written together before the non-sheet records.
   } else if ('carrier' in after) {
     tx.set(doc, { items: stored((after.carrier as LubecCarrierRecord).items), updatedAt: at }, { merge: true })
   } else {
@@ -125,12 +149,21 @@ function writeRecord(tx: Transaction, doc: Ref, before: LubecMoveRecord, after: 
   }
 }
 
-async function moveInTransaction(tx: Transaction, docs: readonly [Ref, Ref], request: LubecMoveRequest): Promise<Moved> {
-  const reads = await Promise.all([readRecord(tx, docs[0], request.from, true), readRecord(tx, docs[1], request.to, false)])
+async function moveInTransaction(tx: Transaction, docs: readonly [Ref, Ref], request: LubecMoveRequest, revisions: Map<string, number>): Promise<Moved> {
+  revisions.clear()
+  if (await hasMoveReceipt(tx, docs, request)) return { ok: true, sheets: [] }
+  const read = await readMoveRecords(tx, docs, request)
+  const { reads } = read
   const plan = lubecMovePlan(reads[0].record, reads[1].record, request.move)
   if (!plan.ok) return plan
-  writeRecord(tx, docs[0], reads[0].record, plan.from)
-  writeRecord(tx, docs[1], reads[1].record, plan.to)
+  const prepared = await Promise.all([
+    prepareMovedSheet(read.docs[0], reads[0].raw, plan.from, request),
+    prepareMovedSheet(read.docs[1], reads[1].raw, plan.to, request),
+  ])
+  prepared.forEach((entry) => { if (entry?.mutation) revisions.set(entry.sheetRef.path, entry.mutation.receipt.outcome.revision) })
+  writeMovedSheets(tx, prepared)
+  writeRecord(tx, read.docs[0], reads[0].record, plan.from)
+  writeRecord(tx, read.docs[1], reads[1].record, plan.to)
   const sheets = [request.from, request.to].flatMap((ref, n) => (sheetIdOf(ref) ? [{ ref: docs[n], updatedAt: reads[n].updatedAt }] : []))
   return { ok: true, sheets }
 }
@@ -166,11 +199,13 @@ export function snapshotAfter(doc: Ref, before: unknown): Promise<void> {
  * written. Rejects when Firestore refuses a write, which also writes nothing.
  */
 export async function lubecMoveBetween(db: Firestore, request: LubecMoveRequest): Promise<LubecMoveResult> {
+  request.operationId ??= crypto.randomUUID()
   const { scope, from, to, move } = request
   const docs = [recordRef(db, scope, from, move.itemId), recordRef(db, scope, to, move.itemId)] as const
   if (docs[0].path === docs[1].path) throw new Error('A move between records needs two records.')
   await quietSheets(request.store, [from, to].flatMap((ref) => sheetIdOf(ref) ?? []))
-  const moved = await runTransaction(db, (tx) => moveInTransaction(tx, docs, request))
+  const revisions = new Map<string, number>()
+  const moved = await withMoveSheetRetries(docs, () => runTransaction(db, (tx) => moveInTransaction(tx, docs, request, revisions)), revisions)
   if (!moved.ok) return moved
   await Promise.all(moved.sheets.map(({ ref, updatedAt }) => snapshotAfter(ref, updatedAt)))
   return { ok: true }

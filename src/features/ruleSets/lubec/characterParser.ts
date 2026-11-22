@@ -16,6 +16,8 @@ import { lubecCharacterSummary } from './characterSummary'
 import { parseLubecEffects } from './effects'
 import { parseLubecGear } from './gear/gearRecord'
 import { LUBEC_VALUE_NAMES, type LubecSheet } from './sheet'
+import { parseLubecDeathReminders } from './deathReminders'
+import { parseLubecCondition } from './condition'
 
 // Reads a stored Lubec character into the sheet's record and writes it back.
 // Every stored field the record does not model, at the top level and inside
@@ -92,6 +94,8 @@ export function parseLubecSheet(raw: unknown): LubecCharacterSheet {
     counters: parseCounters(stored.counters),
     effects: parseLubecEffects(stored.effects),
     lastRoll: entryOrNone(stored.lastRoll),
+    ...(Array.isArray(stored.deathReminders) ? { deathReminders: parseLubecDeathReminders(stored.deathReminders) } : {}),
+    condition: parseLubecCondition(stored.condition),
     importNotes: listOf(stored.importNotes).filter(isText),
     gear: parseLubecGear(stored.gear),
   }
@@ -105,7 +109,7 @@ export function parseLubecSheet(raw: unknown): LubecCharacterSheet {
 const LUBEC_CHARACTER_FIELDS: ReadonlySet<string> = new Set([
   'system', 'name', 'ownerUserId', 'ownerUsername', 'creationMode', 'creationStatus',
   'portraitPath', 'portraitUrl', 'portraitFocusX', 'portraitFocusY', 'tokenIcon', 'lubec',
-  'createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt',
+  'createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt', 'sheetRevision',
 ])
 
 function unknownFieldsOf(data: StoredCharacter): Pick<LubecCharacterRecord, 'unknownFields'> {

@@ -6,6 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -25,11 +26,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: mocks.deleteDoc,
-  onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: { path: string }, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     return () => {
       if (mocks.listeners[ref.path]?.next === next) delete mocks.listeners[ref.path]
@@ -37,6 +41,12 @@ vi.mock('firebase/firestore', () => ({
   },
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -76,6 +86,7 @@ const T = (id: string, name: string, extra: Fields = {}): Fields => ({
 const LIGHT = T('light', 'Flashlight', { cells: [1], batch: 'b1', check: 'pass' })
 
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path.split('/').at(-1)!], (ref, fields) => mocks.setDoc(ref, fields))
 let offers: Record<string, Fields> = {}
 
 const docsOf = (records: Record<string, Fields>) => ({ docs: Object.entries(records).map(([id, data]) => ({ id, data: () => data })) })
@@ -102,6 +113,8 @@ const openCard = (name: string) => {
 const offerCalls = () => mocks.setDoc.mock.calls.filter(([ref]) => (ref as { path: string }).path.startsWith(OFFERS_PATH))
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -124,7 +137,7 @@ afterEach(() => {
 })
 
 describe('the card\'s Give', () => {
-  it('sits between Move and Drop, and its panel lists other people\'s finalized characters', () => {
+  it('sits between Move and Drop, and its panel lists other people\'s finalized characters', async () => {
     database = {
       tommy: sheet('Tommy', 'player-1', [LIGHT]),
       second: sheet('Second', 'player-1'),
@@ -145,7 +158,7 @@ describe('the card\'s Give', () => {
     expect(card.queryByRole('spinbutton')).toBeNull()
   })
 
-  it('opens one panel at a time, as B\'s do', () => {
+  it('opens one panel at a time, as B\'s do', async () => {
     database = { tommy: sheet('Tommy', 'player-1', [LIGHT]), stephen: sheet('Stephen', 'player-2') }
     mountTab('player', 'player-1')
     openGear('Tommy')
@@ -159,7 +172,7 @@ describe('the card\'s Give', () => {
     expect(card.getByRole('combobox', { name: 'Give to' })).toBeTruthy()
   })
 
-  it('says so when there is nobody to give it to', () => {
+  it('says so when there is nobody to give it to', async () => {
     database = { tommy: sheet('Tommy', 'player-1', [LIGHT]) }
     mountTab('player', 'player-1')
     openGear('Tommy')
@@ -269,7 +282,7 @@ describe('the card\'s Give', () => {
     expect(card.getByRole('button', { name: 'Give it' })).toBeTruthy()
   })
 
-  it('is the owner\'s alone: the GM on a player\'s sheet has no Give', () => {
+  it('is the owner\'s alone: the GM on a player\'s sheet has no Give', async () => {
     database = { tommy: sheet('Tommy', 'player-1', [LIGHT]), stephen: sheet('Stephen', 'player-2') }
     mountTab('gm', GM)
     openGear('Tommy')

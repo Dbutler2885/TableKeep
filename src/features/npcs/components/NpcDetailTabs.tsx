@@ -1,5 +1,6 @@
 import { Fragment, useState, type ReactNode } from 'react'
 import type { NpcRecord } from '../../../types/app'
+import { openPageWaiting } from '../../navigation/openRequest'
 
 type NpcDetailTab = 'story' | 'sheet'
 
@@ -19,7 +20,8 @@ type NpcDetailTabsProps = {
  * The open tab stays as the GM moves from one NPC to the next.
  */
 export function NpcDetailTabs({ npc, story, sheetTab }: NpcDetailTabsProps) {
-  const [tab, setTab] = useState<NpcDetailTab>('story')
+  // A request from the Combat tab to open this NPC on a sheet page lands on its Character sheet.
+  const [tab, setTab] = useState<NpcDetailTab>(() => (openPageWaiting(npc.id) ? 'sheet' : 'story'))
   if (!sheetTab) return story
   return (
     <div className="npc-detail-tabs">

@@ -40,7 +40,7 @@ const sheet = (ownerUserId: string, items: object[]) => ({
 
 /** F8's write: what `usePlayerAssignment` saves, through the store's stamp. */
 const givenTo = (ownerUserId: string) => ({
-  ownerUserId, ownerUsername: ownerUserId, ...characterSchemaStamp(lubecCharacterVersioning), updatedAt: serverTimestamp(),
+  ownerUserId, ownerUsername: ownerUserId, sheetRevision: 1, ...characterSchemaStamp(lubecCharacterVersioning), updatedAt: serverTimestamp(),
 })
 
 describe('hidden carriers', () => {

@@ -19,6 +19,8 @@ describe('a stock entry\'s line', () => {
       'Small / no table yet / Impact + 0 + Str',
       '1 slot / Gunshot / Impact + 1, holds 6',
       '4 slots / Gunshot / Impact + 2, holds 2',
+      '1 slot / Dodgeball / Impact + 0 + Str · catch 50% · Catching this puts the thrower out',
+      '1 slot / Thrown Objects / Impact + 1 + Str · catch 10%',
       'Cut −1, Pierce −1, Blunt −2 / Head',
       'Cut −1, Blunt −1 / Hands',
       'Cut −1, Blunt −2 / Torso, Upper arms',

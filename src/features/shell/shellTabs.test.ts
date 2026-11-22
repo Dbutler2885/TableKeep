@@ -59,6 +59,36 @@ describe('campaignNavTabs', () => {
   })
 })
 
+describe('the live-fight tab', () => {
+  it('sits right after the character tab in Lubec only', () => {
+    expect(ids(campaignNavTabs('lubec', 'gm', undefined, true)).slice(0, 3)).toEqual(['character', 'combat', 'maps'])
+    expect(ids(campaignNavTabs('ose', 'gm', undefined, true))).not.toContain('combat')
+    expect(ids(campaignNavTabs('vtm', 'gm', undefined, true))).not.toContain('combat')
+  })
+
+  it('is shown only when offered', () => {
+    expect(ids(campaignNavTabs('lubec', 'gm', undefined))).not.toContain('combat')
+    expect(ids(campaignNavTabs('lubec', 'player', undefined, false))).not.toContain('combat')
+    expect(ids(campaignNavTabs('lubec', 'player', undefined, null))).not.toContain('combat')
+    expect(campaignNavTabs('lubec', 'player', undefined, true)).toContainEqual({ id: 'combat', label: 'Combat' })
+  })
+
+  it('is never hidden by a saved enabledTabs list, which predates it', () => {
+    // Clocks and Handouts are always on too.
+    expect(ids(campaignNavTabs('lubec', 'player', ['character', 'notes'], true))).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
+    expect(ids(campaignNavTabs('lubec', 'gm', [], true))).toEqual(['combat', 'clocks', 'handouts'])
+  })
+
+  it('routes only when offered, and waits while the fight is still being read', () => {
+    expect(routableTab('lubec', 'combat', true)).toBe('combat')
+    expect(routableTab('lubec', 'combat', null)).toBe('combat')
+    expect(routableTab('lubec', 'combat', false)).toBe('character')
+    expect(routableTab('lubec', 'combat')).toBe('character')
+    expect(routableTab('ose', 'combat', true)).toBe('character')
+    expect(routableTab('lubec', 'notes', false)).toBe('notes')
+  })
+})
+
 describe('routableTab', () => {
   it('keeps a tab the system has', () => {
     expect(routableTab('ose', 'items')).toBe('items')

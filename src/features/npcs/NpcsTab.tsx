@@ -1,4 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
+import { useOpenRequest } from '../navigation/openRequest'
 import { ChevronLeft } from 'lucide-react'
 import type { NpcRecord, Role } from '../../types/app'
 import { useSessionNotes } from '../notes/useSessionNotes'
@@ -129,6 +130,7 @@ export function NpcsTab({ campaignId, groupId, role, sheetTab }: NpcsTabProps) {
     setSelectedNpcId(npcId)
     layout.showDetail()
   }
+  useOpenRequest('npc', npcs.length > 0, openNpc)
 
   return (
     <div className="maps-layout monsters-layout">

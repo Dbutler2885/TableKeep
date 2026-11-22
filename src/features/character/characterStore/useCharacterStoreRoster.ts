@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
-import { onSnapshot, type DocumentData } from 'firebase/firestore'
+import { receiveRevisionedStoreDocs } from './revisionedStoreAdapter'
+import { useEffect, useEffectEvent, useRef, useState, type RefObject } from 'react'
+import { onSnapshot, type DocumentSnapshot, type QuerySnapshot, type DocumentData } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { Role } from '../../../types/app'
 import { campaignCollectionRef, campaignDocRef, campaignUserStateRef, type CampaignScope } from '../../campaign/firestorePaths'
@@ -28,6 +29,7 @@ export function useCharacterStoreCurrentCharacterId(
   setError: (message: string) => void,
 ) {
   const [currentCharacterId, setCurrentCharacterId] = useState<string | null>(null)
+  const reportError = useEffectEvent(setError)
 
   useEffect(() => {
     if (!campaignId || !groupId || !enabled) {
@@ -37,10 +39,10 @@ export function useCharacterStoreCurrentCharacterId(
     const unsub = onSnapshot(
       campaignUserStateRef(db, { campaignId, groupId }, userId),
       (snap) => setCurrentCharacterId(readCurrentCharacterId(snap.data())),
-      (err) => setError(errorMessage(err, 'Unable to load current character')),
+      (err) => reportError(errorMessage(err, 'Unable to load current character')),
     )
     return () => unsub()
-  }, [campaignId, enabled, groupId, setError, userId])
+  }, [campaignId, enabled, groupId, userId])
 
   return [currentCharacterId, setCurrentCharacterId] as const
 }
@@ -52,11 +54,39 @@ function listenToCharacterStoreDocs(
   onlyId: string | undefined,
   next: (docs: StoredCharacterDoc[]) => void,
   fail: (err: unknown) => void,
+  metadata: boolean,
 ) {
   if (onlyId) {
+    if (metadata) return onSnapshot(campaignDocRef(db, campaign, collection, onlyId), { includeMetadataChanges: true }, (snap) => publishServerDocument(snap, next), fail)
     return onSnapshot(campaignDocRef(db, campaign, collection, onlyId), (snap) => next(snap.exists() ? [snap] : []), fail)
   }
+  if (metadata) return onSnapshot(campaignCollectionRef(db, campaign, collection), { includeMetadataChanges: true }, (snap) => publishServerCollection(snap, next), fail)
   return onSnapshot(campaignCollectionRef(db, campaign, collection), (snap) => next(snap.docs), fail)
+}
+
+function publishServerCollection(snapshot: QuerySnapshot, next: (docs: StoredCharacterDoc[]) => void) {
+  if (!snapshot.metadata?.fromCache) next(snapshot.docs)
+}
+function publishServerDocument(snapshot: DocumentSnapshot, next: (docs: StoredCharacterDoc[]) => void) {
+  if (!snapshot.metadata?.fromCache) next(snapshot.exists() ? [snapshot] : [])
+}
+
+type RosterSubscription = { active: boolean; publish: (docs: StoredCharacterDoc[]) => void; fail: (error: unknown) => void }
+function publishIfActive(state: RosterSubscription, docs: StoredCharacterDoc[]) {
+  if (state.active) state.publish(docs)
+}
+function failIfActive(state: RosterSubscription, error: unknown) {
+  if (state.active) state.fail(error)
+}
+function receiveRosterDocs(state: RosterSubscription, docs: StoredCharacterDoc[], saves: CharacterStoreSaves, scope: CampaignScope & { collection: CharacterStoreCollection }, revisioned: boolean) {
+  const received = revisioned ? receiveRevisionedStoreDocs(saves, scope, docs) : undefined
+  if (received) { void received.then(() => publishIfActive(state, docs)).catch((error) => failIfActive(state, error)); return }
+  publishIfActive(state, docs)
+}
+function subscribeRosterDocs(scope: CampaignScope, collection: CharacterStoreCollection, onlyId: string | undefined, revisioned: boolean, saves: CharacterStoreSaves, publish: RosterSubscription['publish'], fail: RosterSubscription['fail']) {
+  const state = { active: true, publish, fail }
+  const stop = listenToCharacterStoreDocs(scope, collection, onlyId, (docs) => receiveRosterDocs(state, docs, saves, { ...scope, collection }, revisioned), (error) => failIfActive(state, error), revisioned)
+  return () => { state.active = false; stop() }
 }
 
 type RosterOptions<Character extends CharacterStoreRecord> = {
@@ -86,6 +116,7 @@ export function useCharacterStoreRoster<Character extends CharacterStoreRecord>(
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
   const charactersRef = useRef<Character[]>([])
+  const reportError = useEffectEvent(setError)
 
   useEffect(() => {
     charactersRef.current = characters
@@ -102,27 +133,24 @@ export function useCharacterStoreRoster<Character extends CharacterStoreRecord>(
     queueMicrotask(() => setCharactersLoading(true))
     // The saves made while this subscription runs; a campaign change replaces them.
     const saves = savesRef.current
-    const unsub = listenToCharacterStoreDocs(
-      { campaignId, groupId },
-      collection,
-      onlyId,
-      (docs) => {
-        const all = readCharacterStoreSnapshot(ruleSet, docs, savesRef.current, charactersRef.current)
-        const next = visibleCharacterStoreCharacters(all, role, gmUserId)
-        setCharacters(next)
-        setCharactersLoading(false)
-        setSelectedCharacterId((current) => nextSelectedCharacterStoreId(current, next, currentCharacterId, userId))
-      },
-      (err) => {
-        setError(errorMessage(err, `Unable to load ${ruleSet.label} characters`))
-        setCharactersLoading(false)
-      },
-    )
+    const publish = (docs: StoredCharacterDoc[]) => {
+      const all = readCharacterStoreSnapshot(ruleSet, docs, savesRef.current, charactersRef.current)
+      const next = visibleCharacterStoreCharacters(all, role, gmUserId)
+      charactersRef.current = next
+      setCharacters(next)
+      setCharactersLoading(false)
+      setSelectedCharacterId((current) => nextSelectedCharacterStoreId(current, next, currentCharacterId, userId))
+    }
+    const fail = (err: unknown) => {
+      reportError(errorMessage(err, `Unable to load ${ruleSet.label} characters`))
+      setCharactersLoading(false)
+    }
+    const unsub = subscribeRosterDocs({ campaignId, groupId }, collection, onlyId, ruleSet.system === 'lubec', saves, publish, fail)
     return () => {
       sendCharacterStoreSavesNow(saves)
       unsub()
     }
-  }, [campaignId, collection, currentCharacterId, enabled, gmUserId, groupId, onlyId, role, ruleSet, savesRef, setError, userId])
+  }, [campaignId, collection, currentCharacterId, enabled, gmUserId, groupId, onlyId, role, ruleSet, savesRef, userId])
 
   return {
     characters,

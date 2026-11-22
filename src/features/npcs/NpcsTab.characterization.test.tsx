@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   queries: {} as Record<string, unknown[]>,
   setDoc: vi.fn(),
   deleteDoc: vi.fn(),
+  deletes: [] as string[],
+  deleteSheetWithReceipts: vi.fn(),
   resolveStoragePathUrl: vi.fn(),
   uploadEntityImage: vi.fn(),
   sessionNotes: [] as SessionNote[],
@@ -40,6 +42,7 @@ vi.mock('firebase/firestore', async (importOriginal) => ({
   deleteDoc: mocks.deleteDoc,
   serverTimestamp: () => 'server-ts',
 }))
+vi.mock('../character/characterStore/sheetTeardown', () => ({ deleteSheetWithReceipts: mocks.deleteSheetWithReceipts }))
 vi.mock('../common/mediaStorage', async () => ({
   ...(await import('../common/mediaFields')),
   resolveStoragePathUrl: mocks.resolveStoragePathUrl,
@@ -121,7 +124,9 @@ beforeEach(() => {
   vi.useFakeTimers()
   setViewportWidth(1440)
   mocks.setDoc.mockReset().mockResolvedValue(undefined)
-  mocks.deleteDoc.mockReset().mockResolvedValue(undefined)
+  mocks.deletes = []
+  mocks.deleteDoc.mockReset().mockImplementation(async (ref: { path: string }) => { mocks.deletes.push(ref.path) })
+  mocks.deleteSheetWithReceipts.mockReset().mockImplementation(async (_db: unknown, ref: { path: string }) => { mocks.deletes.push(`sheet with receipts: ${ref.path}`) })
   mocks.resolveStoragePathUrl.mockReset().mockResolvedValue(null)
   mocks.uploadEntityImage.mockReset()
   mocks.sessionNotes = []
@@ -462,7 +467,7 @@ describe('adding and deleting', () => {
     expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ sortOrder: 0 })
   })
 
-  it('confirms a delete, removes the NPC, its GM notes and its sheet, and drops that NPC\'s pending writes', async () => {
+  it('confirms a delete, removes the NPC\'s sheet with its receipts, then the NPC and its GM notes, and drops that NPC\'s pending writes', async () => {
     renderTab('gm')
     act(() => editor().onChange({ name: 'Bee' }))
     act(() => editor().onChangeGmNotes('gone soon'))
@@ -473,7 +478,7 @@ describe('adding and deleting', () => {
     await flush()
     await flush()
     await flush()
-    expect(mocks.deleteDoc.mock.calls).toEqual([[{ path: `${NPCS}/b` }], [{ path: `${PRIVATE}/b` }], [{ path: `${BASE}/npcSheets/b` }]])
+    expect(mocks.deletes).toEqual([`sheet with receipts: ${BASE}/npcSheets/b`, `${NPCS}/b`, `${PRIVATE}/b`])
     expect(screen.queryByRole('dialog')).toBeNull()
     act(() => vi.advanceTimersByTime(500))
     expect(mocks.setDoc).not.toHaveBeenCalled()
@@ -485,7 +490,7 @@ describe('adding and deleting', () => {
     expect(screen.getByRole('dialog').textContent).toContain('Delete this NPC?')
     fireEvent.click(screen.getByText('Cancel'))
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+    expect(mocks.deletes).toEqual([])
   })
 })
 

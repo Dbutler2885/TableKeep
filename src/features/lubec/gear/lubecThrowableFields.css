@@ -1,0 +1,50 @@
+/* Weapon extensions reuse the form's switches and fields. Keep the actions
+   visible while the longer weapon panel scrolls inside the existing sheet. */
+.shell-root[data-theme="lubec"] .lubec-gear .weapon-ranges {
+  border-top: 1px solid var(--lubec-line);
+  padding-top: 0.55rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .weapon-ranges summary {
+  cursor: pointer;
+  color: var(--lubec-blue);
+  font: 800 0.75rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .weapon-ranges[open] > .stack {
+  margin-top: 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .range-row {
+  border-top: 1px solid var(--lubec-line);
+  padding-top: 0.45rem;
+}
+
+@media (min-width: 60rem) {
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="weapon"] {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto auto minmax(0, 1fr) auto auto auto;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="weapon"] .form-kind {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 59.99rem) {
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="weapon"][data-page="kind"] {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="weapon"][data-page="kind"] .form-kind {
+    display: block;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}

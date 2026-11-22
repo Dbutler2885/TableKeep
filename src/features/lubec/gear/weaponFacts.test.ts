@@ -106,14 +106,14 @@ describe('the minimum Strength lines', () => {
 
 describe('the attack buttons', () => {
   it('fire a firearm, attack with melee and throw a thrown weapon, in hand', () => {
-    expect(lubecAttackButtons(revolver)).toEqual([{ label: 'Fire', disabled: false }])
-    expect(lubecAttackButtons(bat)).toEqual([{ label: 'Attack', disabled: false }])
+    expect(lubecAttackButtons(revolver)).toEqual([{ label: 'Shoot', disabled: false }])
+    expect(lubecAttackButtons(bat)).toEqual([{ label: 'Blunt swing', disabled: false }])
     expect(lubecAttackButtons(W({ mode: 'thrown' }))).toEqual([{ label: 'Throw', disabled: false }])
   })
 
   it('give one button for each way a weapon wounds', () => {
     expect(lubecAttackButtons(W({ wounds: ['cut', 'pierce'] })).map((b) => b.label)).toEqual(['Slash', 'Stab'])
-    expect(lubecAttackButtons(W({ wounds: ['blunt', 'gun'] })).map((b) => b.label)).toEqual(['Hit', 'Fire'])
+    expect(lubecAttackButtons(W({ wounds: ['blunt', 'gun'] })).map((b) => b.label)).toEqual(['Blunt swing', 'Shoot'])
   })
 
   it('ask for it to be taken in hand first, and give a thing that is no weapon none', () => {
@@ -130,4 +130,20 @@ describe('the attack buttons', () => {
     expect(attackRefusalText(bat)).toBe('Take the baseball bat in hand first.')
     expect(attackRefusalText(revolver)).toBe("Take Grandpa's revolver in hand first.")
   })
+})
+
+it('shows catch chance, the Out rule, separate thrown damage, and weapon-owned ranges', () => {
+  const knife = W({ mode: 'melee', wounds: ['cut', 'pierce'], canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: [{ band: 'short', distance: 'Across the room', modifier: -7 }, { band: 'extreme' }] })
+  expect(factOf(knife, 'Thrown Impact')?.text).toBe('Quality − 1 base + Strength roll')
+  expect(factOf(knife, 'Thrown wounds')?.text).toBe('Piercing. Armor counts that number.')
+  expect(factOf(knife, 'Catch')?.text).toBe('10%')
+  expect(factOf(knife, 'Catch rule')?.text).toBe('Catching this puts the thrower out')
+  expect(factOf(knife, 'Short range')?.text).toBe('Across the room · Handle − 7')
+  expect(factOf(knife, 'Extreme range')?.text).toBe('GM declares distance · GM declares Handle modifier')
+  expect(lubecAttackButtons(knife).map((button) => button.label)).toEqual(['Slash', 'Stab', 'Throw'])
+  expect(factOf({ ...knife, canThrow: false }, 'Catch')).toBeUndefined()
+  expect(factOf(W({ mode: 'thrown' }), 'Catch')?.text).toBe('Cannot be caught')
+  expect(factOf(W({ mode: 'melee', canThrow: true }), 'Thrown Impact')?.text).toBe('Quality + 0 base + Strength roll')
+  expect(factOf(W({ mode: 'melee', canThrow: true }), 'Thrown wounds')?.text).toBe('Blunt. Armor counts that number.')
+  expect(factOf(W({ mode: 'firearm', ranges: [{ band: 'medium', modifier: 0 }] }), 'Medium range')?.text).toBe('GM declares distance · Handle + 0')
 })

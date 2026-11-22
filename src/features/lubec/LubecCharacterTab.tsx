@@ -4,6 +4,7 @@ import { makeId } from '../character/characterFactories'
 import { CharacterDeleteDialog } from '../character/components/CharacterDeleteDialog'
 import { PlayerAssignmentModal } from '../character/components/PlayerAssignmentModal'
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
+import { useOpenRequest } from '../navigation/openRequest'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner } from '../ruleSets/lubec/directEntry'
 import { LubecSheetFightHost } from './fight/LubecSheetFightHost'
@@ -87,6 +88,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
     store.setSelectedCharacterId(characterId)
     layout.setPaneView('detail')
   }
+  useOpenRequest('character', !store.charactersLoading, selectCharacter)
   const doors = lubecDoorsFor({
     campaignId, groupId, role, currentUserId, currentUsername, setError,
     addCharacter: store.addCharacter, updateCharacter: store.updateCharacter, onCreated: () => layout.setPaneView('detail'),

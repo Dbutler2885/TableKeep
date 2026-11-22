@@ -1,3 +1,5 @@
+import { copySheetRecordBase } from './sheetRecordBase'
+import { revisionedCharacterUpdate } from './revisionedStoreAdapter'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { Role } from '../../../types/app'
 import type { CharacterStoreRecord, CharacterStoreRuleSet } from './characterStoreRecord'
@@ -24,6 +26,7 @@ export type CharacterStoreActionContext<Character extends CharacterStoreRecord> 
   setCharacters: Dispatch<SetStateAction<Character[]>>
   setSelectedCharacterId: Dispatch<SetStateAction<string>>
   setCurrentCharacterId: Dispatch<SetStateAction<string | null>>
+  notifySaves?: () => void
 }
 
 /** The GM may edit any character; a player only their own. */
@@ -38,7 +41,7 @@ const withCharacterStoreUpdates = <Character extends CharacterStoreRecord>(
   characters: Character[],
   characterId: string,
   updates: Partial<Character>,
-) => characters.map((character) => (character.id === characterId ? { ...character, ...updates } : character))
+) => characters.map((character) => (character.id === characterId ? copySheetRecordBase(character, { ...character, ...updates }) : character))
 
 // Applies an edit locally when the viewer may make it; true when it was applied.
 function applyCharacterStoreUpdate<Character extends CharacterStoreRecord>(
@@ -64,8 +67,10 @@ export function updateCharacterStoreCharacter<Character extends CharacterStoreRe
   context: CharacterStoreActionContext<Character>,
   characterId: string,
   updates: Partial<Character>,
+  base = findCharacterStoreCharacter(context.charactersRef.current, characterId),
 ) {
   if (!applyCharacterStoreUpdate(context, characterId, updates) || !context.campaign) return
+  if (base && revisionedCharacterUpdate(context, characterId, base, updates, false)) return
   scheduleCharacterStoreSave(context.savesRef.current, context.campaign, context.ruleSet, characterId,
     readCharacterStoreCharacter(context))
 }
@@ -78,8 +83,10 @@ export function updateCharacterStoreCharacterNow<Character extends CharacterStor
   context: CharacterStoreActionContext<Character>,
   characterId: string,
   updates: Partial<Character>,
+  base = findCharacterStoreCharacter(context.charactersRef.current, characterId),
 ) {
   if (!applyCharacterStoreUpdate(context, characterId, updates) || !context.campaign) return
+  if (base && revisionedCharacterUpdate(context, characterId, base, updates, true)) return
   sendCharacterStoreSaveNow(context.savesRef.current, context.campaign, context.ruleSet, characterId,
     readCharacterStoreCharacter(context))
 }

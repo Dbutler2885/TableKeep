@@ -304,6 +304,28 @@ describe('expiry', () => {
     expect(orphans.empty).toBe(true)
   })
 
+  it('deletes a fight and every sheet receipt in an expired sandbox, with no list of them to keep', async () => {
+    const expired = await createDemoSandbox(db, 'visitor-1', NOW)
+    if (expired.status !== 'created') throw new Error('expected a sandbox')
+    const campaign = db.collection('groups').doc(expired.sandbox.groupId).collection('campaigns').doc(expired.sandbox.campaignId)
+    // What a visitor's own play leaves behind: none of it was cloned.
+    const played = [
+      campaign.collection('combatControl').doc('current'),
+      campaign.collection('combats').doc('fight-1'),
+      campaign.collection('combats').doc('fight-1').collection('log').doc('entry-1'),
+      campaign.collection('combats').doc('fight-1').collection('commands').doc('command-1'),
+      campaign.collection('characters').doc(CHARACTER_ID).collection('writeReceipts').doc('op-1'),
+      campaign.collection('npcSheets').doc('gill'),
+      campaign.collection('npcSheets').doc('gill').collection('writeReceipts').doc('op-2'),
+    ]
+    for (const ref of played) await ref.set({ written: 'by the visitor' })
+
+    await sweepExpiredDemoSandboxes(db, storageDeleterSpy().delete, demoSessionExpiresAtMs(NOW) + 1)
+
+    const left = await Promise.all(played.map(async (ref) => ((await ref.get()).exists ? ref.path : null)))
+    expect(left.filter(Boolean)).toEqual([])
+  })
+
   it('leaves a sandbox that is still live alone', async () => {
     const live = await createDemoSandbox(db, 'visitor-live', NOW)
     if (live.status !== 'created') throw new Error('expected a sandbox')

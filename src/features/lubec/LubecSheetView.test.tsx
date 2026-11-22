@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { makeLubecDirectEntryCharacter } from '../ruleSets/lubec/directEntry'
+import { requestOpen } from '../navigation/openRequest'
+import { LubecCombatContext } from './combat/combatWatch'
 import { LubecSheetView, type LubecSheetViewProps } from './LubecSheetView'
 
 const character: LubecCharacterRecord = {
@@ -63,4 +65,46 @@ describe('LubecSheetView pages', () => {
 
     expect(pageTabs()).toEqual(['Core sheet', 'Skills', 'Gear'])
   })
+})
+
+describe('LubecSheetView sent from the Combat tab', () => {
+  const live = { id: 'fight', fight: { status: 'live', participantUserIds: [], state: { combatants: [{ kind: 'character', sheetId: 'tommy', key: 'character:tommy' }] } } } as never
+  const sheetProps = { character, editing, onCountersChange: vi.fn(), onSkillsChange: null, onDraftEdit: null, onDelete: null, onAssign: null, onFinalize: null, onRollUp: null, corrections: null, onGearChange: null }
+
+  it('opens on the real Gear page with the way back to the fight, once', () => {
+    window.sessionStorage.clear()
+    requestOpen('character', 'tommy', 'gear')
+    const openCombat = vi.fn()
+    render(<LubecCombatContext value={{ enabled: true, ready: true, live, openCombat }}><LubecSheetView {...sheetProps} /></LubecCombatContext>)
+    expect(screen.getByRole('button', { name: 'Gear' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('tablist', { name: 'Gear views' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Combat' }))
+    expect(openCombat).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Core sheet' }))
+    expect(screen.queryByRole('button', { name: 'Back to Combat' })).toBeNull()
+    cleanup()
+    render(<LubecCombatContext value={{ enabled: true, ready: true, live, openCombat }}><LubecSheetView {...sheetProps} /></LubecCombatContext>)
+    expect(screen.queryByRole('button', { name: 'Back to Combat' })).toBeNull()
+  })
+})
+
+it('keeps the GM condition picker in the name band and the condition visible on every page', () => {
+  const change = vi.fn()
+  renderSheet({ character: { ...character, lubec: { ...character.lubec, condition: 'comatose' } }, onConditionChange: change })
+  expect(screen.queryByRole('combobox', { name: 'Condition' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Set condition' }))
+  fireEvent.change(screen.getByRole('combobox', { name: 'Condition' }), { target: { value: 'dead' } })
+  expect(change).toHaveBeenCalledWith('dead')
+  fireEvent.click(screen.getByRole('button', { name: 'Gear' }))
+  expect(screen.queryByRole('combobox', { name: 'Condition' })).toBeNull()
+  expect(screen.getByRole('img', { name: 'Comatose' })).toBeTruthy()
+  expect(screen.getByRole('status', { name: 'Condition' }).textContent).toBe('Comatose')
+  expect(screen.getByRole('button', { name: 'Set condition' }).closest('.lubec-band-actions')).toBeTruthy()
+})
+
+it('shows non-GMs the condition label and overlay without a picker', () => {
+  renderSheet({ character: { ...character, lubec: { ...character.lubec, condition: 'dead' } }, onConditionChange: null })
+  expect(screen.getByRole('status', { name: 'Condition' }).textContent).toBe('Dead')
+  expect(screen.getByRole('img', { name: 'Dead' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Set condition' })).toBeNull()
 })

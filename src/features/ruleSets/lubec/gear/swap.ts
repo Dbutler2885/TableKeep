@@ -8,6 +8,7 @@ import { lubecCostWord, lubecMoveCost } from './moveCost'
 import type { LubecGear, LubecItem } from './gearRecord'
 import { lubecAt, lubecInMain, lubecWithItems } from './moves'
 import { bothHands, packMain, place } from './placement'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../handLimits'
 
 // Only things in hands, body slots and the backpack. A small thing held or on the body takes that slot, so it swaps;
 // small stuff in the backpack takes no slot, so it never gets stuck.
@@ -56,13 +57,13 @@ const withCells = (i: LubecItem, at: readonly number[] | null): LubecItem =>
   (lubecInMain(i) && at && at.length === i.size ? { ...i, cells: [...at] } : i)
 
 /** `a` and `b` trade places. Each has to fit where the other was, or the reason says why not and nothing changes. */
-export function lubecSwapItems(gear: LubecGear, a: LubecItem, b: LubecItem): LubecSwapped {
+export function lubecSwapItems(gear: LubecGear, a: LubecItem, b: LubecItem, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecSwapped {
   // b is out of the way while a takes its place.
   const out = { ...gear, items: gear.items.filter((x) => x.id !== b.id) }
-  const pa = place(out, lubecSpotOf(b), a, a.id)
+  const pa = place(out, lubecSpotOf(b), a, a.id, hands)
   if (!pa.ok) return pa
   const a2 = lubecAt(a, pa)
-  const pb = place(lubecWithItems(out, a2), lubecSpotOf(a), b, b.id)
+  const pb = place(lubecWithItems(out, a2), lubecSpotOf(a), b, b.id, hands)
   if (!pb.ok) return { ok: false, msg: `${b.name} can't go where ${a.name} was. ${pb.msg}` }
   const na = withCells(a2, lubecCellsOf(gear, b)), nb = withCells(lubecAt(b, pb), lubecCellsOf(gear, a))
   return { ok: true, gear: lubecWithItems(gear, na, nb), a: na, b: nb, cost: lubecSwapCost(a, b) }

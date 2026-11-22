@@ -248,3 +248,19 @@ describe('saving gear with the character', () => {
     }
   })
 })
+
+describe('optional thrown gear and weapon-specific ranges', () => {
+  it('reads all the optional fields, including negative Impact and explicit false/zero values', () => {
+    const fields = { canThrow: true, thrownImpact: -3, thrownWound: 'pierce', catchChance: 0, catchPutsThrowerOut: false, ranges: [{ band: 'short', distance: 'Across the gym', modifier: 17, future: 'kept' }, { band: 'extreme' }], unknown: { kept: true } }
+    expect(parseLubecItem(fields, 'knife')).toMatchObject(fields)
+    expect(parseLubecItem({ canThrow: false, catchChance: 100, ranges: [] }, 'rock')).toMatchObject({ canThrow: false, catchChance: 100, ranges: [] })
+  })
+
+  it.each([
+    ['canThrow', 'true'], ['thrownImpact', -1.5], ['thrownWound', 'fire'], ['catchChance', -1], ['catchChance', 101], ['catchChance', 1.5], ['catchPutsThrowerOut', 1],
+    ['ranges', {}], ['ranges', [null]], ['ranges', [{ band: 'close' }]], ['ranges', [{ band: 'short', distance: 10 }]], ['ranges', [{ band: 'long', modifier: 2.5 }]],
+  ])('discards unreadable %s values', (field, value) => {
+    expect(parseLubecItem({ [field]: value, unrelated: 'survives' }, 'w')).not.toHaveProperty(field)
+    expect(parseLubecItem({ [field]: value, unrelated: 'survives' }, 'w')).toHaveProperty('unrelated', 'survives')
+  })
+})

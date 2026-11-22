@@ -13,16 +13,17 @@ import { campaignDocRef, campaignGmItemRef, npcSheetRef } from '../../campaign/f
 import {
   emptyCharacterStoreSaves,
   isCharacterStoreSaveOutstanding,
-  scheduleCharacterStoreSave,
   sendCharacterStoreSavesNow,
   settleCharacterStoreSaves,
 } from '../../character/characterStore/characterStoreWrites'
+import { enqueueSheetEdit, makeRevisionedSheetQueue, queueSheetSave } from '../../character/characterStore/revisionedSheetQueue'
+import { readSheetRevision } from '../../character/characterStore/sheetIntention'
+import { capturedSheetEdits } from '../../../../functions/src/sheets/capturedSheetEdits'
 import type { LubecCharacterRecord } from '../../ruleSets/lubec/characterRecord'
-import { lubecCharacterStore, parseLubecCharacter } from '../../ruleSets/lubec/characterParser'
 import { LUBEC_NO_ROOM_TO_ACCEPT } from '../../ruleSets/lubec/gear/arrival'
 import { LUBEC_STALE_MOVE } from '../../ruleSets/lubec/gear/containers'
 import { lubecDeleteCharacterDroppingGear } from './lubecDeleteDrop'
-import { lubecMoveBetween, type LubecMoveStore } from './lubecMoveTransaction'
+import { lubecMoveBetween, type LubecMoveRequest, type LubecMoveStore } from './lubecMoveTransaction'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
 
@@ -56,19 +57,24 @@ const quietStore: LubecMoveStore = { settleSaves: async () => {} }
 
 /**
  * The page's copy of a sheet in the shared store's real save tracking, as
- * `useCharacterStore` keeps it: each edit saves the whole record with a merge
- * half a second later, through the signed-in client `db`.
+ * `useCharacterStore` keeps it for a Lubec sheet: each edit joins the sheet's
+ * queue as an edit intention, sent half a second later through the signed-in
+ * client `db`.
  */
-function pageStore(db: Firestore, stored: object) {
+function pageStore(db: Firestore, stored: DocumentData) {
   connection.db = db
   const saves = emptyCharacterStoreSaves()
-  let copy = parseLubecCharacter('wayne', stored)
+  const queue = makeRevisionedSheetQueue(db, campaignDocRef(db, scope, 'characters', 'wayne'), playerUid, stored, () => {})
+  saves.revisioned = { wayne: queue }
+  let copy = stored
   const edit = (change: (sheet: LubecCharacterRecord['lubec']) => LubecCharacterRecord['lubec']) => {
-    copy = { ...copy, lubec: change(copy.lubec) }
-    scheduleCharacterStoreSave(saves, { ...scope, collection: 'characters' }, lubecCharacterStore, copy.id, () => copy)
+    const next = { ...copy, lubec: change(copy.lubec) }
+    enqueueSheetEdit(queue, { operationId: crypto.randomUUID(), baseRevision: readSheetRevision(queue.state.confirmed), edits: capturedSheetEdits(copy, next, queue.state.confirmed) })
+    queueSheetSave(queue)
+    copy = next
   }
   const store: LubecMoveStore = { settleSaves: (id) => settleCharacterStoreSaves(saves, id) }
-  return { saves, edit, store }
+  return { saves, queue, edit, store }
 }
 
 const withStress = (stress: number) => (sheet: LubecCharacterRecord['lubec']) => ({ ...sheet, counters: { ...sheet.counters, stress } })
@@ -221,7 +227,7 @@ describe('the move between two records', () => {
     expect(await gmItem('anvil')).toMatchObject({ status: 'dropped' })
   })
 
-  it('waits for two overlapping saves of the sheet, and the waiting one, before it moves', async () => {
+  it('waits for the sheet\'s queued edits, the one being sent and the one waiting, before it moves', async () => {
     const db = as(playerUid)
     const page = pageStore(db, (await character('wayne'))!)
     page.edit(withStress(3))
@@ -229,11 +235,13 @@ describe('the move between two records', () => {
     page.edit(withStress(4))
     sendCharacterStoreSavesNow(page.saves)
     page.edit(withStress(5))
-    expect(page.saves.inFlight.wayne?.size).toBe(2)
+    expect(page.queue.running).toBeDefined()
+    expect(page.queue.state.pending).toHaveLength(3)
 
     const result = await lubecMoveBetween(db, { scope, from: wayne, to: gmItems, store: page.store, move: { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy } })
     expect(result).toEqual({ ok: true })
-    expect(page.saves).toEqual({ pending: {}, inFlight: {} })
+    expect(isCharacterStoreSaveOutstanding(page.saves, 'wayne')).toBe(false)
+    expect(page.queue.state.pending.every((entry) => entry.committedRevision !== undefined)).toBe(true)
     await wait(700)
 
     const after = await character('wayne')
@@ -277,8 +285,44 @@ describe('the move between two records', () => {
     expect(await gmItem('anvil')).toBeUndefined()
   })
 
+  it('replays one retained drop after an uncertain acknowledgement and rejects changed payload reuse', async () => {
+    const request: LubecMoveRequest = { scope, from: wayne, to: gmItems, store: quietStore, operationId: 'retained-drop', move: { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy } }
+    expect(await lubecMoveBetween(as(playerUid), request)).toEqual({ ok: true })
+    expect(await lubecMoveBetween(as(playerUid), request)).toEqual({ ok: true })
+    expect((await character('wayne'))?.sheetRevision).toBe(1)
+    expect(itemIds(await character('wayne'))).toEqual(['flashlight'])
+    expect(await gmItem('anvil')).toMatchObject({ qty: 1, status: 'dropped' })
+    await expect(lubecMoveBetween(as(playerUid), { ...request, move: { ...request.move, seen: { carrier: 'hands', slot: 1 } } })).rejects.toThrow('operation-id-reused')
+  })
+
+  it('refuses a partially present multi-sheet receipt without making any more writes', async () => {
+    const request: LubecMoveRequest = { scope, from: wayne, to: stephen, store: quietStore, operationId: 'partial-command', move: { itemId: 'flashlight', seen: { carrier: 'backpack', pocket: 0 }, dest: 'backpack' } }
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(campaignDocRef(context.firestore() as unknown as Firestore, scope, 'characters', 'wayne'), 'writeReceipts', request.operationId!), { command: {} })
+    })
+    await expect(lubecMoveBetween(as(campaignGmUid), request)).rejects.toThrow('invalid-intention')
+    expect(itemIds(await character('wayne'))).toEqual(['anvil', 'flashlight'])
+    expect(itemIds(await character('stephen'))).toEqual([])
+    expect((await character('wayne'))?.sheetRevision).toBeUndefined()
+  })
+
   it('refuses a move whose two records are one', async () => {
     await expect(lubecMoveBetween(as(playerUid), { scope, from: wayne, to: wayne, store: quietStore, move: { itemId: 'anvil', dest: 'body' } }))
       .rejects.toThrow('A move between records needs two records.')
   })
+  it('moves a negative-Impact throwable from GM Items onto a sheet and back without losing data', async () => {
+    const extra = { canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: [{ band: 'short', distance: 'Across the kitchen', modifier: -13 }], unknown: { initials: 'WG' } }
+    const knife = { id: 'knife', kind: 'weapon', name: 'Kitchen knife', size: 1, qty: 1, weight: 'normal', note: '', mode: 'melee', wounds: ['cut', 'pierce'], impact: 1, status: 'library', ...extra }
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(campaignGmItemRef(context.firestore() as unknown as Firestore, scope, 'knife'), knife)
+    })
+    expect(await lubecMoveBetween(as(campaignGmUid), { scope, from: gmItems, to: stephen, store: quietStore, move: { itemId: 'knife', copyId: 'knife-copy' } })).toEqual({ ok: true })
+    expect(await gmItem('knife')).toMatchObject({ status: 'library', ...extra })
+    const arrived = (await character('stephen'))?.lubec.gear.items[0]
+    expect(arrived).toMatchObject({ id: 'knife-copy', carrier: 'backpack', ...extra })
+    expect(await lubecMoveBetween(as(otherPlayerUid), { scope, from: stephen, to: gmItems, store: quietStore, move: { itemId: 'knife-copy', seen: { carrier: arrived.carrier, pocket: arrived.pocket }, droppedBy: { characterId: 'stephen', characterName: 'Stephen', userId: otherPlayerUid } } })).toEqual({ ok: true })
+    expect(await gmItem('knife')).toMatchObject({ id: 'knife', status: 'library', ...extra })
+    expect(itemIds(await character('stephen'))).toEqual([])
+  })
+
 })

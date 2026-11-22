@@ -11,6 +11,8 @@ import { PHONE_NAV_MAX_WIDTH } from '../../constants/layout'
 import { DiscordDialog } from '../auth/DiscordDialog'
 import { pendingDiscordOutcome } from '../auth/discordReturnOutcome'
 import { useMediaQuery } from '../common/useMediaQuery'
+import { useLubecCombat } from '../lubec/combat/combatWatch'
+import { pendingCombatActions } from '../lubec/combat/pendingActions'
 import { campaignTabPath, groupHomePath } from '../navigation/tabs'
 import type { AppTab, Campaign, GroupRecord, Role } from '../../types/app'
 import type { CampaignNavTab } from './shellTabs'
@@ -109,7 +111,7 @@ function PhoneNav(props: SideNavProps) {
   )
 }
 
-function SideNavContent({ group, campaign, username, role, visibleTabs, setSettingsOpen, navigate, onSignOut, onOpenDiscord, onChoose, navRef }: SideNavProps & { onChoose: () => void; navRef?: RefObject<HTMLElement | null> }) {
+function SideNavContent({ group, campaign, user, username, role, visibleTabs, setSettingsOpen, navigate, onSignOut, onOpenDiscord, onChoose, navRef }: SideNavProps & { onChoose: () => void; navRef?: RefObject<HTMLElement | null> }) {
   return (
     <nav ref={navRef} className="side-nav" aria-label="Campaign">
       <h1 className="side-title">
@@ -132,7 +134,7 @@ function SideNavContent({ group, campaign, username, role, visibleTabs, setSetti
 
       <div className="nav-list">
         {visibleTabs.map((tab) => (
-          <CampaignNavLink key={tab.id} tab={tab} groupId={group.id} campaignId={campaign.id} onChoose={onChoose} />
+          <CampaignNavLink key={tab.id} tab={tab} groupId={group.id} campaignId={campaign.id} onChoose={onChoose} role={role} userId={user.uid} />
         ))}
       </div>
 
@@ -158,10 +160,12 @@ type CampaignNavLinkProps = {
   groupId: string
   campaignId: string
   onChoose: () => void
+  role: Role | null
+  userId: string
 }
 
 // The rules tab is a link out to the OSE SRD rather than a route.
-function CampaignNavLink({ tab, groupId, campaignId, onChoose }: CampaignNavLinkProps) {
+function CampaignNavLink({ tab, groupId, campaignId, onChoose, role, userId }: CampaignNavLinkProps) {
   const label = <CampaignNavLabel label={tab.label} />
   if (tab.id === 'rules') {
     return (
@@ -178,6 +182,7 @@ function CampaignNavLink({ tab, groupId, campaignId, onChoose }: CampaignNavLink
       className={({ isActive }) => (isActive ? 'tab-button active' : 'tab-button')}
     >
       {label}
+      {tab.id === 'combat' ? <CombatNavMark role={role} userId={userId} /> : null}
     </NavLink>
   )
 }
@@ -236,4 +241,11 @@ function AccountAction({ label, onClick, children }: { label: string; onClick: (
       {children}
     </button>
   )
+}
+
+/** Uses the same owner selector as the notice; spectators and Out viewers have no mark. */
+function CombatNavMark({ role, userId }: { role: Role | null; userId: string }) {
+  const { live } = useLubecCombat()
+  const actions = live ? pendingCombatActions(live.fight.state, role, userId) : []
+  return actions.length > 0 ? <i className="combat-nav-mark" role="img" aria-label="Your turn" /> : null
 }

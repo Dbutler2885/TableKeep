@@ -28,6 +28,9 @@ function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withR
 }
 
 const noEdits = {
+  onConditionChange: null,
+  onEffectRecovery: null,
+  onDeathHandled: null,
   onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null, onGearDrop: null,
   onGearHidden: null, onGearUpload: null, onGearRolled: null,
 }
@@ -36,6 +39,17 @@ const flashlight = { id: 'f1', kind: 'holder', name: 'Flashlight', carrier: 'bac
 const anvil = { id: 'a1', kind: 'thing', name: 'Small anvil', size: 1, weight: 'heavy', qty: 1, note: '', check: 'fail', carrier: 'backpack', pocket: 0 } as LubecItem
 
 describe('lubecSheetWiring', () => {
+  it('hands the Death Save reminders to the GM only, and saves a Trauma rise by hand as one reminder', () => {
+    expect(wire(finalized, gm, true).edits.onDeathHandled).toEqual(expect.any(Function))
+    expect(wire(finalized, owner, true).edits.onDeathHandled).toBeNull()
+    expect(wire(finalized, gm).edits.onDeathHandled).toBeNull()
+    const { store, edits } = wire({ ...finalized, lubec: { ...finalized.lubec, class: { key: 'working', choices: {} }, counters: { ...finalized.lubec.counters, trauma: 3 } } }, owner)
+    edits.onCountersChange!({ ...finalized.lubec.counters, trauma: 4 })
+    const saved = store.updateCharacter.mock.calls[0][1].lubec
+    expect(saved.counters.trauma).toBe(4)
+    expect(saved.deathReminders).toEqual([expect.objectContaining({ reasons: ['Trauma reached 4, the Death Save threshold of 4'], event: 'Trauma raised by hand' })])
+  })
+
   it('offers nothing while no sheet is open', () => {
     expect(wire(null, gm).edits).toEqual(noEdits)
   })
@@ -178,4 +192,12 @@ describe('lubecSheetWiring', () => {
     expect(edits.onFinalize).not.toBeNull()
     expect(edits.corrections).toBeNull()
   })
+})
+
+it('offers condition changes only to the GM, independent of the Correct switch', () => {
+  expect(wire(finalized, owner).edits.onConditionChange).toBeNull()
+  const { store, edits } = wire(finalized, gm)
+  edits.onConditionChange!('comatose')
+  edits.onConditionChange!(undefined)
+  expect(store.updateCharacterNow.mock.calls.map((call) => call[1].lubec.condition)).toEqual(['comatose', undefined])
 })

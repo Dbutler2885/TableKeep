@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { useCombatRoute } from '../combat/useCombatRoute'
 import type { CampaignScope } from '../../campaign/firestorePaths'
 import type { LubecCharacterRecord } from '../../ruleSets/lubec/characterRecord'
 import type { LubecViewer } from '../lubecSheetWiring'
@@ -21,8 +22,9 @@ type SheetFightHostProps = {
 /** The fight modal over the character sheet: the open character attacks, and the roster and the GM's NPCs are the targets. */
 export function LubecSheetFightHost({ character, children, ...room }: SheetFightHostProps) {
   const { host, modal } = useLubecFightRoom(room)
+  const toCombat = useCombatRoute(character?.id)
   const start: LubecFightStart | null = lubecCanFightFrom(character, room.viewer)
-    ? (weaponItemId) => host.open({ attacker: { kind: 'character', character }, target: null, weaponItemId })
+    ? toCombat ?? ((weaponItemId) => host.open({ attacker: { kind: 'character', character }, target: null, weaponItemId }))
     : null
   return (
     <>

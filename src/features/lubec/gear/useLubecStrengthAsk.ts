@@ -6,6 +6,7 @@ import type { LubecRolled } from '../useLubecRoller'
 import type { LubecItemSheetState } from './itemSheet'
 import { lubecPendingAsk, lubecStrengthDone, type LubecStrengthAnswer, type LubecStrengthAsk } from './strengthAsk'
 import type { LubecDropIt } from './useLubecGearMoves'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /**
  * The character's sheet and how a roll is recorded on it, for the Strength
@@ -41,8 +42,8 @@ function toastOrDrop(ctx: LubecAnswerContext, a: LubecStrengthAnswer) {
 }
 
 /** Done, after the roll came out `outcome`: one commit from the gear as it is now, then the sheet, the toast and the next ask. */
-export function lubecAnswerStrength(ctx: LubecAnswerContext, gear: LubecGear, ask: LubecStrengthAsk, outcome: 'success' | 'failure') {
-  const a = lubecStrengthDone(gear, ask, outcome, makeId)
+export function lubecAnswerStrength(ctx: LubecAnswerContext, gear: LubecGear, ask: LubecStrengthAsk, outcome: 'success' | 'failure', hands: LubecHandLimits = LUBEC_FREE_HANDS) {
+  const a = lubecStrengthDone(gear, ask, outcome, makeId, hands)
   if (a.gear) ctx.change(a.gear)
   if (a.sheet !== undefined) ctx.setSheet(a.sheet)
   toastOrDrop(ctx, a)

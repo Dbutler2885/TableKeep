@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 import type { LubecSharedSeat } from './lubecSharedSeat'
@@ -29,12 +30,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(),
-  onSnapshot: (ref: Ref, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: Ref, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     if (isDocPath(ref.path)) queueMicrotask(() => next(docSnap(ref.path)))
     return () => {
@@ -44,6 +48,12 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -62,6 +72,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 /** Every stored document, by path. */
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 let clock = 0
 
 const isDocPath = (path: string) => path.split('/').length % 2 === 0
@@ -157,6 +168,8 @@ const storedItems = (): Fields[] => (((database[TOMMY].lubec as Fields).gear as 
 const storedItem = (id: string) => storedItems().find((i) => i.id === id)
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -188,10 +201,10 @@ const rowNames = (section: HTMLElement) => [...section.querySelectorAll('.row-it
 const meterOf = (card: HTMLElement) => [...card.querySelectorAll('.meter i')].map((i) => i.className || 'off')
 const dialog = (name: string) => within(screen.getByRole('dialog', { name }))
 const toastText = () => screen.getByRole('status').textContent
-const settle = () => act(() => vi.advanceTimersByTime(500))
+const settle = async () => await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
 describe('the Carriers list', () => {
-  it('shows a character with no carriers only the backpack\'s card, which opens On you, and writes nothing for looking', () => {
+  it('shows a character with no carriers only the backpack\'s card, which opens On you, and writes nothing for looking', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ items: [T('cap', 'backpack', 0, 'Wool watch cap', 1)] }) }
     mountTab('player', 'player-1')
@@ -211,7 +224,7 @@ describe('the Carriers list', () => {
     fireEvent.click(backpack)
     expect(screen.getByRole('tab', { name: 'On you' }).getAttribute('aria-selected')).toBe('true')
     expect(document.querySelector('.lubec-gear .pack')).not.toBeNull()
-    act(() => vi.advanceTimersByTime(2000))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
@@ -236,8 +249,8 @@ describe('the Carriers list', () => {
       expect(screen.queryByRole('dialog')).toBeNull()
       expect(toastText()).toBe(`${t.name || 'Crate'} added to your carriers.`)
     }
-    settle()
-    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    await settle()
+    expect(mocks.setDoc).toHaveBeenCalledTimes(LUBEC_CARRIER_TYPES.length)
     const stored = storedGear().carriers as Fields[]
     expect(stored.map(({ type, name, pockets }) => ({ type, name, pockets }))).toEqual(LUBEC_CARRIER_TYPES.map((t) => ({
       type: t.id, name: t.name || 'Crate', pockets: t.pockets.map(([name, slots, max]) => ({ name, slots, max })),
@@ -250,7 +263,7 @@ describe('the Carriers list', () => {
     expect(cardOf('Family car').querySelector('.type')?.textContent).toBe('Family car')
   })
 
-  it('refuses a carrier with no name or a pocket smaller than its largest thing, keeps the last pocket, and totals the pockets', () => {
+  it('refuses a carrier with no name or a pocket smaller than its largest thing, keeps the last pocket, and totals the pockets', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({}) }
     mountTab('gm', GM)
@@ -281,13 +294,13 @@ describe('the Carriers list', () => {
     expect(form.getAllByRole('textbox', { name: 'Pocket' }).map((x) => (x as HTMLInputElement).value)).toEqual(['Pocket'])
     fireEvent.keyDown(form.getByRole('textbox', { name: 'Name' }), { key: 'Escape' })
     expect(screen.queryByRole('dialog')).toBeNull()
-    act(() => vi.advanceTimersByTime(2000))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 })
 
 describe('a carrier\'s detail', () => {
-  it('lists each pocket\'s things and the small stuff, and puts something in through the same form', () => {
+  it('lists each pocket\'s things and the small stuff, and puts something in through the same form', async () => {
     vi.useFakeTimers()
     database = {
       [TOMMY]: tommyEves({
@@ -321,14 +334,14 @@ describe('a carrier\'s detail', () => {
     expect(toastText()).toBe('Compass: School bag, outside pocket.')
     expect(rowNames(pocketOf('Outside pocket'))).toEqual(['Compass'])
     expect(within(pocketOf('Outside pocket')).queryByRole('button', { name: '+ Put something in' })).toBeNull()
-    settle()
+    await settle()
     expect(storedItems().find((i) => i.name === 'Compass')).toMatchObject({ carrier: 'bag', pocket: 1 })
 
     fireEvent.click(screen.getByRole('button', { name: '← All carriers' }))
     expect(cardOf('School bag')).toBeTruthy()
   })
 
-  it('moves a thing out of a carrier and into one through the card\'s Move panel', () => {
+  it('moves a thing out of a carrier and into one through the card\'s Move panel', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ carriers: [DUFFEL], items: [T('rope', 'duffel', 0, 'Coil of rope', 1), T('w', 'hands', 1, 'Walkie-talkie', 1)] }) }
     mountTab('player', 'player-1')
@@ -356,7 +369,7 @@ describe('a carrier\'s detail', () => {
     fireEvent.change(select, { target: { value: 'duffel#0' } })
     fireEvent.click(card.getByRole('button', { name: 'Move it' }))
     expect(toastText()).toBe('Walkie-talkie: Duffel bag.')
-    settle()
+    await settle()
     expect(storedItem('rope')).toMatchObject({ carrier: 'hands', slot: 0 })
     expect(storedItem('w')).toMatchObject({ carrier: 'duffel', pocket: 0 })
   })
@@ -365,7 +378,7 @@ describe('a carrier\'s detail', () => {
 describe('Rule C3: carrying a carrier', () => {
   const speedNote = () => screen.getByText('Speed', { selector: '.ability-name' }).closest('.ability')?.querySelector('.base-note')?.textContent
 
-  it('carries one by special dispensation, lists it on On you, and puts it down; what is in it never slows you', () => {
+  it('carries one by special dispensation, lists it on On you, and puts it down; what is in it never slows you', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ carriers: [DUFFEL], items: [T('anvil', 'duffel', 0, 'Small anvil', 1, { weight: 'heavy', check: 'fail' }), T('canoe', 'duffel', 0, 'Canoe', 4, { weight: 'extra', check: 'pass' })] }) }
     mountTab('player', 'player-1')
@@ -394,7 +407,7 @@ describe('Rule C3: carrying a carrier', () => {
     const panel = () => document.querySelector('.panel.ink') as HTMLElement | null
     expect(panel()?.querySelector('.row-item')?.getAttribute('data-drop')).toBe('duffel')
     expect(panel()?.textContent).toBe('CarryingSpecial dispensationDuffel bag5 of 8 usedOpenPut it down')
-    settle()
+    await settle()
     expect((storedGear().carriers as Fields[])[0]).toMatchObject({ id: 'duffel', carried: true })
 
     fireEvent.click(within(panel() as HTMLElement).getByRole('button', { name: 'Open' }))
@@ -402,7 +415,7 @@ describe('Rule C3: carrying a carrier', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'On you' }))
     fireEvent.click(within(panel() as HTMLElement).getByRole('button', { name: 'Put it down' }))
     expect(panel()).toBeNull()
-    settle()
+    await settle()
     expect((storedGear().carriers as Fields[])[0]).toMatchObject({ id: 'duffel', carried: false })
 
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Character sheet pages' })).getByRole('button', { name: 'Core sheet' }))
@@ -411,7 +424,7 @@ describe('Rule C3: carrying a carrier', () => {
 })
 
 describe('"Needs a place"', () => {
-  it('lists a thing whose place cannot be read, never drops or places it, and lets the owner move it', () => {
+  it('lists a thing whose place cannot be read, never drops or places it, and lets the owner move it', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ items: [T('radio', 'attic', 0, 'Old radio', 1), T('yoyo', 'hands', 5, 'Yo-yo', 1)] }) }
     mountTab('player', 'player-1')
@@ -421,7 +434,7 @@ describe('"Needs a place"', () => {
     const section = () => pocketOf('Needs a place')
     expect(section().querySelector('.count')?.textContent).toBe('2 things')
     expect(rowNames(section())).toEqual(['Old radio', 'Yo-yo'])
-    act(() => vi.advanceTimersByTime(2000))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(mocks.setDoc).not.toHaveBeenCalled()
 
     fireEvent.click(within(section()).getByRole('button', { name: 'Old radio' }))
@@ -433,14 +446,14 @@ describe('"Needs a place"', () => {
     expect(toastText()).toBe('Old radio: Backpack, main pocket.')
     fireEvent.click(card.getByRole('button', { name: 'Close' }))
     expect(section().querySelector('.count')?.textContent).toBe('1 thing')
-    settle()
+    await settle()
     expect(storedItem('radio')).toMatchObject({ carrier: 'backpack', pocket: 0 })
     expect(storedItem('yoyo')).toMatchObject({ carrier: 'hands', slot: 5 })
   })
 })
 
 describe('a viewer who may only look', () => {
-  it('sees the carriers, what is in them and what is carried, with no button to change them', () => {
+  it('sees the carriers, what is in them and what is carried, with no button to change them', async () => {
     database = { [TOMMY]: tommyEves({ carriers: [{ ...DUFFEL, carried: true }], items: [T('rope', 'duffel', 0, 'Coil of rope', 1), T('ghost', 'attic', 0, 'Old radio', 1)] }) }
     mountTab('player', 'player-2')
     openGear()
@@ -464,20 +477,20 @@ describe('the kinds the add-carrier dialog offers', () => {
   const renderDialog = (kinds: Parameters<typeof LubecCarrierDialog>[0]['kinds']) =>
     render(<LubecCarrierDialog gear={emptyLubecGear()} kinds={kinds} onAdded={vi.fn()} onClose={vi.fn()} toast={vi.fn()} shared={seat} />)
 
-  it('offers a choice of every kind a sheet takes', () => {
+  it('offers a choice of every kind a sheet takes', async () => {
     renderDialog(['personal', 'shared', 'hidden'])
 
     const kinds = within(dialog('Add a carrier').getByRole('group', { name: 'Who gets into it' })).getAllByRole('radio')
     expect(kinds.map((kind) => kind.closest('label')?.querySelector('span')?.firstChild?.textContent)).toEqual(['Just this character', 'Shared with the table', 'Hidden'])
   })
 
-  it('offers no shared kind to a viewer with no character to own it', () => {
+  it('offers no shared kind to a viewer with no character to own it', async () => {
     render(<LubecCarrierDialog gear={emptyLubecGear()} kinds={['personal', 'shared']} onAdded={vi.fn()} onClose={vi.fn()} toast={vi.fn()} shared={{ ...seat, owners: [] }} />)
 
     expect(dialog('Add a carrier').queryByRole('radio')).toBeNull()
   })
 
-  it('offers no choice on an NPC\'s sheet, which takes personal carriers only', () => {
+  it('offers no choice on an NPC\'s sheet, which takes personal carriers only', async () => {
     renderDialog(LUBEC_NPC_CARRIER_KINDS)
 
     expect(LUBEC_NPC_CARRIER_KINDS).toEqual(['personal'])

@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import type { RuleSetId } from './registry'
 import {
-  LubecItems, LubecMapFight, LubecNpcSheet, LubecSheet, OseItems, OseSheet, VtmSheet, type RuleSetItemsProps, type RuleSetMapFightProps, type RuleSetNpcSheetProps, type RuleSetSheetProps,
+  LubecCombat, LubecItems, LubecMapFight, LubecNpcSheet, LubecSheet, OseItems, OseSheet, VtmSheet, type RuleSetItemsProps, type RuleSetMapFightProps, type RuleSetNpcSheetProps, type RuleSetSheetProps,
 } from './RuleSetSheets'
 
 // The page each rule set's character tab shows. It sits beside the registry
@@ -36,4 +36,11 @@ export const ruleSetMapFights: { [Id in RuleSetId]: ComponentType<RuleSetMapFigh
   ose: null,
   vtm: null,
   lubec: LubecMapFight,
+}
+
+// The live-fight tab for each rule set that has one; null for the rest.
+export const ruleSetCombatTabs: { [Id in RuleSetId]: ComponentType<RuleSetSheetProps> | null } = {
+  ose: null,
+  vtm: null,
+  lubec: LubecCombat,
 }

@@ -1,0 +1,436 @@
+// @vitest-environment jsdom
+/**
+ * The result sequence after a granted hit, as each seat sees it: the
+ * defender's split and Defense roll, the catch, the doll, Strength, Impact
+ * and each way an attack ends. Only a step's owner has its controls.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { User } from 'firebase/auth'
+import type { Campaign, NpcRecord, Role } from '../../../../types/app'
+import { makeLubecDirectEntryCharacter } from '../../../ruleSets/lubec/directEntry'
+import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
+import { LubecCombatContext, type LubecLiveFight } from '../combatWatch'
+import { combatEntropy } from '../engine/commandEntropy'
+import { planCombatCommand } from '../engine/lifecycle'
+import type { CombatCommand, CombatOutcome, CombatRecords, CombatSheet } from '../engine/types'
+
+const mocks = vi.hoisted(() => ({
+  sent: [] as CombatCommand[],
+  outcome: { ok: true, fightId: 'fight', generatedIds: [], rolls: [] } as CombatOutcome,
+  roster: { characters: [] as unknown[], npcs: [] as unknown[] },
+}))
+vi.mock('../useLubecCombatSend', () => ({
+  useLubecCombatSend: () => async (_key: string, make: () => CombatCommand) => {
+    mocks.sent.push(make())
+    return mocks.outcome
+  },
+}))
+vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => ({ characters: [], npcs: [], items: [], roster: mocks.roster }) }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ roster: mocks.roster, writer: null }) }))
+
+const { LubecCombat } = await import('./LubecCombat')
+
+const campaign: Campaign = { id: 'gym', name: 'Gym', status: 'active', groupId: 'school', gmUserId: 'gm' }
+const ball: LubecItem = { id: 'ball', kind: 'weapon', mode: 'thrown', name: 'Dodgeball', carrier: 'hands', slot: 0, size: 1, qty: 2, weight: 'normal', note: '', impact: 0, wounds: ['blunt'], table: 'dodgeball', catchChance: 50, catchPutsThrowerOut: true }
+const knife: LubecItem = { id: 'knife', kind: 'weapon', mode: 'melee', name: 'Knife', carrier: 'hands', slot: 1, size: 1, qty: 1, weight: 'normal', note: '', impact: 1, wounds: ['cut'] }
+
+/** A Working Kid: Handle 41 reads 46, Strength 50 reads 55. */
+function kid(id: string, name: string, owner: string, items: LubecItem[]) {
+  const character = makeLubecDirectEntryCharacter(id, { userId: owner, username: 'someone' })
+  character.name = name
+  character.lubec.class = { key: 'working', choices: {} }
+  character.lubec.base = { Strength: 50, Speed: 52, Intellect: 40, Handle: 41, Charm: 40, Sanity: 30, Fear: 30, Body: 30 }
+  character.lubec.skills = { free: 'Athletics', picked: ['Throwing Arm'] }
+  character.lubec.gear.items = items
+  return character
+}
+const wayne = () => kid('wayne', 'Wayne Gardner', 'wayne-uid', [ball, knife])
+const royRecord = () => kid('roy', 'Roy Carver', 'gm', [])
+const sheetOf = (record: ReturnType<typeof kid>, kind: 'character' | 'npc'): CombatSheet =>
+  ({ kind, sheetId: record.id, name: record.name, ownerUserId: record.ownerUserId, portraitPath: '', sheet: record.lubec, revision: 1 })
+const royNpc = { id: 'roy', name: 'Roy Carver', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#555555', size: 34 } } as NpcRecord
+
+type Step = { type: string; actor?: string | null; dice?: Record<string, number>; [key: string]: unknown }
+
+/** A fight played through the engine with each purpose's die scripted. */
+function fightAfter(...steps: Step[]): LubecLiveFight {
+  const sheets = [sheetOf(wayne(), 'character'), sheetOf(royRecord(), 'npc')]
+  let records: CombatRecords = { activeFightId: null, fight: null, sheets, items: new Map() }
+  const all: Step[] = [{ type: 'start', combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }], floor: [], dodgeball: true }, ...steps]
+  all.forEach(({ actor = null, dice = {}, ...payload }, index) => {
+    const state = records.fight?.state
+    const command: CombatCommand = {
+      envelope: { id: `step-${index}`, groupId: 'school', campaignId: 'gym', fightId: 'fight', round: state?.round ?? 0, phase: state?.phase ?? 'setup', stageInstanceId: state?.stageInstanceId ?? 'setup', actorKey: actor, interactionSequence: state?.combatants.find((entry) => entry.key === actor)?.interactionSequence ?? 0 },
+      seed: 'seed', payload: payload as CombatCommand['payload'],
+    }
+    const entropy = combatEntropy(command)
+    const scripted = { ...entropy, die: (purpose: string, sides: number) => dice[purpose] ?? entropy.die(purpose, sides) }
+    records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, scripted).fight }
+  })
+  return { id: 'fight', fight: records.fight! }
+}
+
+const WAYNE = 'character:wayne'
+const ROY = 'npc:roy'
+const throwAt = { targetKey: ROY, weaponItemId: 'ball', attackId: 'throw', defense: null }
+const slashAt = { targetKey: ROY, weaponItemId: 'knife', attackId: 'slash', defense: null }
+/** Wayne throws (61 to hit) and rolls `die`; a thrown attack waits on the GM's range first. */
+const hit = (die: number, aim = throwAt): Step[] => [
+  { type: 'grant', combatantKey: WAYNE }, { type: 'aim', actor: WAYNE, aim },
+  ...(aim === throwAt ? [{ type: 'range', band: 'medium', modifier: 0 }] : []),
+  { type: 'roll', actor: WAYNE, aim, dice: { attack: die } },
+]
+const defended = (die: number, split: object, dice: Record<string, number>, aim = throwAt) =>
+  [...hit(die, aim), { type: 'defend', actor: ROY, split, dice }]
+const landed = (aim = throwAt): Step[] => defended(27, { amount: 0 }, { landing: 30 }, aim)
+
+const show = (role: Role, userId: string, live: LubecLiveFight) => render(
+  <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
+    <LubecCombatContext value={{ enabled: true, ready: true, live }}>
+      <Routes><Route path="*" element={<LubecCombat campaign={campaign} role={role} user={{ uid: userId } as User} username="someone" setError={() => undefined} characterTabProps={null} />} /></Routes>
+    </LubecCombatContext>
+  </MemoryRouter>,
+)
+const button = (name: string | RegExp) => screen.getByRole('button', { name })
+const sentOf = (type: string) => mocks.sent.filter((command) => command.payload.type === type)
+const card = (name: string) => screen.getByText(name, { selector: '.sh span span + *, .sh > span' }).closest('.st') as HTMLElement
+
+beforeEach(() => {
+  mocks.sent = []
+  mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
+  mocks.roster = { characters: [wayne()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+})
+afterEach(cleanup)
+
+const progressSteps = () => [...document.querySelectorAll('[aria-label="Result"] .section-head .stepper li')].map((step) => step.textContent)
+
+describe('attack-specific result progress', () => {
+  it('ends a missed melee attack at Attack without offering irrelevant steps', () => {
+    show('player', 'wayne-uid', fightAfter(...hit(90, slashAt)))
+    expect(progressSteps()).toEqual(['1Attack', '2Results'])
+    expect(document.querySelectorAll('[aria-label="Result"] .section-head .stepper li.done')).toHaveLength(1)
+    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('2Results')
+  })
+
+  it('shows the location reached by a melee hit without a catch stage', () => {
+    show('player', 'wayne-uid', fightAfter(...landed(slashAt)))
+    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Location', '4Results'])
+    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('3Location')
+  })
+
+  it('collapses completed rolls while keeping the location decision expanded and earlier details accessible', () => {
+    show('player', 'wayne-uid', fightAfter(...landed(slashAt)))
+    const earlier = [...document.querySelectorAll<HTMLDetailsElement>('.seq > details.completed')]
+    expect(earlier).toHaveLength(2)
+    expect(earlier.every((step) => !step.open)).toBe(true)
+    expect(earlier[0].querySelector('summary')?.textContent).toContain('27 / 46 · A hit. Attack Quality 2.')
+    expect(document.querySelector('.seq > .st.active > .sh')?.textContent).toContain('Where it lands')
+    expect(button('Hit the torso')).toBeTruthy()
+    fireEvent.click(earlier[0].querySelector('summary')!)
+    expect(earlier[0].open).toBe(true)
+    expect(within(earlier[0]).getByText('A hit. Attack Quality 2.')).toBeTruthy()
+    expect(within(earlier[0]).queryByRole('button', { name: 'Roll' })).toBeNull()
+    fireEvent.click(earlier[0].querySelector('summary')!)
+    expect(earlier[0].open).toBe(false)
+  })
+
+  it('shows other players the shared landing without the attacker\'s location controls, then the committed location', () => {
+    show('player', 'marcy-uid', fightAfter(...landed()))
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Wayne Gardner→TargetRoy Carver')
+    expect(screen.getByText("It lands on Roy Carver's waist.")).toBeTruthy()
+    expect(screen.getByText('Waiting for Wayne Gardner to roll')).toBeTruthy()
+    expect(document.querySelector('.doll-step .cross')).toBeTruthy()
+    const doll = screen.getByRole('radiogroup', { name: 'Where it lands' })
+    expect(within(doll).getAllByRole('radio').every((part) => part.getAttribute('aria-disabled') === 'true' && part.getAttribute('tabindex') === '-1')).toBe(true)
+    fireEvent.click(within(doll).getByRole('radio', { name: 'Waist: quality 2' }))
+    expect(sentOf('land')).toEqual([])
+    expect(screen.queryByRole('button', { name: /^Hit the/ })).toBeNull()
+    cleanup()
+    show('player', 'marcy-uid', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'torso' }))
+    expect(document.querySelector('.st.completed .step-result')?.textContent).toContain('27 / 61')
+    expect(screen.getByText('Hits the torso, moved 1.')).toBeTruthy()
+    expect(document.querySelector('.st.active .sh')?.textContent).toContain('The wound')
+    expect(screen.queryByRole('button', { name: /^Hit the/ })).toBeNull()
+  })
+})
+
+describe('Defense after a hit', () => {
+  it('asks the GM for Roy\'s grant-local split and sends it, with Full Defense\'s +10 only on the bar', async () => {
+    show('gm', 'gm', fightAfter(...hit(27)))
+    expect(screen.getByText(/Split your Handle for Defense against/).textContent).toContain('Wayne Gardner')
+    expect(document.querySelector('.st.active .allocation-label strong')!.textContent).toBe('40')
+    fireEvent.keyDown(button('Defense line at 40'), { key: 'ArrowLeft' })
+    fireEvent.click(button('Roll Defense'))
+    await waitFor(() => expect(sentOf('defend')).toHaveLength(1))
+    expect(sentOf('defend')[0]).toMatchObject({ envelope: { actorKey: ROY, step: 'defense' }, payload: { split: { amount: 30, full: false } } })
+    fireEvent.click(screen.getByRole('checkbox', { name: /Full Defense/ }))
+    expect(document.querySelector('.st.active .fd10')!.textContent).toBe('+10')
+    expect(screen.queryByRole('button', { name: /Defense line at/ })).toBeNull()
+    fireEvent.click(button('Roll Defense'))
+    await waitFor(() => expect(sentOf('defend').at(-1)!.payload).toEqual({ type: 'defend', split: { amount: 46, full: true } }))
+  })
+
+  it('shows the table the split the GM is choosing for Roy, before the roll', async () => {
+    show('gm', 'gm', fightAfter(...hit(27)))
+    await waitFor(() => expect(sentOf('split')[0]).toMatchObject({ envelope: { actorKey: ROY, step: 'defense' }, payload: { split: { amount: 40, full: false } } }))
+    fireEvent.keyDown(button('Defense line at 40'), { key: 'ArrowLeft' })
+    await waitFor(() => expect(sentOf('split').at(-1)!.payload).toEqual({ type: 'split', split: { amount: 30, full: false } }))
+  })
+
+  it('shows a waiting seat what Roy keeps for Defense on its bar, or that he is still choosing', () => {
+    show('player', 'wayne-uid', fightAfter(...hit(27)))
+    expect(screen.getByText(/is choosing what to keep for Defense against/)).toBeTruthy()
+    cleanup()
+    show('player', 'wayne-uid', fightAfter(...hit(27), { type: 'split', actor: ROY, split: { amount: 20 } }))
+    expect(screen.getByText(/kept 20 for Defense against/).closest('p')!.textContent).toBe('Roy Carver kept 20 for Defense against Wayne Gardner.')
+    expect(document.querySelector('.st.active .allocation-label strong')!.textContent).toBe('20')
+    expect(within(document.querySelector('.st.active .roll-controls') as HTMLElement).getByText("Waiting for the GM to roll Roy Carver's defense")).toBeTruthy()
+    cleanup()
+    show('player', 'wayne-uid', fightAfter(...hit(27), { type: 'split', actor: ROY, split: { full: true } }))
+    expect(screen.getByText(/kept 46 for Full Defense against/)).toBeTruthy()
+  })
+
+  it('reopens the GM\'s split where the table holds it', () => {
+    show('gm', 'gm', fightAfter(...hit(27), { type: 'split', actor: ROY, split: { full: true } }))
+    expect((screen.getByRole('checkbox', { name: /Full Defense/ }) as HTMLInputElement).checked).toBe(true)
+    expect(sentOf('split')).toEqual([])
+  })
+
+  it('offers No Defense at 0, and shows a refusal', async () => {
+    mocks.outcome = { ok: false, reason: 'Keep Defense in tens, within your Handle.' }
+    show('gm', 'gm', fightAfter(...hit(27)))
+    for (let step = 0; step < 4; step++) fireEvent.keyDown(screen.getByRole('button', { name: /Defense line at/ }), { key: 'ArrowLeft' })
+    fireEvent.click(button('No Defense'))
+    expect(await screen.findByText('Keep Defense in tens, within your Handle.')).toBeTruthy()
+  })
+
+  it('makes the attacker and spectators wait on the GM, and reads the defender\'s sheet first', () => {
+    show('player', 'wayne-uid', fightAfter(...hit(27)))
+    expect(screen.getByText("Waiting for the GM to roll Roy Carver's defense")).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Roll Defense' })).toBeNull()
+    cleanup()
+    mocks.roster = { characters: [], npcs: [] }
+    show('gm', 'gm', fightAfter(...hit(27)))
+    expect(screen.getByText("Reading Roy Carver's sheet...")).toBeTruthy()
+  })
+
+  it('shows a failed Defense taking off nothing, and a Defense of 0 as none', () => {
+    show('player', 'marcy-uid', fightAfter(...defended(27, { amount: 20 }, { defense: 61, landing: 30 })))
+    expect(screen.getByText(/kept 20 for Defense against/)).toBeTruthy()
+    expect(screen.getByText('Defense fails. It takes off nothing.')).toBeTruthy()
+    expect(screen.getByText('Left').nextSibling!.textContent).toBe('2')
+    cleanup()
+    show('player', 'marcy-uid', fightAfter(...landed()))
+    expect(screen.getByText(/kept no Defense against/)).toBeTruthy()
+  })
+})
+
+describe('the catch', () => {
+  const stopped = () => fightAfter(...defended(14, { amount: 20 }, { defense: 15 }))
+
+  it('shows the GM why Roy may catch, the chance built from its parts, and sends the roll', async () => {
+    show('gm', 'gm', stopped())
+    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Catch', '4Results'])
+    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('3Catch')
+    expect(screen.getByText('Defense holds. It takes off 1 + 1 = 2.')).toBeTruthy()
+    expect(screen.getByText(/Below 0\./).closest('p')!.textContent).toContain('That is 1 below 0.')
+    expect(within(document.querySelector('.st.active')!).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['It hit', 'Defense took it to -1 (below 0)', 'A free hand', 'A catchable item: dodgeball, 50%'])
+    expect(screen.getByText('Catch chance').nextSibling!.textContent).toBe('60%')
+    fireEvent.click(button('Roll catch'))
+    await waitFor(() => expect(sentOf('catch')).toEqual([expect.objectContaining({ envelope: expect.objectContaining({ actorKey: ROY, step: 'catch' }) })]))
+  })
+
+  it('shows a stop at exactly 0, and a Full Defense by name', () => {
+    show('gm', 'gm', fightAfter(...defended(14, { amount: 20 }, { defense: 5 })))
+    expect(screen.getByText('Defense took it to 0')).toBeTruthy()
+    expect(screen.getByText(/Down to 0\./).closest('p')!.textContent).toBe('Down to 0. The throw is dodged.')
+    cleanup()
+    show('gm', 'gm', fightAfter(...defended(27, { full: true }, { defense: 90, landing: 30 })))
+    expect(screen.getByText(/kept 46 for Full Defense against/)).toBeTruthy()
+  })
+
+  it('makes the thrower wait on the GM\'s catch', () => {
+    show('player', 'wayne-uid', stopped())
+    expect(screen.getByText("Waiting for the GM to roll Roy Carver's catch")).toBeTruthy()
+  })
+
+  it('ends with the catch: Wayne Out, or still a dodge', () => {
+    show('player', 'wayne-uid', fightAfter(...defended(14, { amount: 20 }, { defense: 15 }), { type: 'catch', actor: ROY, dice: { catch: 44 } }))
+    expect(screen.getByRole('heading', { name: 'Caught: Wayne Gardner is Out' })).toBeTruthy()
+    expect(screen.getByText('Caught. 44 is under 60.')).toBeTruthy()
+    cleanup()
+    show('player', 'wayne-uid', fightAfter(...defended(14, { amount: 20 }, { defense: 15 }), { type: 'catch', actor: ROY, dice: { catch: 71 } }))
+    expect(screen.getByRole('heading', { name: 'Dodged' }).nextSibling!.textContent).toContain('could not hold it')
+    expect(screen.getByText('Dropped. 71 is not under 60: still a dodge.')).toBeTruthy()
+  })
+
+  it('shows no banner for an attack interrupted before it ended', () => {
+    const live = stopped()
+    live.fight.state.attack = { ...live.fight.state.attack!, closed: true, detached: [] }
+    show('player', 'marcy-uid', live)
+    expect(document.querySelector('.outcome')).toBeNull()
+  })
+
+  it('ends a stop with no catch possible as a dodge', () => {
+    show('player', 'marcy-uid', fightAfter(...defended(14, { amount: 20 }, { defense: 5 }, slashAt)))
+    expect(screen.getByRole('heading', { name: 'Dodged' }).nextSibling!.textContent).toBe('Roy Carver stops it. Wayne Gardner is not Out.')
+  })
+})
+
+describe('the doll, Strength and the wound', () => {
+  it('uses the resolved table and its capped row impact when describing a wound', () => {
+    const live = fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'waist' }, { type: 'strength', actor: WAYNE, dice: { strength: 20 } })
+    const attack = live.fight.state.attack!
+    attack.impact = { ...attack.impact!, table: 'blunt', total: 8 }
+    attack.row = { ...attack.row!, impact: 6 }
+    show('player', 'wayne-uid', live)
+    expect(screen.getByText('Blunt · Torso and waist · Impact 6+')).toBeTruthy()
+    expect(document.querySelector('.wound .wh')!.textContent).not.toMatch(/^Dodgeball/)
+  })
+
+  it('lets Wayne keep or move the hit within reach and sends where it hits', async () => {
+    show('player', 'wayne-uid', fightAfter(...landed()))
+    expect(screen.getByText("It lands on Roy Carver's waist.")).toBeTruthy()
+    const doll = screen.getByRole('radiogroup', { name: 'Where it lands' })
+    expect(within(doll).getByRole('radio', { name: 'Head: out of reach' }).getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(within(doll).getByRole('radio', { name: 'Left thigh: quality 1' }))
+    expect(button('Hit the left thigh')).toBeTruthy()
+    fireEvent.click(button('Keep it on the waist'))
+    fireEvent.keyDown(within(doll).getByRole('radio', { name: 'Torso: quality 1' }), { key: 'Enter' })
+    fireEvent.keyDown(within(doll).getByRole('radio', { name: 'Waist: quality 2' }), { key: 'x' })
+    fireEvent.click(button('Hit the torso'))
+    await waitFor(() => expect(sentOf('land')[0]).toMatchObject({ envelope: { actorKey: WAYNE, step: 'location' }, payload: { part: 'torso' } }))
+  })
+
+  it('shows the target\'s armor while Wayne places the hit, for the part he picks', () => {
+    const live = fightAfter(...landed())
+    const armor = [{ locs: ['torso', 'upperarm-L', 'upperarm-R'], armor: { blunt: 1, cut: 2, pierce: 1, gun: 0 } }, { locs: ['waist'], armor: { blunt: 3, cut: 0, pierce: 0, gun: 0 } }]
+    live.fight.state.combatants = live.fight.state.combatants.map((entry) => (entry.key === ROY ? { ...entry, armor } : entry))
+    show('player', 'wayne-uid', live)
+    const kind = live.fight.state.attack!.frozen!.choice.armor
+    expect(document.querySelector('.armor-here')!.textContent).toBe('Armor 3')
+    expect(screen.getByRole('img', { name: /^Armor against / }).getAttribute('aria-label')).toBe(`Armor against ${kind}: Torso 1, Waist 3, Right upper arm 1, Left upper arm 1`)
+    expect(document.querySelector('.armor-doll figcaption')!.textContent).toBe(`Armor vs ${kind[0].toUpperCase()}${kind.slice(1)}`)
+    expect(document.querySelector('.armor-look .wear-head')!.textContent).toBe('Roy Carver is wearing')
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Where it lands' })).getByRole('radio', { name: 'Left thigh: quality 1' }))
+    expect(document.querySelector('.armor-here')!.textContent).toBe('Armor 0')
+  })
+
+  it('makes the GM wait on Wayne for the hit, with the way to act for him', () => {
+    show('gm', 'gm', fightAfter(...landed()))
+    expect(screen.getByText('Waiting for Wayne Gardner to roll')).toBeTruthy()
+    fireEvent.click(button('Away from the table? Roll for Wayne Gardner'))
+    expect(button('Hit the waist')).toBeTruthy()
+  })
+
+  it('lets Wayne pick the GM\'s call beside Roll Strength, and sends it with the roll', async () => {
+    show('player', 'wayne-uid', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'waist' }))
+    const call = screen.getByRole('group', { name: "GM's call" })
+    fireEvent.click(within(call).getByRole('button', { name: 'Advantage' }))
+    expect(within(call).getByRole('button', { name: 'Advantage' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(within(call).getByRole('button', { name: 'Disadvantage' }))
+    expect(within(call).getByRole('button', { name: 'Advantage' }).getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(button('Roll Strength'))
+    await waitFor(() => expect(sentOf('strength')[0].payload).toEqual({ type: 'strength', called: 'disadvantage' }))
+  })
+
+  it('offers Wayne the Strength roll on its own bar, then shows Impact built from its parts and the pending Dodgeball row', async () => {
+    const placed = [...landed(), { type: 'land', actor: WAYNE, part: 'waist' }]
+    show('player', 'wayne-uid', fightAfter(...placed))
+    expect(screen.getByText('Hits Roy Carver\'s waist.')).toBeTruthy()
+    fireEvent.click(button('Roll Strength'))
+    await waitFor(() => expect(sentOf('strength')).toHaveLength(1))
+    cleanup()
+    show('player', 'marcy-uid', fightAfter(...placed, { type: 'strength', actor: WAYNE, dice: { strength: 31 } }))
+    expect(screen.getByText('Strength roll: adds +3 to Impact')).toBeTruthy()
+    expect([...document.querySelectorAll('.impact:not(.roll-chips) .chip dt')].map((term) => term.textContent)).toEqual(['Quality', 'Base', 'Strength 31', 'Moved', 'Impact'])
+    expect(screen.getByText('Dodgeball · Torso and waist · Impact 5')).toBeTruthy()
+    expect(screen.getByText('Knocked down.').closest('.wb')!.textContent).toBe('Knocked down. Out.')
+    expect(screen.getByRole('heading', { name: 'Roy Carver is Out' })).toBeTruthy()
+  })
+
+  it('shows a failed Strength roll, armor as its own chip, and Impact of 0 or less as no wound', () => {
+    const live = fightAfter(...landed())
+    live.fight.state.combatants = live.fight.state.combatants.map((entry) => (entry.key === ROY ? { ...entry, armor: [{ locs: ['waist'], armor: { blunt: 9, cut: 0, pierce: 0, gun: 0 } }] } : entry))
+    const records = live.fight
+    const after = (steps: Step[]) => {
+      let fight = records
+      steps.forEach(({ actor = null, dice = {}, ...payload }, index) => {
+        const command: CombatCommand = { envelope: { id: `more-${index}`, groupId: 'school', campaignId: 'gym', fightId: 'fight', round: 0, phase: fight.state.phase, stageInstanceId: fight.state.stageInstanceId, actorKey: actor, interactionSequence: fight.state.combatants.find((entry) => entry.key === actor)!.interactionSequence }, seed: 's', payload: payload as CombatCommand['payload'] }
+        const entropy = combatEntropy(command)
+        fight = planCombatCommand(command, { activeFightId: 'fight', fight, sheets: [sheetOf(wayne(), 'character'), sheetOf(royRecord(), 'npc')], items: new Map() }, { userId: 'gm', isGm: true }, undefined, { ...entropy, die: (purpose) => dice[purpose] }).fight
+      })
+      return { id: 'fight', fight }
+    }
+    show('player', 'marcy-uid', after([{ type: 'land', actor: WAYNE, part: 'waist' }, { type: 'strength', actor: WAYNE, dice: { strength: 99 } }]))
+    expect(screen.getByText('Strength roll: adds nothing')).toBeTruthy()
+    expect(screen.getAllByText('Armor').find((term) => term.tagName === 'DT')!.nextSibling!.textContent).toBe('9')
+    expect(screen.getByRole('heading', { name: 'No effect' })).toBeTruthy()
+    // Impact before armor was 2, so the armor took 2 of its 9.
+    expect(screen.getByText('Impact -7: armor absorbed 2 damage.')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'No effect' }).nextSibling!.textContent).toBe('Armor absorbed 2 damage. The dodgeball lands on the Floor.')
+    const woundRow = [...document.querySelectorAll('.seq > details.completed summary')].find((summary) => summary.textContent!.includes('Impact -7'))
+    expect(woundRow!.textContent).toContain('Impact -7 on Dodgeball. Armor absorbed 2 damage.')
+  })
+
+  it('reads a located table: the wound box says where and how bad, and Results show the wound bound for the sheet', () => {
+    show('gm', 'gm', fightAfter(...landed(slashAt), { type: 'land', actor: WAYNE, part: 'torso' }, { type: 'strength', actor: WAYNE, dice: { strength: 10 } }, { type: 'check', actor: ROY, dice: { check: 10 } }))
+    expect(document.querySelector('.wound .wh')!.textContent).toBe('Cutting · Torso · Impact 4Serious Trauma +1')
+    const results = screen.getByRole('region', { name: 'Results' })
+    expect(within(results).getByRole('heading', { level: 3 }).textContent).toBe('Roy Carver: Serious wound')
+    // A melee wound's words appear once, in the wound panel, not again under the headline.
+    expect(results.querySelector('.results-head p')).toBeNull()
+    expect(results.querySelector('.results-facts')).toBeNull()
+    expect(within(results).getByRole('heading', { level: 4 }).textContent).toBe('Long chest cut')
+    expect(results.querySelector('.results-wound')!.className).toBe('results-wound se')
+    // The headline already says Serious: the panel shows only the Trauma, not the severity again.
+    expect(results.querySelector('.results-wound .sev')).toBeNull()
+    expect(results.querySelector('.results-wound-head')!.textContent).toBe('Trauma +1')
+    // The table's own words, as written; its passed Save needs nothing of the app's own beyond the roll's note.
+    expect(results.querySelector('.results-prose')!.textContent).toBe('Gain +1 Trauma in d4 turns unless a Body Save succeeds.')
+    expect(results.querySelector('.results-parts')).toBeNull()
+    expect(results.textContent).not.toMatch(/Goes on|The table says|Countdown prevented/)
+  })
+
+  it('marks a small part\'s landing with the small crosshair', () => {
+    show('player', 'wayne-uid', fightAfter(...defended(27, { amount: 0 }, { landing: 60, side: 2 })))
+    expect(screen.getByText("It lands on Roy Carver's right hand.")).toBeTruthy()
+    expect(document.querySelector('.cross circle')!.getAttribute('r')).toBe('22')
+  })
+
+  it('shows a spectator the Strength wait with no bar when they cannot read the attacker\'s sheet', () => {
+    mocks.roster = { characters: [], npcs: [] }
+    show('player', 'marcy-uid', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'waist' }))
+    expect(screen.getByText('Waiting for Wayne Gardner to roll')).toBeTruthy()
+    expect(screen.getByText('It adds a Strength roll.', { exact: false })).toBeTruthy()
+  })
+
+  it('takes a firearm\'s hit straight to Impact, with no Strength roll', () => {
+    // A table the app has no rows for still goes to the GM to record.
+    const gun: LubecItem = { id: 'gun', kind: 'weapon', mode: 'firearm', name: 'Revolver', carrier: 'hands', slot: 1, size: 1, qty: 1, weight: 'normal', note: '', impact: 2, capacity: 6, loaded: 1, table: 'homebrew' }
+    mocks.roster = { characters: [kid('wayne', 'Wayne Gardner', 'wayne-uid', [ball, gun])], npcs: [] }
+    const shoot = { targetKey: ROY, weaponItemId: 'gun', attackId: 'shoot', defense: null }
+    const sheets = [sheetOf(kid('wayne', 'Wayne Gardner', 'wayne-uid', [ball, gun]), 'character'), sheetOf(royRecord(), 'npc')]
+    let records: CombatRecords = { activeFightId: null, fight: null, sheets, items: new Map() }
+    const steps: Step[] = [{ type: 'start', combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }], floor: [], dodgeball: true }, { type: 'grant', combatantKey: WAYNE }, { type: 'aim', actor: WAYNE, aim: shoot }, { type: 'range', band: 'short', modifier: 0 }, { type: 'roll', actor: WAYNE, aim: shoot, dice: { attack: 27, landing: 30 } }, { type: 'land', actor: WAYNE, part: 'waist' }]
+    steps.forEach(({ actor = null, dice = {}, ...payload }, index) => {
+      const state = records.fight?.state
+      const command: CombatCommand = { envelope: { id: `gun-${index}`, groupId: 'school', campaignId: 'gym', fightId: 'fight', round: 0, phase: state?.phase ?? 'setup', stageInstanceId: state?.stageInstanceId ?? 'setup', actorKey: actor, interactionSequence: state?.combatants.find((entry) => entry.key === actor)?.interactionSequence ?? 0 }, seed: 's', payload: payload as CombatCommand['payload'] }
+      const entropy = combatEntropy(command)
+      records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, { ...entropy, die: (purpose, sides) => dice[purpose] ?? entropy.die(purpose, sides) }).fight }
+    })
+    show('player', 'wayne-uid', { id: 'fight', fight: records.fight! })
+    expect(progressSteps()).toEqual(['1Attack', '2Location', '3Wound', '4Results'])
+    expect(screen.queryByText(/Strength roll/)).toBeNull()
+    expect([...document.querySelectorAll('.impact:not(.roll-chips) .chip dt')].map((term) => term.textContent)).toEqual(['Quality', 'Base', 'Moved', 'Impact'])
+    expect(screen.getByRole('heading', { name: 'The GM records this wound' }).nextSibling!.textContent).toBe('homebrew table, waist, Impact 3.')
+  })
+
+  it('waits on the GM for an NPC attacker\'s Strength, and on a sheet the viewer has not read', () => {
+    show('gm', 'gm', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'waist' }))
+    expect(screen.getByText('Waiting for Wayne Gardner to roll')).toBeTruthy()
+    expect(card('The wound')).toBeTruthy()
+  })
+})

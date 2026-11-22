@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import puppeteer, { Locator } from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
+import { assertDesktopSheetFits } from './browser-smoke-layout.mjs'
 import { clientEmulatorEnv, emulatorHostPort, resolveEmulatorPorts } from './emulators/ports.mjs'
 import {
   characterPath,
@@ -725,7 +726,10 @@ async function seedOseCampaign({ uid, groupId, testCase, label }) {
   const campaignName = `${testCase.label} OSE ${label}`
   const characterName = `${label} Fighter`
   const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'ose' } })
-  const fields = oseCharacterFields({ uid, username: testCase.username, name: characterName })
+  // Opening a sparse OSE sheet has always initialized its derived saves, THAC0 and AC.
+  // Start with that settled shape so exact equality detects a late save crossing campaigns.
+  const initialized = JSON.parse(await readFile(new URL('./fixtures/ose-last-edit-character.json', import.meta.url), 'utf8'))
+  const fields = { ...initialized, ...oseCharacterFields({ uid, username: testCase.username, name: characterName }) }
   await seedCharacter({ groupId, campaignId, characterId: OSE_SHARED_CHARACTER_ID, fields })
   return { campaignId, campaignName, characterName, fields, path: characterPath({ groupId, campaignId, characterId: OSE_SHARED_CHARACTER_ID }) }
 }
@@ -1224,7 +1228,11 @@ export function readPageCutOff(panel) {
 // Beside the roster on a desktop, the whole page fits its pane without scrolling.
 async function expectLubecPageOnOneScreen(page, name) {
   const [height, visible] = await page.$eval(`${LUBEC_TAB} .characters-detail`, (pane) => [pane.scrollHeight, pane.clientHeight])
-  if (height > visible) throw new Error(`The ${name} page is ${height}px tall in a ${visible}px pane.`)
+  const row = await page.$eval(`${LUBEC_TAB} .lubec-band-actions`, (element) => {
+    const bounds = element.getBoundingClientRect()
+    return { right: bounds.right, children: [...element.children].map((child) => { const box = child.getBoundingClientRect(); return { top: box.top, right: box.right } }) }
+  })
+  assertDesktopSheetFits(name, height, visible, row)
 }
 
 const expectLubecCoreOnOneScreen = (page) => expectLubecPageOnOneScreen(page, 'Core')
@@ -1762,13 +1770,13 @@ export function emptyRevolverPromptProblems(shown) {
   return JSON.stringify(shown) === JSON.stringify(EMPTY_REVOLVER_PROMPT) ? [] : [`the empty-weapon prompt shows ${JSON.stringify(shown)}`]
 }
 
-// Step 16: the stock revolver goes into the free right hand from its empty slot; Fire on its card stops at the prompt, and Cancel closes it.
+// Step 16: the stock revolver goes into the free right hand from its empty slot; Shoot on its card stops at the prompt, and Cancel closes it.
 async function fireLubecEmptyRevolver(page) {
   await page.locator(`${LUBEC_GEAR_PAGE} .hb [data-drop="hands#1"]`).click()
   await pickLubecStockItem(page, '.38 revolver')
   await submitLubecGearForm(page)
   await page.locator(`${LUBEC_GEAR_PAGE} .hb .slot.item ::-p-text(.38 revolver)`).click()
-  await page.locator(`${LUBEC_GEAR_SHEET} .kind-actions .btn ::-p-text(Fire)`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .kind-actions .btn ::-p-text(Shoot)`).click()
   const shown = await (await page.waitForSelector(LUBEC_GEAR_PROMPT)).evaluate(readLubecGearPrompt)
   const problems = emptyRevolverPromptProblems(shown)
   if (problems.length) throw new Error(problems.join('; '))
@@ -1881,7 +1889,7 @@ async function lubecGearPageSteps(page, testCase, path) {
     await dropLubecAnvil(page)
     await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
-  await step('put the stock revolver in a hand and press Fire: the prompt says it isn\'t loaded, with Cancel, Reload and the red "Reload & fire"', () => fireLubecEmptyRevolver(page))
+  await step('put the stock revolver in a hand and press Shoot: the prompt says it isn\'t loaded, with Cancel, Reload and the red "Reload & fire"', () => fireLubecEmptyRevolver(page))
   await step('open the Core page\'s Fight bar and see the flashlight and the revolver "In hand"', async () => expectInHand(await openLubecFightInHand(page)))
   await lubecFightFitStep(page, testCase)
   await step('go back to the Gear page', () => openLubecGearPage(page))
