@@ -23,21 +23,24 @@ import type { AppTab, Campaign, GroupRecord, GroupMemberRole } from '../../types
 // Every tab the app has, so a saved tab the reader does not know is dropped and none it does know is.
 const KNOWN_TABS: readonly string[] = tabs.map((tab) => tab.id)
 
+const optionalText = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
+
+const isKnownTab = (value: unknown): value is AppTab => typeof value === 'string' && KNOWN_TABS.includes(value)
+
+// A saved tab list keeps only the tabs the app has; a campaign that never saved one has none.
+const readEnabledTabs = (value: unknown): AppTab[] | undefined => (Array.isArray(value) ? value.filter(isKnownTab) : undefined)
+
 export function normalizeCampaign(id: string, groupId: string, data: Record<string, unknown>): Campaign {
-  const enabledTabsRaw = Array.isArray(data.enabledTabs) ? data.enabledTabs : null
-  const enabledTabs = enabledTabsRaw
-    ? (enabledTabsRaw.filter((t) => typeof t === 'string' && KNOWN_TABS.includes(t)) as AppTab[])
-    : undefined
   return {
     id,
     groupId,
-    name: typeof data.name === 'string' ? data.name : id,
-    slug: typeof data.slug === 'string' ? data.slug : undefined,
-    status: typeof data.status === 'string' ? data.status : 'inactive',
-    system: typeof data.system === 'string' ? data.system : undefined,
-    gmUserId: typeof data.gmUserId === 'string' ? data.gmUserId : null,
-    enabledTabs,
-    theme: typeof data.theme === 'string' ? data.theme : undefined,
+    name: optionalText(data.name) ?? id,
+    slug: optionalText(data.slug),
+    status: optionalText(data.status) ?? 'inactive',
+    system: optionalText(data.system),
+    gmUserId: optionalText(data.gmUserId) ?? null,
+    enabledTabs: readEnabledTabs(data.enabledTabs),
+    theme: optionalText(data.theme),
   }
 }
 
