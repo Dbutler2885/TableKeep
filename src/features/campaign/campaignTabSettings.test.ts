@@ -48,10 +48,22 @@ describe('enabledTabsToSave', () => {
   })
 })
 
-describe('the live-fight tab in settings', () => {
-  it('is neither offered nor saved, as it follows the fight', () => {
-    expect(campaignSettingsTabs('lubec').map((tab) => tab.id)).toEqual(['character', 'maps', 'items', 'npcs', 'clocks', 'notes', 'handouts', 'calendar'])
-    expect([...initialEnabledTabs('lubec', undefined)]).not.toContain('combat')
-    expect(enabledTabsToSave('lubec', new Set<AppTab>(['character', 'combat', 'notes']))).toEqual(['character', 'clocks', 'notes', 'handouts'])
+describe('the Combat tab in settings', () => {
+  it('is offered for Lubec only, and can be turned off', () => {
+    expect(campaignSettingsTabs('lubec')).toContainEqual({ id: 'combat', label: 'Combat', locked: false })
+    expect(campaignSettingsTabs('lubec').map((tab) => tab.id)).toEqual(['character', 'combat', 'maps', 'items', 'npcs', 'clocks', 'notes', 'handouts', 'calendar'])
+    expect(campaignSettingsTabs('ose').map((tab) => tab.id)).not.toContain('combat')
+    expect(campaignSettingsTabs('vtm').map((tab) => tab.id)).not.toContain('combat')
+    expect([...toggleEnabledTab(new Set<AppTab>(['combat']), 'combat')]).toEqual([])
+  })
+
+  it('starts on in a campaign that never saved its tabs, and off in a saved list from before it', () => {
+    expect([...initialEnabledTabs('lubec', undefined)]).toContain('combat')
+    expect([...initialEnabledTabs('lubec', ['character', 'notes'])]).not.toContain('combat')
+  })
+
+  it('is saved for Lubec in rule-set order, and never for another rule set', () => {
+    expect(enabledTabsToSave('lubec', new Set<AppTab>(['notes', 'combat', 'character']))).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
+    expect(enabledTabsToSave('ose', new Set<AppTab>(['character', 'combat']))).toEqual(['character', 'handouts'])
   })
 })

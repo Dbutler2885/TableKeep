@@ -18,14 +18,18 @@ export function campaignTabLabel(gameSystem: GameSystem, tab: AppTab, role: Role
  */
 export type CombatTabAccess = boolean | null
 
-// Saved tab lists predate the live-fight tab, so they never hide it.
 const LIVE_FIGHT_TAB: AppTab = 'combat'
 
 function enabledSystemTabs(gameSystem: GameSystem, enabledTabs: AppTab[] | undefined) {
   const systemTabs = ruleSetTabs(gameSystem)
-  const enabledSet = enabledTabs ? new Set([...enabledTabs, LIVE_FIGHT_TAB]) : null
+  const enabledSet = enabledTabs ? new Set(enabledTabs) : null
   return enabledSet ? systemTabs.filter((tab) => requiredTabs.includes(tab.id) || enabledSet.has(tab.id)) : systemTabs
 }
+
+// Whether the campaign's tab settings turn this tab on: every tab of the rule
+// set when nothing is saved, otherwise the saved list and the required tabs.
+export const campaignTabEnabled = (gameSystem: GameSystem, enabledTabs: AppTab[] | undefined, tab: AppTab): boolean =>
+  enabledSystemTabs(gameSystem, enabledTabs).some((entry) => entry.id === tab)
 
 // The side nav: the rule set's tabs the campaign has enabled, minus the tabs
 // its players do not get and the live-fight tab unless it is offered, labelled

@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { lubecCharacterSheet } from '../../ruleSets/lubec/sheetFixtures'
 import { combatantPaths, combatantSheets } from './combatantSheets'
 import { actorEnvelope, attackCommandKey, gmCommandKey, gmEnvelope, startEnvelope } from './combatEnvelopes'
-import { resolveLubecCombatEnabled } from './combatGate'
 import { combatSheetRecord } from './combatSheetRecord'
 import type { LubecLiveFight } from './combatWatch'
 import type { CombatCommand, CombatFight } from './engine/types'
@@ -12,15 +11,6 @@ vi.mock('../../../firebase', () => ({ db: {} }))
 
 const scope = { groupId: 'school', campaignId: 'gym' }
 const live = (stage = 'stage-1'): LubecLiveFight => ({ id: 'fight', fight: { status: 'live', participantUserIds: [], state: { round: 0, phase: 'before-initiative', stageInstanceId: stage } } as unknown as CombatFight })
-
-describe('the mapless-combat gate', () => {
-  it('is off unless a build says exactly true', () => {
-    expect(resolveLubecCombatEnabled({})).toBe(false)
-    expect(resolveLubecCombatEnabled({ VITE_LUBEC_MAPLESS_COMBAT: 'false' })).toBe(false)
-    expect(resolveLubecCombatEnabled({ VITE_LUBEC_MAPLESS_COMBAT: true })).toBe(false)
-    expect(resolveLubecCombatEnabled({ VITE_LUBEC_MAPLESS_COMBAT: ' true ' })).toBe(true)
-  })
-})
 
 describe('command envelopes', () => {
   it('binds Start to a prospective fight and its own local setup stage', () => {

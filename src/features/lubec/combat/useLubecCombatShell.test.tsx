@@ -9,13 +9,11 @@ import { useCampaignNav } from '../../shell/useCampaignNav'
 import type { Combatant, CombatFight } from './engine/types'
 
 const mocks = vi.hoisted(() => ({
-  enabled: true,
   receive: null as null | ((fight: { id: string; fight: CombatFight } | null) => void),
   subscriptions: 0,
 }))
 
 vi.mock('../../../firebase', () => ({ db: {} }))
-vi.mock('./combatGate', () => ({ get lubecCombatEnabled() { return mocks.enabled } }))
 vi.mock('./combatSubscription', () => ({
   subscribeCombat: (_db: unknown, _scope: unknown, receive: typeof mocks.receive) => {
     mocks.subscriptions += 1
@@ -50,7 +48,6 @@ function renderShell(path: string, initialProps: Props) {
 const send = (value: ReturnType<typeof fight> | null) => act(() => { mocks.receive?.(value) })
 
 beforeEach(() => {
-  mocks.enabled = true
   mocks.receive = null
   mocks.subscriptions = 0
 })
@@ -103,25 +100,24 @@ describe('the Combat tab in the workspace', () => {
     expect(result.current.tabs).not.toContain('combat')
   })
 
-  it('always gives the GM the tab, even under a saved enabledTabs list that predates it', () => {
-    const { result } = renderShell(`${root}/combat`, { role: 'gm', userId: 'gm', enabledTabs: ['character', 'notes'] })
+  it('always gives the GM the tab while the campaign\'s settings have it on', () => {
+    const { result } = renderShell(`${root}/combat`, { role: 'gm', userId: 'gm', enabledTabs: ['character', 'combat', 'notes'] })
     expect(result.current.tabs).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
     send(null)
     expect(result.current.path).toBe(`${root}/combat`)
   })
 
-  it('keeps a saved enabledTabs list from hiding a live fight from players', () => {
-    const { result } = renderShell(`${root}/notes`, { role: 'player', userId: 'marcy', enabledTabs: ['character', 'notes'] })
-    send(fight('one'))
-    expect(result.current.tabs).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
+  it('follows no fight and offers no tab when the campaign\'s settings leave Combat off', () => {
+    const gm = renderShell(`${root}/combat`, { role: 'gm', userId: 'gm', enabledTabs: ['character', 'notes'] })
+    expect(gm.result.current.tabs).toEqual(['character', 'clocks', 'notes', 'handouts'])
+    expect(gm.result.current.path).toBe(`${root}/character`)
+    const player = renderShell(`${root}/notes`, { role: 'player', userId: 'wayne', enabledTabs: ['character', 'notes'] })
+    act(() => player.result.current.openCombat!())
+    expect(player.result.current.path).toBe(`${root}/character`)
+    expect(mocks.subscriptions).toBe(0)
   })
 
-  it('follows no fight when the gate is off or the campaign is not Lubec', () => {
-    mocks.enabled = false
-    const off = renderShell(`${root}/combat`, { role: 'gm', userId: 'gm' })
-    expect(off.result.current.tabs).not.toContain('combat')
-    expect(off.result.current.path).toBe(`${root}/character`)
-    mocks.enabled = true
+  it('follows no fight when the campaign is not Lubec', () => {
     const ose = renderShell(`${root}/notes`, { role: 'gm', userId: 'gm', gameSystem: 'ose' })
     expect(ose.result.current.tabs).not.toContain('combat')
     expect(mocks.subscriptions).toBe(0)

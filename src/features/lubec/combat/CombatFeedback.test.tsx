@@ -141,7 +141,7 @@ describe('workspace roll feedback', () => {
     send([entry('old'), ended])
     expect(document.querySelectorAll('.rcard')).toHaveLength(0)
   })
-  it('clears stale fight and campaign feedback, reports errors, and never attaches behind the gate', () => {
+  it('clears stale fight and campaign feedback, reports errors, and never attaches while combat is off', () => {
     const view = render(tree())
     send([entry('old')], [entry('old')])
     const next: LubecCombatWatch = { ...watch, live: { ...watch.live!, id: 'new-fight' } }

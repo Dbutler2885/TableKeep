@@ -54,6 +54,8 @@ vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
 vi.mock('../notes/NotesTab', () => ({ NotesTab: stub('NotesTab') }))
 vi.mock('../notes/CliffhangerModal', () => ({ CliffhangerModal: stub('CliffhangerModal') }))
 vi.mock('../transfers/TransferNotification', () => ({ TransferNotification: stub('TransferNotification') }))
+// Lubec's live fight has its own shell suites; here it stays off so the rows record the other regions alone.
+vi.mock('../lubec/combat/useLubecCombatShell', () => ({ useLubecCombatShell: () => ({ watch: { enabled: false, ready: true, live: null }, access: false }) }))
 vi.mock('../lubec/clocks/LubecClockAlerts', () => ({ LubecClockAlerts: stub('LubecClockAlerts') }))
 vi.mock('../campaign/CampaignSettingsModal', () => ({ CampaignSettingsModal: stub('CampaignSettingsModal') }))
 

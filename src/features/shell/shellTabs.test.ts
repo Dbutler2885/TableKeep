@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AppTab } from '../../types/app'
-import { campaignNavTabs, campaignTabLabel, contentPanelClass, routableTab } from './shellTabs'
+import { campaignNavTabs, campaignTabEnabled, campaignTabLabel, contentPanelClass, routableTab } from './shellTabs'
 
 const ids = (tabs: Array<{ id: AppTab }>) => tabs.map((tab) => tab.id)
 
@@ -73,10 +73,19 @@ describe('the live-fight tab', () => {
     expect(campaignNavTabs('lubec', 'player', undefined, true)).toContainEqual({ id: 'combat', label: 'Combat' })
   })
 
-  it('is never hidden by a saved enabledTabs list, which predates it', () => {
-    // Clocks and Handouts are always on too.
-    expect(ids(campaignNavTabs('lubec', 'player', ['character', 'notes'], true))).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
-    expect(ids(campaignNavTabs('lubec', 'gm', [], true))).toEqual(['combat', 'clocks', 'handouts'])
+  it('is shown only while the campaign\'s tab settings have it on', () => {
+    // Clocks and Handouts are always on.
+    expect(ids(campaignNavTabs('lubec', 'player', ['character', 'combat', 'notes'], true))).toEqual(['character', 'combat', 'clocks', 'notes', 'handouts'])
+    expect(ids(campaignNavTabs('lubec', 'gm', ['character', 'notes'], true))).toEqual(['character', 'clocks', 'notes', 'handouts'])
+    expect(ids(campaignNavTabs('lubec', 'gm', [], true))).toEqual(['clocks', 'handouts'])
+  })
+
+  it('is on in a Lubec campaign that never saved its tabs, and off in a saved list without it', () => {
+    expect(campaignTabEnabled('lubec', undefined, 'combat')).toBe(true)
+    expect(campaignTabEnabled('lubec', ['character', 'combat'], 'combat')).toBe(true)
+    expect(campaignTabEnabled('lubec', ['character', 'notes'], 'combat')).toBe(false)
+    expect(campaignTabEnabled('ose', undefined, 'combat')).toBe(false)
+    expect(campaignTabEnabled('vtm', ['combat'], 'combat')).toBe(false)
   })
 
   it('routes only when offered, and waits while the fight is still being read', () => {
