@@ -6,6 +6,7 @@ import { campaignTabPath } from '../../../navigation/tabs'
 import { requestOpen } from '../../../navigation/openRequest'
 import type { LubecGmItem } from '../../../ruleSets/lubec/gear/gmItem'
 import type { RuleSetSheetProps } from '../../../ruleSets/RuleSetSheets'
+import { useCombatErrors } from '../combatErrors'
 import { CombatTicker } from '../CombatMessages'
 import { gmCommandKey, gmEnvelope, startEnvelope } from '../combatEnvelopes'
 import type { LubecLiveFight } from '../combatWatch'
@@ -210,11 +211,13 @@ function CombatPlayer({ campaign, userId, setError, reveal }: ViewerProps & { re
 }
 
 /** Lubec's Combat tab. Players have it only while a fight is live; the route gate sends them away otherwise. */
-export function LubecCombat({ campaign, role, user, setError }: RuleSetSheetProps) {
+export function LubecCombat({ campaign, role, user }: RuleSetSheetProps) {
+  const { message, report: setError, dismiss } = useCombatErrors()
   const reveal = useCombatReveal()
   // While a roll card reveals, the tab shows the fight as it stood and takes no input, so nobody acts on the old screen.
   return (
     <div className="lubec-combat" inert={reveal.revealing}>
+      {message ? <div className="notice hot" role="alert"><span>{message}</span><button type="button" className="btn line small" onClick={dismiss}>Dismiss</button></div> : null}
       {role === 'gm' ? <CombatGm campaign={campaign} userId={user.uid} setError={setError} reveal={reveal} /> : <CombatPlayer campaign={campaign} userId={user.uid} setError={setError} reveal={reveal} />}
     </div>
   )

@@ -6,7 +6,6 @@ import type { Campaign, Role } from '../../../types/app'
 import { combatantPaths, combatantSheets } from './combatantSheets'
 import { gmCommandKey, gmEnvelope } from './combatEnvelopes'
 import { useLubecCombat, type LubecLiveFight } from './combatWatch'
-import type { CombatState } from './engine/types'
 import { createCombatCommand } from './commandJournal'
 import { combatSummariesStale } from './engine/summaries'
 import { COMBAT_UNCERTAIN, useLubecCombatSend } from './useLubecCombatSend'
@@ -45,14 +44,17 @@ function useCampaignDocs(scope: CampaignScope, paths: readonly string[]) {
 }
 
 /** The refresh to try for these reads: none while reading, while current, or when this exact difference was tried. */
-function refreshAttempt(state: CombatState, docs: Docs | null, tried: string | null): string | null {
+function refreshAttempt(live: LubecLiveFight, docs: Docs | null, tried: string | null): string | null {
   if (!docs) return null
+  const { state } = live.fight
   const sheets = combatantSheets(state.combatants, docs)
-  const attempt = JSON.stringify([state.combatants, sheets])
+  const attempt = JSON.stringify([live.id, state.round, state.phase, state.stageInstanceId, state.combatants, sheets])
   return attempt !== tried && combatSummariesStale(state, sheets) ? attempt : null
 }
 
-const CURRENT = 'Public summaries are current.'
+// A stage can advance while a summary refresh reads the sheets. The new live
+// stage gets its own attempt; a refusal of the old one must not hide the fight.
+const REFRESH_RECONCILED = ['Public summaries are current.', 'That fight stage is stale.']
 
 type RefresherProps = { scope: CampaignScope; live: LubecLiveFight; userId: string; setError: (message: string) => void }
 
@@ -64,12 +66,12 @@ function SummaryRefresher({ scope, live, userId, setError }: RefresherProps) {
   const send = useLubecCombatSend(userId)
   const tried = useRef<string | null>(null)
   useEffect(() => {
-    const attempt = refreshAttempt(state, docs, tried.current)
+    const attempt = refreshAttempt(live, docs, tried.current)
     if (!attempt) return
     tried.current = attempt
     const payload = { type: 'refresh' }
     void send(gmCommandKey(live, payload), () => createCombatCommand(gmEnvelope(scope, crypto.randomUUID(), live), payload))
-      .then((outcome) => { if (!outcome.ok && outcome.reason !== CURRENT) setError(outcome.reason) })
+      .then((outcome) => { if (!outcome.ok && !REFRESH_RECONCILED.includes(outcome.reason)) setError(outcome.reason) })
   }, [docs, state, live, scope, send, setError])
   return null
 }

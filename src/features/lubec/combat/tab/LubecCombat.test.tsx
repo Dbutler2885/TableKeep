@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import { CombatErrorContext } from '../combatErrors'
 import type { User } from 'firebase/auth'
 import type { Campaign, NpcRecord, Role } from '../../../../types/app'
 import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
@@ -52,12 +53,14 @@ function Where() {
   return <span data-testid="where">{useLocation().pathname}</span>
 }
 
-const tree = (role: Role, userId: string, watch: LubecCombatWatch, setError: (message: string) => void = () => undefined) => (
-  <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
-    <LubecCombatContext value={watch}>
-      <Routes><Route path="*" element={<><LubecCombat campaign={campaign} role={role} user={{ uid: userId } as User} username="someone" setError={setError} characterTabProps={null} /><Where /></>} /></Routes>
-    </LubecCombatContext>
-  </MemoryRouter>
+const tree = (role: Role, userId: string, watch: LubecCombatWatch, setError: (message: string) => void = () => undefined, message: string | null = null, dismiss = () => undefined) => (
+  <CombatErrorContext value={{ message, report: setError, dismiss }}>
+    <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
+      <LubecCombatContext value={watch}>
+        <Routes><Route path="*" element={<><LubecCombat campaign={campaign} role={role} user={{ uid: userId } as User} username="someone" setError={setError} characterTabProps={null} /><Where /></>} /></Routes>
+      </LubecCombatContext>
+    </MemoryRouter>
+  </CombatErrorContext>
 )
 
 const show = (role: Role, userId: string, watch: LubecCombatWatch, setError?: (message: string) => void) => render(tree(role, userId, watch, setError))
@@ -72,6 +75,16 @@ beforeEach(() => {
   window.sessionStorage.clear()
 })
 afterEach(cleanup)
+
+it('shows a dismissible fight error beside the live controls', () => {
+  const dismiss = vi.fn()
+  render(tree('gm', 'gm', live(), vi.fn(), 'Waiting for wounds to reach the sheet', dismiss))
+  expect(screen.getByRole('alert').textContent).toContain('Waiting for wounds to reach the sheet')
+  expect(screen.getByRole('button', { name: 'End combat' })).toBeTruthy()
+  expect(screen.queryByRole('heading', { name: 'Access Error' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }))
+  expect(dismiss).toHaveBeenCalledOnce()
+})
 
 const button = (name: string) => screen.getByRole('button', { name })
 const chooseItem = (label: string, scope: HTMLElement = document.body) => {

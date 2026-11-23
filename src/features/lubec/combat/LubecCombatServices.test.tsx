@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   sent: [] as CombatCommand[],
   outcome: { ok: true } as CombatOutcome,
   drain: vi.fn(async () => undefined),
+  reply: null as null | ((command: CombatCommand) => Promise<CombatOutcome>),
 }))
 
 vi.mock('../../../firebase', () => ({ db: {} }))
@@ -25,8 +26,9 @@ vi.mock('firebase/firestore', () => ({
 vi.mock('./useLubecCombatSend', () => ({
   COMBAT_UNCERTAIN: 'The table did not answer. Press again to retry the same action.',
   useLubecCombatSend: () => async (_key: string, make: () => CombatCommand) => {
-    mocks.sent.push(make())
-    return mocks.outcome
+    const command = make()
+    mocks.sent.push(command)
+    return mocks.reply ? mocks.reply(command) : mocks.outcome
   },
 }))
 
@@ -61,6 +63,7 @@ const read = (path: string, data: unknown) => act(() => { mocks.listeners.get(`$
 beforeEach(() => {
   mocks.listeners.clear()
   mocks.sent = []
+  mocks.reply = null
   mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
   mocks.drain.mockReset().mockResolvedValue(undefined)
 })
@@ -93,12 +96,50 @@ describe('the GM\'s public summary refresher', () => {
     expect(mocks.sent).toEqual([])
   })
 
-  it('reports a refusal other than an already-current summary', async () => {
-    mocks.outcome = { ok: false, reason: 'That fight stage is stale.' }
+  it('reports a summary failure requiring attention', async () => {
+    mocks.outcome = { ok: false, reason: 'The sheet could not be read.' }
     const setError = show('gm')
     read('npcSheets/roy', stored('Roy'))
     read('npcs/roy', { name: 'Changed' })
-    await waitFor(() => expect(setError).toHaveBeenCalledWith('That fight stage is stale.'))
+    await waitFor(() => expect(setError).toHaveBeenCalledWith('The sheet could not be read.'))
+  })
+
+  it('reconciles a refresh racing Movement settlement without a reload, even when the old refusal arrives last', async () => {
+    const movement = liveFight()
+    movement.fight.state = {
+      ...movement.fight.state, round: 1, phase: 'movement', stageInstanceId: 'movement-1', movementComplete: true,
+      order: ['npc:roy'], pendingActions: [],
+      combatants: movement.fight.state.combatants.map((entry) => ({ ...entry, movement: { choice: 'stay', pickup: null, leave: null } })),
+    }
+    const refreshes: { command: CombatCommand; answer: (outcome: CombatOutcome) => void }[] = []
+    mocks.reply = async (command) => command.payload.type === 'refresh'
+      ? new Promise((answer) => refreshes.push({ command, answer }))
+      : mocks.outcome
+    const setError = vi.fn()
+    const tree = (live: typeof movement) => <LubecCombatContext value={{ enabled: true, ready: true, live }}><LubecCombatServices campaign={campaign} role="gm" userId="gm" setError={setError} /></LubecCombatContext>
+    const view = render(tree(movement))
+    // The sheet subscription changes as the final movement commits (for example, Stand removes a down card).
+    read('npcSheets/roy', stored('Roy'))
+    read('npcs/roy', { name: 'Changed while moving' })
+    await waitFor(() => expect(refreshes).toHaveLength(1))
+    const settle = mocks.sent.find((command) => command.payload.type === 'settleMovement')!
+    const records = { activeFightId: movement.id, fight: movement.fight, sheets: [roy], items: new Map() }
+    const declaring = { id: movement.id, fight: planCombatCommand(settle, records, { userId: 'gm', isGm: true }).fight }
+    // Stay leaves the combatants identical across the phase change. The stage itself must invalidate the refresh attempt.
+    expect(declaring.fight.state.combatants).toEqual(movement.fight.state.combatants)
+    view.rerender(tree(declaring))
+    await waitFor(() => expect(refreshes).toHaveLength(2))
+    const next = refreshes[1].command
+    expect(next.envelope).toMatchObject({ phase: 'declare', stageInstanceId: declaring.fight.state.stageInstanceId })
+    const refreshed = planCombatCommand(next, { ...records, fight: declaring.fight, sheets: [{ ...roy, name: 'Changed while moving' }] }, { userId: 'gm', isGm: true }).fight
+    await act(async () => { refreshes[1].answer(mocks.outcome) })
+    view.rerender(tree({ id: movement.id, fight: refreshed }))
+    // The transaction keeps refusing genuinely stale commands; the client must reconcile that expected refusal.
+    expect(() => planCombatCommand(refreshes[0].command, { ...records, fight: refreshed }, { userId: 'gm', isGm: true })).toThrow('That fight stage is stale.')
+    await act(async () => { refreshes[0].answer({ ok: false, reason: 'That fight stage is stale.' }) })
+    expect(refreshed.state).toMatchObject({ phase: 'declare', combatants: [{ name: 'Changed while moving' }] })
+    expect(setError).not.toHaveBeenCalled()
+    expect(refreshes).toHaveLength(2)
   })
 
   it('is the GM\'s alone', () => {
