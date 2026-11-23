@@ -1,19 +1,20 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, render, screen } from '@testing-library/react'
+import { act, cleanup, render, screen } from '@testing-library/react'
+import { useCombatErrors } from '../lubec/combat/combatErrors'
 import type { User } from 'firebase/auth'
 
-const mocks = vi.hoisted(() => ({ path: '/groups/g/campaigns/c/notes', selected: true, campaign: true, demo: false, enabled: false, workspace: vi.fn() }))
+const mocks = vi.hoisted(() => ({ path: '/groups/g/campaigns/c/notes', selected: true, campaign: true, demo: false, enabled: false, workspace: vi.fn(), combatReport: null as null | ((message: string) => void), accessError: vi.fn() }))
 vi.mock('../common/useDocumentVisibility', () => ({ useDocumentVisibility: () => true }))
 vi.mock('../character/hooks/useCharacters', () => ({ useCharacters: () => ({ characters: [] }) }))
 vi.mock('../groups/GroupPicker', () => ({ GroupPicker: () => <p>Choose a group</p> }))
 vi.mock('../groups/GroupHome', () => ({ GroupHome: () => <p>Group home</p> }))
-vi.mock('../groups/useGroupAccess', () => ({ useGroupAccess: () => ({ groups: [], loading: false, error: null, setError: () => undefined }) }))
+vi.mock('../groups/useGroupAccess', () => ({ useGroupAccess: () => ({ groups: [], loading: false, error: null, setError: mocks.accessError }) }))
 vi.mock('../demo/DemoBanner', () => ({ DemoBanner: () => <p>Demo visitor</p> }))
 vi.mock('../lubec/combat/useLubecCombatShell', () => ({ useLubecCombatShell: () => ({ watch: { enabled: mocks.enabled, ready: true, live: null }, access: false }) }))
-vi.mock('../lubec/combat/LubecCombatServices', () => ({ LubecCombatServices: () => null }))
+vi.mock('../lubec/combat/LubecCombatServices', () => ({ LubecCombatServices: ({ setError }: { setError: (message: string) => void }) => { mocks.combatReport = setError; return null } }))
 vi.mock('../../firebase', () => ({ db: {} }))
-vi.mock('./CampaignWorkspace', () => ({ CampaignWorkspace: (props: unknown) => { mocks.workspace(props); return <p>Campaign tab content</p> } }))
+vi.mock('./CampaignWorkspace', () => ({ CampaignWorkspace: (props: unknown) => { mocks.workspace(props); const errors = useCombatErrors(); return <><p>Campaign tab content</p>{errors.message ? <p role="alert">{errors.message}</p> : null}</> } }))
 vi.mock('./characterTabProps', () => ({ characterTabPropsFor: () => null }))
 vi.mock('./shellSelection', () => ({ campaignIds: () => ({}), campaignRole: () => 'player', campaignSystem: () => 'lubec', shellTheme: () => 'lubec' }))
 vi.mock('./useApprovalQueue', () => ({ useApprovalQueue: () => ({ pendingRequests: [] }) }))
@@ -40,6 +41,14 @@ describe('the workspace feedback boundary', () => {
     show()
     expect(screen.getByText('Campaign tab content')).toBeTruthy()
     expect(document.querySelector('.combat-cards')).toBeTruthy()
+  })
+  it('contains background fight failures without setting the campaign access error', () => {
+    show()
+    act(() => mocks.combatReport!('That fight stage is stale.'))
+    expect(screen.getByText('Campaign tab content')).toBeTruthy()
+    expect(screen.getByRole('alert').textContent).toBe('That fight stage is stale.')
+    expect(mocks.workspace.mock.lastCall![0]).toMatchObject({ error: null })
+    expect(mocks.accessError).not.toHaveBeenCalled()
   })
   it('keeps campaign listeners and feedback out of the group picker and group home', () => {
     mocks.path = '/groups'

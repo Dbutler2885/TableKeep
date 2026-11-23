@@ -7,6 +7,7 @@ import { GroupPicker } from '../groups/GroupPicker'
 import { GroupHome } from '../groups/GroupHome'
 import { useGroupAccess } from '../groups/useGroupAccess'
 import { DemoBanner } from '../demo/DemoBanner'
+import { CombatErrorContext, useCampaignCombatErrors } from '../lubec/combat/combatErrors'
 import { CombatFeedback } from '../lubec/combat/CombatFeedback'
 import { LubecCombatContext } from '../lubec/combat/combatWatch'
 import { LubecCombatServices } from '../lubec/combat/LubecCombatServices'
@@ -66,7 +67,8 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     user.uid,
     listensForApprovals(gameSystem, documentVisible, role, activeTab),
   )
-  const combat = useLubecCombatShell({ campaign, gameSystem, role, userId: user.uid, navigate, setError })
+  const combatErrors = useCampaignCombatErrors(campaign)
+  const combat = useLubecCombatShell({ campaign, gameSystem, role, userId: user.uid, navigate, setError: combatErrors.report })
   const visibleTabs = useCampaignNav(campaign, gameSystem, role, activeTab, navigate, combat.access)
 
   return (
@@ -99,38 +101,40 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
           onOpenActiveCampaign={() => openActiveCampaign(selectedGroup)}
         />
       ) : (
-        <LubecCombatContext value={combat.watch}>
-          <CombatFeedback campaign={campaign} role={role} userId={user.uid} activeTab={activeTab} navigate={navigate} setError={setError}>
-            <LubecCombatServices campaign={campaign} role={role} userId={user.uid} setError={setError} />
-            <CampaignWorkspace
-              group={selectedGroup}
-              campaign={campaign}
-              loading={loading}
-              error={error}
-              user={user}
-              username={username}
-              role={role}
-              isDemoVisitor={isDemoVisitor}
-              gameSystem={gameSystem}
-              activeTab={activeTab}
-              visibleTabs={visibleTabs}
-              settingsOpen={settingsOpen}
-              setSettingsOpen={setSettingsOpen}
-              navigate={navigate}
-              onSignOut={handleSignOut}
-              setError={setError}
-              characters={characterState.characters}
-              characterTabProps={characterTabProps}
-              pendingRequests={pendingRequests}
-              approvalBusy={approvalBusy}
-              onApprove={handleApprove}
-              onReject={handleReject}
-              showTransferNotification={showsTransferNotification(gameSystem, documentVisible, activeTab)}
-              cliffhangerEnabled={showsCliffhangerModal(documentVisible, activeTab)}
-              clockAlertsEnabled={showsClockAlerts(gameSystem, documentVisible)}
-            />
-          </CombatFeedback>
-        </LubecCombatContext>
+        <CombatErrorContext value={combatErrors}>
+          <LubecCombatContext value={combat.watch}>
+            <CombatFeedback campaign={campaign} role={role} userId={user.uid} activeTab={activeTab} navigate={navigate} setError={combatErrors.report}>
+              <LubecCombatServices campaign={campaign} role={role} userId={user.uid} setError={combatErrors.report} />
+              <CampaignWorkspace
+                group={selectedGroup}
+                campaign={campaign}
+                loading={loading}
+                error={error}
+                user={user}
+                username={username}
+                role={role}
+                isDemoVisitor={isDemoVisitor}
+                gameSystem={gameSystem}
+                activeTab={activeTab}
+                visibleTabs={visibleTabs}
+                settingsOpen={settingsOpen}
+                setSettingsOpen={setSettingsOpen}
+                navigate={navigate}
+                onSignOut={handleSignOut}
+                setError={setError}
+                characters={characterState.characters}
+                characterTabProps={characterTabProps}
+                pendingRequests={pendingRequests}
+                approvalBusy={approvalBusy}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                showTransferNotification={showsTransferNotification(gameSystem, documentVisible, activeTab)}
+                cliffhangerEnabled={showsCliffhangerModal(documentVisible, activeTab)}
+                clockAlertsEnabled={showsClockAlerts(gameSystem, documentVisible)}
+              />
+            </CombatFeedback>
+          </LubecCombatContext>
+        </CombatErrorContext>
       )}
       {isDemoVisitor ? <DemoBanner expiresAtMs={demoExpiresAt} onLeave={handleSignOut} /> : null}
     </main>
