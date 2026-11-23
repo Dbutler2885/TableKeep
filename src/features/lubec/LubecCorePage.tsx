@@ -61,7 +61,7 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onEffe
   const roller = useLubecRoller(sheet, onRolled)
   const rollUp = rollUpOf(sheet, guided, onDraftEdit)
   const circles = useLubecCircles(sheet, rollUp ? null : roller)
-  const classSection = <LubecClassSection sheet={sheet} modifiers={modifiers} onDraftEdit={onDraftEdit} guided={guided !== null} />
+  const classSection = <LubecClassSection sheet={sheet} onDraftEdit={onDraftEdit} guided={guided !== null} />
   return (
     <div className="lubec-page lubec-core">
       <LubecAbilities

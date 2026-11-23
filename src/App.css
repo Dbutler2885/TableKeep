@@ -17549,8 +17549,7 @@ button:disabled {
 }
 
 /* The prototype's class record, under its class's name: the description with
-   a blue rule at its left, the Trauma Response in blue, any Class Rule in rust
-   and the Melee Strength Mod. */
+   a blue rule at its left, the Trauma Response in blue and any Class Rule in rust. */
 .shell-root[data-theme="lubec"] .class-section {
   grid-column: 1 / -1;
   min-width: 0;
@@ -17578,7 +17577,7 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .class-record {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.15fr) auto;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.15fr);
   gap: 1rem;
   align-items: stretch;
   padding: 1rem;
@@ -17644,12 +17643,6 @@ button:disabled {
 .shell-root[data-theme="lubec"] .selected-class-rule p {
   margin: 0;
   font: 600 0.9rem/1.45 var(--lubec-type);
-}
-
-.shell-root[data-theme="lubec"] .record-values {
-  display: grid;
-  grid-template-columns: minmax(11rem, auto);
-  gap: 0.4rem;
 }
 
 .shell-root[data-theme="lubec"] .record-value {
@@ -17802,8 +17795,7 @@ button:disabled {
 }
 
 @media (max-width: 820px) {
-  .shell-root[data-theme="lubec"] .class-record,
-  .shell-root[data-theme="lubec"] .record-values {
+  .shell-root[data-theme="lubec"] .class-record {
     grid-template-columns: 1fr;
   }
 }

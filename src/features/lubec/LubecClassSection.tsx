@@ -1,7 +1,6 @@
 import { useId, useState } from 'react'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { LUBEC_CLASSES, lubecClass, type LubecClass, type LubecClassChoice } from '../ruleSets/lubec/classes'
-import type { LubecModifier } from '../ruleSets/lubec/derivations'
 import { withLubecClass, withLubecClassChoice, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import { lubecRollUpStage, readLubecRollUp } from '../ruleSets/lubec/guidedRollUp'
 import type { LubecSheet, LubecStat } from '../ruleSets/lubec/sheet'
@@ -65,7 +64,6 @@ const classLocked = (sheet: LubecCharacterSheet, guided: boolean): boolean =>
 
 type SectionProps = {
   sheet: LubecCharacterSheet
-  modifiers: readonly LubecModifier[]
   /** Chooses the class; null unless the viewer may change it. */
   onDraftEdit: LubecSheetEdit | null
   /** A guided draft, whose kicker speaks of the rolls and whose classes unlock once its scores are settled. */
@@ -77,8 +75,8 @@ type SectionProps = {
  * before that, for whoever may choose, the five class cards, or on a guided
  * draft still rolling the placeholder that says when they unlock.
  */
-export function LubecClassSection({ sheet, modifiers, onDraftEdit, guided }: SectionProps) {
-  if (lubecClass(sheet.class.key) || !onDraftEdit) return <LubecClassRecord sheet={sheet} modifiers={modifiers} />
+export function LubecClassSection({ sheet, onDraftEdit, guided }: SectionProps) {
+  if (lubecClass(sheet.class.key) || !onDraftEdit) return <LubecClassRecord sheet={sheet} />
   const locked = classLocked(sheet, guided)
   return (
     <section className="class-section" aria-labelledby="lubec-class-title">

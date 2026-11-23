@@ -1,25 +1,12 @@
 import { lubecClass } from '../ruleSets/lubec/classes'
-import { lubecCurrentValue, type LubecModifier } from '../ruleSets/lubec/derivations'
 import type { LubecSheet } from '../ruleSets/lubec/sheet'
-import { LubecMissing } from './LubecMissing'
-
-// The prototype's Melee Strength Mod: one Impact for every full 20 of Strength.
-// It reads current Strength, as Effective Handle reads current Handle.
-function LubecMeleeStrengthMod({ strength }: { strength: number | null }) {
-  return (
-    <div className="record-value">
-      <span>Melee Strength Mod</span>
-      <strong>{strength === null ? <LubecMissing /> : `+${Math.floor(strength / 20)} Impact`}</strong>
-    </div>
-  )
-}
 
 /**
  * The prototype's class record: the class's name over its description, its
- * Trauma Response, its Class Rule when it has one, and the Melee Strength Mod;
+ * Trauma Response and its Class Rule when it has one;
  * nothing while the class is a hole.
  */
-export function LubecClassRecord({ sheet, modifiers }: { sheet: LubecSheet; modifiers: readonly LubecModifier[] }) {
+export function LubecClassRecord({ sheet }: { sheet: LubecSheet }) {
   const definition = lubecClass(sheet.class.key)
   if (!definition) return null
   return (
@@ -36,9 +23,6 @@ export function LubecClassRecord({ sheet, modifiers }: { sheet: LubecSheet; modi
           {definition.classRule ? (
             <div className="selected-class-rule"><span>Class Rule</span><p>{definition.classRule}</p></div>
           ) : null}
-        </div>
-        <div className="record-values">
-          <LubecMeleeStrengthMod strength={lubecCurrentValue(sheet, 'Strength', modifiers)} />
         </div>
       </article>
     </section>
