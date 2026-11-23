@@ -651,11 +651,10 @@ describe('Lubec counters', () => {
 
 describe('Lubec class record', () => {
   const classRecord = (name: string) => screen.getByRole('region', { name })
-  const meleeStrengthMod = (record: HTMLElement) => record.querySelector('.record-value strong')?.textContent
   const withStrength = (Strength: number | null, effects: Fields[] = []) =>
     withSheet({ base: { ...((tommyEves().lubec as Fields).base as Fields), Strength }, effects })
 
-  it('shows the class under its name: description, Trauma Response and Melee Strength Mod', async () => {
+  it('shows the class name, description and Trauma Response without a melee Strength modifier', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -666,9 +665,9 @@ describe('Lubec class record', () => {
     expect(within(record).getByText('Steady Under Pressure')).toBeTruthy()
     expect(within(record).getByText('Once per session, you may take Advantage on a Panic Check.')).toBeTruthy()
     expect(within(record).queryByText('Class Rule')).toBeNull()
-    expect(within(record).getByText('Melee Strength Mod')).toBeTruthy()
-    // Strength 29: one full 20.
-    expect(meleeStrengthMod(record)).toBe('+1 Impact')
+    expect(within(record).getByRole('heading', { name: 'Working Kid' })).toBeTruthy()
+    expect(within(record).queryByText('Melee Strength Mod')).toBeNull()
+    expect(record.querySelector('.record-values')).toBeNull()
   })
 
   it('shows the Class Rule beside the Trauma Response when the class has one', async () => {
@@ -677,27 +676,41 @@ describe('Lubec class record', () => {
     openSheet('Tommy Eves')
 
     const record = classRecord('Overachiever')
+    expect(within(record).getByRole('heading', { name: 'Overachiever' })).toBeTruthy()
+    expect(within(record).getByText(/^You are prepared, capable, and used to being right\./)).toBeTruthy()
+    expect(within(record).getByText('Trauma Response')).toBeTruthy()
     expect(within(record).getByText('Your Success Raises the Stakes')).toBeTruthy()
+    expect(within(record).queryByText('Melee Strength Mod')).toBeNull()
     expect(within(record).getByText('Class Rule')).toBeTruthy()
     expect(within(record).getByText('Failed Stat Checks give +2 Stress instead of +1.')).toBeTruthy()
   })
 
-  it('works the Melee Strength Mod out from current Strength, effects included', async () => {
+  it.each([null, 35])('omits the obsolete modifier with Strength %s, including active effects', async (strength) => {
     const training = { id: 'training', name: 'Summer training', cause: 'Hauling traps', steps: [{ modifiers: [{ target: 'Strength', amount: 5 }] }] }
-    seed({ tommy: withStrength(35, [training]) })
+    seed({ tommy: withStrength(strength, [training]) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    // 35 + 5 class + 5 from the effect is 45: two full 20s.
-    expect(meleeStrengthMod(classRecord('Working Kid'))).toBe('+2 Impact')
+    const record = classRecord('Working Kid')
+    expect(within(record).getByText('Steady Under Pressure')).toBeTruthy()
+    expect(within(record).queryByText('Melee Strength Mod')).toBeNull()
+    expect(within(record).queryByText(/Impact/)).toBeNull()
   })
 
-  it('marks the Melee Strength Mod missing while Strength is a hole', async () => {
-    seed({ tommy: withStrength(null) })
+  it('preserves the Popular Kid description and Trauma Response without a modifier tile', async () => {
+    seed({ tommy: withSheet({ class: { key: 'popular', choices: { statPenalty: 'Intellect' } } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    expect(meleeStrengthMod(classRecord('Working Kid'))).toBe('missing')
+    const record = classRecord('Popular Kid')
+    expect(within(record).getByRole('heading', { name: 'Popular Kid' })).toBeTruthy()
+    expect(within(record).getByText(/^Everybody knows your name\./)).toBeTruthy()
+    expect(within(record).getByText('Trauma Response')).toBeTruthy()
+    expect(within(record).getByText('Everyone Looks to You')).toBeTruthy()
+    expect(within(record).getByText('Whenever you fail a Fear Save, every Close Group friend who witnesses it gains 1 Stress.')).toBeTruthy()
+    expect(within(record).queryByText('Class Rule')).toBeNull()
+    expect(within(record).queryByText('Melee Strength Mod')).toBeNull()
+    expect(record.querySelector('.record-values')).toBeNull()
   })
 
   it('shows nothing when the class is missing', async () => {

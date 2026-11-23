@@ -1099,8 +1099,8 @@ const LUBEC_TREE_MARKS = [['Swimming', 'skill-node on'], ['Diving', 'skill-node 
 const LUBEC_TREE_WIRES = 59
 const LUBEC_TREE = `${LUBEC_SKILLS_PAGE} .skill-tree`
 const LUBEC_SKILL_CHIPS = ['Boatwork +10', 'Swimming +10', 'Diving +15']
-// The class record's title, Trauma Response and Melee Strength Mod; Strength 29 is one full 20.
-const LUBEC_CLASS_RECORD = ['Working Kid', 'Steady Under Pressure', '+1 Impact']
+// The class record's title and Trauma Response.
+const LUBEC_CLASS_RECORD = ['Working Kid', 'Steady Under Pressure']
 
 /** A Lubec character file with a PNG as its portrait data URL. */
 export const withLubecPortrait = (file, png) => ({ ...file, portrait: `data:image/png;base64,${png.toString('base64')}` })
@@ -1253,8 +1253,8 @@ async function expectLubecSkillChips(page) {
   if (JSON.stringify(chips) !== JSON.stringify(LUBEC_SKILL_CHIPS)) throw new Error(`The skill strip offers ${JSON.stringify(chips)}.`)
 }
 
-// The three come back in page order: title, Trauma Response, Melee Strength Mod.
-const LUBEC_CLASS_RECORD_PARTS = ['.section-bar h3', '.trauma-response strong', '.record-value strong']
+// These come back in page order: title, Trauma Response.
+const LUBEC_CLASS_RECORD_PARTS = ['.section-bar h3', '.trauma-response strong']
   .map((part) => `${LUBEC_CORE_PAGE} .class-section ${part}`).join(', ')
 
 async function expectLubecClassRecord(page) {
@@ -1911,7 +1911,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await step('show each Stat and Save\'s typed base in its roll circle with what its class makes of it under it', () => expectLubecCoreValues(page))
   await step('offer the skills to add to a roll in the strip under the Saves', () => expectLubecSkillChips(page))
   await step('show the Panic Check over Stress and the Recovery Save on the lowest Save in roll circles', () => expectLubecPanicCircles(page))
-  await step('show the class record with its Trauma Response and Melee Strength Mod', () => expectLubecClassRecord(page))
+  await step('show the class record with its Trauma Response', () => expectLubecClassRecord(page))
   await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
