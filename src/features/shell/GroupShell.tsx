@@ -67,7 +67,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     user.uid,
     listensForApprovals(gameSystem, documentVisible, role, activeTab),
   )
-  const combatErrors = useCampaignCombatErrors(`${campaign?.groupId ?? ''}/${campaign?.id ?? ''}`)
+  const combatErrors = useCampaignCombatErrors(campaign)
   const combat = useLubecCombatShell({ campaign, gameSystem, role, userId: user.uid, navigate, setError: combatErrors.report })
   const visibleTabs = useCampaignNav(campaign, gameSystem, role, activeTab, navigate, combat.access)
 
