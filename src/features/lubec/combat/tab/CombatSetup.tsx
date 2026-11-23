@@ -92,13 +92,12 @@ type RostersProps = Pick<SetupProps, 'characters' | 'npcs'> & {
 
 type Picks = Pick<RostersProps, 'selected' | 'onToggle' | 'allies' | 'onSide'>
 
-type RowsProps = { sheets: readonly { sheet: CombatSheet | null; npc?: NpcRecord }[]; empty: string } & Picks
+type RowsProps = { sheets: readonly { sheet: CombatSheet; npc?: NpcRecord }[]; empty: string } & Picks
 
 type RosterEntry = RowsProps['sheets'][number]
 
-/** One roster row: a box for anyone with a sheet; an NPC without one is listed but cannot be picked. */
+/** One roster row for a combatant with a sheet. */
 function RosterRow({ entry: { sheet, npc }, selected, onToggle, allies, onSide }: { entry: RosterEntry } & Picks) {
-  if (!sheet) return <li className="off"><span className="chk" />{npc?.name}<small>No sheet to fight with</small></li>
   const on = isSelected(selected, sheet)
   return <PickRow sheet={sheet} title={npc?.title ?? ''} on={on} onToggle={() => onToggle({ kind: sheet.kind, sheetId: sheet.sheetId })} side={<SideToggle sheet={sheet} on={on} allies={allies} onSide={onSide} />} />
 }
@@ -107,7 +106,7 @@ function RosterRow({ entry: { sheet, npc }, selected, onToggle, allies, onSide }
 function RosterRows({ sheets, empty, ...picks }: RowsProps) {
   return (
     <ul className="roster spaced">
-      {sheets.map((entry) => <RosterRow key={entry.sheet?.sheetId ?? entry.npc?.id} entry={entry} {...picks} />)}
+      {sheets.map((entry) => <RosterRow key={entry.sheet.sheetId} entry={entry} {...picks} />)}
       {sheets.length ? null : <li className="off">{empty}</li>}
     </ul>
   )
@@ -119,7 +118,7 @@ function SetupRosters({ characters, npcs, ...picks }: RostersProps) {
       <span className="label">Characters</span>
       <RosterRows sheets={characters.map((sheet) => ({ sheet }))} empty="No characters in play." {...picks} />
       <span className="label block">NPCs</span>
-      <RosterRows sheets={npcs} empty="No NPCs yet." {...picks} />
+      <RosterRows sheets={npcs.flatMap(({ npc, sheet }) => sheet ? [{ npc, sheet }] : [])} empty="No NPCs with sheets yet." {...picks} />
     </div>
   )
 }

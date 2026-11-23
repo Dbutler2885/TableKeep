@@ -155,13 +155,14 @@ describe('GM setup, moment 1', () => {
     expect(takeOpenRequest('character')).toBe('joseph')
   })
 
-  it('lists NPCs with their titles, and an NPC without a sheet cannot be picked', () => {
+  it('lists NPCs with sheets and their titles, and omits NPCs without sheets', () => {
     show('gm', 'gm', idle)
     expect(button('Roy Carver fights').closest('li')?.textContent).toBe('Roy CarverLinebacker, not fighting')
     expect(button('Wayne Gardner fights').closest('li')?.textContent).toBe('Wayne GardnerNot in this fight')
     fireEvent.click(button('Roy Carver fights'))
     expect(button('Roy Carver fights').closest('li')?.textContent).toBe('✓Roy CarverLinebacker · Speed 56With the players')
-    expect(screen.getByText('No sheet to fight with')).toBeTruthy()
+    expect(screen.queryByText('Coach Ballard')).toBeNull()
+    expect(screen.queryByText('No sheet to fight with')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Coach Ballard fights' })).toBeNull()
   })
 
@@ -367,10 +368,12 @@ describe('less common states', () => {
     expect(takeOpenRequest('npc')).toBe('dale')
   })
 
-  it('says when there are no NPCs', () => {
-    mocks.data = { characters: [wayne], npcs: [], items: [] }
+  it.each([{ npcs: [] }, { npcs: [{ npc: npc('coach', 'Coach Ballard', 'Referee'), sheet: null }] }])('says when there are no NPCs with sheets ($npcs)', ({ npcs }) => {
+    mocks.data = { characters: [wayne], npcs, items: [] }
     show('gm', 'gm', idle)
-    expect(screen.getByText('No NPCs yet.')).toBeTruthy()
+    expect(screen.getByText('No NPCs with sheets yet.')).toBeTruthy()
+    expect(screen.queryByText('Coach Ballard')).toBeNull()
+    expect(button('Wayne Gardner fights')).toBeTruthy()
   })
 })
 
