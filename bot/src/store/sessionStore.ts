@@ -40,8 +40,17 @@ export type Bucket = ReturnType<ReturnType<typeof getStorage>['bucket']>
 const DISCORD_SERVERS_COLLECTION = 'discordServers'
 /** Which Table Keep account each connected Discord account belongs to. Written when someone connects theirs. */
 const DISCORD_ACCOUNTS_COLLECTION = 'discordAccounts'
+/** Which Discord account each connected Table Keep account belongs to. Written when someone connects theirs. */
+const DISCORD_LINKS_COLLECTION = 'discordLinks'
 
 export type SessionLocation = { groupId: string; campaignId: string; sessionId: string }
+
+/** What the rules watcher needs to know about a session's campaign: its rule set and who runs it. */
+export type SessionRulesContext = {
+  ruleSet: CharacterRuleSet
+  gmUserId: string | null
+  gmDiscordId: string | null
+}
 
 export type StartSessionInput = {
   discordServerId: string
@@ -133,8 +142,8 @@ export interface SessionStore {
   sessionState(location: SessionLocation): Promise<SessionState | null>
   /** The names worth telling the speech service about: the campaign's characters and NPCs. */
   vocabulary(location: SessionLocation): Promise<string[]>
-  /** The rule set the session's campaign is played with: its `system`, resolved as the app resolves it. */
-  ruleSet(location: SessionLocation): Promise<CharacterRuleSet>
+  /** The campaign's rule set and GM identity (resolved to their linked Discord ID, if connected). */
+  sessionRulesContext(location: SessionLocation): Promise<SessionRulesContext>
   /**
    * Publishes finished utterances and moves the speaker's checkpoint past
    * them, as one write. Publishing the same utterance twice leaves one; a
@@ -176,6 +185,10 @@ export function sessionPath(location: SessionLocation, ...segments: string[]): s
 
 export function segmentObjectPath(location: SessionLocation, segment: Pick<Segment, 'speakerId' | 'epoch' | 'startSamples'>): string {
   return `${sessionPath(location)}/audio/${segment.speakerId}/${segmentId(segment)}.ogg`
+}
+
+function nonEmptyString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
 /** The campaign a new session on this server would belong to, or why there is none. */
@@ -306,9 +319,13 @@ export class FirestoreSessionStore implements SessionStore {
     return [...new Set(names.flat().filter(Boolean))].slice(0, MAX_VOCABULARY)
   }
 
-  async ruleSet(location: SessionLocation): Promise<CharacterRuleSet> {
-    const campaign = await this.#db.doc(campaignPath(location.groupId, location.campaignId)).get()
-    return resolveCharacterRuleSet(campaign.data()?.system)
+  async sessionRulesContext(location: SessionLocation): Promise<SessionRulesContext> {
+    const campaign = (await this.#db.doc(campaignPath(location.groupId, location.campaignId)).get()).data()
+    const ruleSet = resolveCharacterRuleSet(campaign?.system)
+    const gmUserId = nonEmptyString(campaign?.gmUserId)
+    if (!gmUserId) return { ruleSet, gmUserId: null, gmDiscordId: null }
+    const link = (await this.#db.collection(DISCORD_LINKS_COLLECTION).doc(gmUserId).get()).data()
+    return { ruleSet, gmUserId, gmDiscordId: nonEmptyString(link?.discordId) }
   }
 
   async publishUtterances(

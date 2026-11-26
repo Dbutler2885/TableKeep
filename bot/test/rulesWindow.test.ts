@@ -55,11 +55,15 @@ test('a window with more text than it may hold keeps the most recent lines, and 
   assert.deepEqual(texts(tight.at(20 * RATE)), ['x'.repeat(50)])
 })
 
-test('empty lines are dropped, and a window reads as one line per speaker turn', () => {
+test('empty lines are dropped, and a window reads as one line per speaker turn, tagging the GM', () => {
   const window = new TranscriptWindow({ windowSeconds: 90, maxChars: 4_000 })
-  window.add([said('Ann', '  ', 5), said('Ann', ' I attack. ', 10), said('Dave', 'Roll it.', 12)])
+  window.add([
+    said('Ann', '  ', 5),
+    said('Ann', ' I attack. ', 10),
+    { ...said('Dave', 'Roll it.', 12), isGm: true },
+  ])
 
-  assert.equal(transcriptText(window.at(20 * RATE)), 'Ann: I attack.\nDave: Roll it.')
+  assert.equal(transcriptText(window.at(20 * RATE)), 'Ann: I attack.\nDave (GM): Roll it.')
 })
 
 test("the session's posted answers read as who asked what and what the bot said, or as none", () => {

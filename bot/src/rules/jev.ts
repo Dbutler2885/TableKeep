@@ -21,25 +21,53 @@ export const JEV_URL = 'https://api.typesafe.ai/v1/systemone'
 export const JEV_MODEL = 'jev-latest'
 const JEV_TIMEOUT_MS = 5_000
 
-const SETTING =
+const GM_SETTING =
+  'A group is playing a tabletop role-playing game together over voice chat. One speaker is the game master (GM), marked "(GM)" on their lines; the others are players. ' +
+  '`transcript` is a live, imperfect speech-to-text transcript of the last minute or so of the table, oldest line first. ' +
+  "Each line starts with the speaker's name. Words may be misheard, and lines from different people can interleave. " +
+  'A bot posts concise rules lookups in text chat solely to help the GM when the GM wants to check a rule; `rules_answers_this_session` is every rules answer it has posted in this session. ' +
+  'Those answers are not in the transcript.'
+
+const GM_QUESTION =
+  "Judging by the end of the transcript, is the GM asking, wondering aloud, or expressing uncertainty about a game rule that the bot's rules answers this session do not already cover, and that nobody has answered yet?"
+
+const GM_CRITERIA = {
+  true:
+    'The GM (marked "(GM)") asks how a rule works, asks what a skill, stat, combat rule, condition, spell, monster, creature, magic item, equipment, weapon, armor, or treasure does, ' +
+    'or expresses uncertainty ("I forget how...", "wait, how does...", "good question, let me check", "is there a rule for...") — ' +
+    'including when a player asked a rules question and the GM says they do not know or need to check. ' +
+    "Nobody has answered it later in the transcript, and the bot's rules answers this session do not already cover it. " +
+    'A follow-up from the GM asking something those answers did not cover counts too.',
+  false:
+    'The GM is not asking or wondering about a game rule. Ignore players asking the GM for situational rulings, permission, or judgment calls ' +
+    '("can I use Teacher\'s Pet?", "can I use Politician?", "do I have advantage?", "can I climb it?", "what do I roll?"). ' +
+    "Ignore the GM calling for a roll, making a ruling, narrating the story, roleplaying, or answering a player's question. " +
+    'Small talk and anything outside the game do not count. ' +
+    'A rules question already answered later in the transcript does not count either, ' +
+    "nor does one the bot's rules answers this session already cover: that is not a new rules question, even when asked again in other words, much later, or still being talked about.",
+}
+
+const FALLBACK_SETTING =
   'A group is playing a tabletop role-playing game together over voice chat. One of them is the game master (GM), who runs the game; the others are players. ' +
   '`transcript` is a live, imperfect speech-to-text transcript of the last minute or so of the table, oldest line first. ' +
   'Each line starts with the name of the person speaking. Words may be misheard, and lines from different people can interleave. ' +
-  'A bot at the table answers rules questions in the text chat; `rules_answers_this_session` is every rules answer it has posted in this session. ' +
+  'A bot at the table posts concise rules lookups in text chat; `rules_answers_this_session` is every rules answer it has posted in this session. ' +
   'Those answers are not in the transcript.'
 
-const QUESTION =
-  "Judging by the end of the transcript, is someone at the table asking a new question about the game's rules that the bot's rules answers this session do not already cover, and that nobody has answered yet?"
+const FALLBACK_QUESTION =
+  "Judging by the end of the transcript, is someone at the table asking a new question about how a game rule works that the bot's rules answers this session do not already cover, and that nobody has answered yet?"
 
-const CRITERIA = {
+const FALLBACK_CRITERIA = {
   true:
-    'Someone asks how a rule of the game works or what the rules allow: combat, actions, attacks, dice rolls and what to add to them, damage, wounds, healing, movement, conditions, ' +
-    'spells, monsters and creatures, magic items, equipment, weapons, armor, treasure, or other game mechanics. ' +
+    'Someone asks how a rule of the game works or what a skill, stat, combat rule, condition, ' +
+    'spell, monster, creature, magic item, equipment, weapon, armor, or treasure does. ' +
     "Nobody has answered it later in the transcript, and the bot's rules answers this session do not already answer it. " +
-    'It need not be phrased as a question: wondering aloud about a rule counts as asking, and so does the GM or a player saying they forget, ' +
-    'do not know or are not sure how the rules handle the situation at hand. A follow-up that asks something those answers did not cover counts too.',
+    'Wondering aloud about a rule counts as asking, and so does saying they forget, ' +
+    'do not know, or need to check how the rules handle the mechanic at hand. A follow-up that asks something those answers did not cover counts too.',
   false:
-    'Nobody is asking about the rules. In-character talk, the story, planning what to do, asking someone what they want to do, ' +
+    'Nobody is asking how a rule works. Ignore players asking the GM for situational rulings, permission, or judgment calls ' +
+    '("can I use Teacher\'s Pet?", "can I use Politician?", "do I have advantage?", "can I climb it?", "what do I roll?"). ' +
+    'In-character talk, the story, planning what to do, asking someone what they want to do, ' +
     'the GM asking for a roll, small talk and anything outside the game are not rules questions. ' +
     'A rules question that someone has already answered later in the transcript does not count either, ' +
     "nor does one the bot's rules answers this session already cover: that is not a new rules question, even when it is asked again in other words, much later, or is still being talked about.",
@@ -99,6 +127,11 @@ const NEEDS: Record<Supplement, { name: string; question: JevQuestion }> = {
   },
 }
 
+export type JevOptions = {
+  /** Whether the GM's lines are identified with "(GM)" in the transcript. */
+  gmKnown?: boolean
+}
+
 export type JevRequest = {
   model: string
   state: { setting: string; rules_answers_this_session: string; transcript: string }
@@ -110,12 +143,21 @@ export type JevRequest = {
  * the session. Beside the rules question, it asks whether that question needs
  * each of the parts in `supplements`.
  */
-export function jevRequest(window: readonly TranscriptLine[], posted: readonly PostedAnswer[], supplements: readonly Supplement[] = []): JevRequest {
-  const questions: Record<string, JevQuestion> = { rules_question: { type: 'noul', instructions: QUESTION, criteria: CRITERIA } }
+export function jevRequest(
+  window: readonly TranscriptLine[],
+  posted: readonly PostedAnswer[],
+  supplements: readonly Supplement[] = [],
+  options: JevOptions = {},
+): JevRequest {
+  const gmKnown = options.gmKnown ?? false
+  const setting = gmKnown ? GM_SETTING : FALLBACK_SETTING
+  const instructions = gmKnown ? GM_QUESTION : FALLBACK_QUESTION
+  const criteria = gmKnown ? GM_CRITERIA : FALLBACK_CRITERIA
+  const questions: Record<string, JevQuestion> = { rules_question: { type: 'noul', instructions, criteria } }
   for (const supplement of supplements) questions[NEEDS[supplement].name] = NEEDS[supplement].question
   return {
     model: JEV_MODEL,
-    state: { setting: SETTING, rules_answers_this_session: postedAnswersText(posted), transcript: transcriptText(window) },
+    state: { setting, rules_answers_this_session: postedAnswersText(posted), transcript: transcriptText(window) },
     questions,
   }
 }
@@ -136,12 +178,17 @@ export function jevVerdict(body: unknown, supplements: readonly Supplement[] = [
   return { rulesQuestion: probabilityOf(body, 'rules_question', 'the rules question'), needs }
 }
 
-export type AskJev = (window: readonly TranscriptLine[], posted: readonly PostedAnswer[], supplements: readonly Supplement[]) => Promise<JevVerdict>
+export type AskJev = (
+  window: readonly TranscriptLine[],
+  posted: readonly PostedAnswer[],
+  supplements: readonly Supplement[],
+  options?: JevOptions,
+) => Promise<JevVerdict>
 
 /** Asks the real Jev, through TypeSafe's API. */
 export function typesafeJev({ apiKey, fetch }: { apiKey: string; fetch?: typeof globalThis.fetch }): AskJev {
-  return async (window, posted, supplements) => {
-    const body = jevRequest(window, posted, supplements)
+  return async (window, posted, supplements, options) => {
+    const body = jevRequest(window, posted, supplements, options)
     return jevVerdict(await postJson({ service: 'TypeSafe', url: JEV_URL, apiKey, body, timeoutMs: JEV_TIMEOUT_MS, fetch }), supplements)
   }
 }

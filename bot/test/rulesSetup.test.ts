@@ -58,7 +58,7 @@ function services() {
     if (url === JEV_URL) return Response.json({ answers: { rules_question: { noul: 0.95 } } })
     assert.equal(url, OPENAI_RESPONSES_URL)
     instructions.push((JSON.parse(String(init.body)) as { instructions: string }).instructions)
-    const answer = { kind: 'answered', question: 'q', asked_by: 'Peter', answer: 'a', section: 's' }
+    const answer = { kind: 'answered', title: 'Attacks', question: 'q', asked_by: 'Peter', answer: 'a', section: 's' }
     return Response.json({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(answer) }] }] })
   }) as unknown as typeof fetch
   return { instructions, request }

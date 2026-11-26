@@ -53,6 +53,11 @@ export type NoteReply =
   | { status: 'not-recording' }
   | Exclude<CommandAccess, { status: 'allowed' }>
 
+type SessionRulesConfig = {
+  rules: SessionRules
+  gmDiscordId: string | null
+}
+
 type Running = {
   recorder: SessionRecorder
   link: VoiceLink
@@ -240,23 +245,30 @@ export class SessionRunner {
   }
 
   /**
-   * The rules a session is answered from: those of its campaign's rule set.
-   * None when the bot answers no rules questions, has nowhere to post an
-   * answer, has no rules for that rule set, or cannot tell which it is.
+   * The rules a session is answered from (its campaign's rule set) and the
+   * GM's Discord ID if linked. None when the bot answers no rules questions,
+   * has nowhere to post an answer, has no rules for that rule set, or cannot
+   * read the campaign context.
    */
-  async #sessionRules(location: SessionLocation, textChannelId: string | null): Promise<SessionRules | null> {
+  async #sessionRules(location: SessionLocation, textChannelId: string | null): Promise<SessionRulesConfig | null> {
     const answering = this.#rules
     if (!answering || !this.#messages || !textChannelId) return null
     const { sessionId } = location
     try {
-      const ruleSet = await this.#recorderOptions.store.ruleSet(location)
+      const { ruleSet, gmUserId, gmDiscordId } = await this.#recorderOptions.store.sessionRulesContext(location)
       const rules = answering.byRuleSet[ruleSet]
       if (!rules) {
         answering.log('rules answers off for this session', { sessionId, ruleSet, reason: `there are no rules for ${ruleSet}` })
         return null
       }
-      answering.log('rules answers on for this session', { sessionId, ruleSet })
-      return rules
+      if (!gmDiscordId) {
+        answering.log('gm discord identity unavailable', {
+          sessionId,
+          reason: gmUserId ? 'gm-discord-not-connected' : 'no-gm-on-campaign',
+        })
+      }
+      answering.log('rules answers on for this session', { sessionId, ruleSet, gmKnown: gmDiscordId !== null })
+      return { rules, gmDiscordId }
     } catch (error) {
       answering.log('rules answers off for this session', { sessionId, reason: `its rule set could not be read: ${String(error)}` })
       return null
@@ -314,21 +326,24 @@ export class SessionRunner {
    * rules. The session is already being recorded: it is wired to its voice
    * channel first, so that no packet waits on the rules being looked up.
    */
-  #listenForRules(serverId: string, running: Running, sessionRules: SessionRules | null): void {
+  #listenForRules(serverId: string, running: Running, config: SessionRulesConfig | null): void {
     // Not if there are no rules, or the session ended while they were looked up.
-    if (!this.#rules || !sessionRules || this.#running.get(serverId) !== running) return
+    if (!this.#rules || !config || this.#running.get(serverId) !== running) return
+    const { rules: sessionRules, gmDiscordId } = config
     const rules = new RulesWatcher({
       ...this.#rules,
       ...sessionRules,
+      gmOnly: gmDiscordId !== null,
       sessionStartedAtMs: running.recorder.startedAtMs,
-      post: (text) => this.#say(running, text),
+      post: (text) => this.#say(running, text, { quiet: true }),
     })
     running.rules = rules
-    // Each line is put under the name the table knows its speaker by.
+    // Each line is put under the name the table knows its speaker by, tagged when the GM speaks.
     running.recorder.onUtterances = (utterances) =>
       rules.heard(
         utterances.map((utterance) => ({
           speaker: running.speakers.get(utterance.speakerId)?.name ?? 'Someone',
+          isGm: gmDiscordId !== null && utterance.speakerId === gmDiscordId,
           startSamples: utterance.startSamples,
           endSamples: utterance.endSamples,
           text: utterance.text,

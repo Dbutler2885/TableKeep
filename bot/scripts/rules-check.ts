@@ -28,18 +28,17 @@ if (!typesafeKey || !openAiKey) throw new Error('Set TYPESAFE_API_KEY and OPENAI
 const named = process.argv[2] && Object.hasOwn(RULES_BOOKS, process.argv[2]) ? (process.argv[2] as RuleSet) : null
 const ruleSet = named ?? 'lubec'
 const book = RULES_BOOKS[ruleSet]!
-const question = process.argv[named ? 3 : 2] ?? 'Wait, if I attack with a weapon in each hand, do I get two attacks?'
+const question = process.argv[named ? 3 : 2] ?? 'How do we do a panic check?'
 const window: TranscriptLine[] = [
-  { speaker: 'GM', text: 'The goblin lunges at you from behind the barrel.', startSamples: 0, endSamples: 2 * SESSION_SAMPLE_RATE },
-  { speaker: 'Player', text: 'Okay, I draw both my daggers.', startSamples: 3 * SESSION_SAMPLE_RATE, endSamples: 5 * SESSION_SAMPLE_RATE },
-  { speaker: 'Player', text: question, startSamples: 6 * SESSION_SAMPLE_RATE, endSamples: 8 * SESSION_SAMPLE_RATE },
+  { speaker: 'Player', text: 'Okay, my Stress just jumped to seven.', startSamples: 0, endSamples: 2 * SESSION_SAMPLE_RATE },
+  { speaker: 'GM', isGm: true, text: question, startSamples: 3 * SESSION_SAMPLE_RATE, endSamples: 5 * SESSION_SAMPLE_RATE },
 ]
 
 const root = path.join(here, '../..')
 const supplements = Object.fromEntries(Object.entries(book.supplements ?? {}).map(([name, part]) => [name, readRulesBook(root, part)]))
 const withParts = Object.keys(supplements) as Supplement[]
-// As at the start of a session: the bot has answered nothing yet.
-const verdict = await typesafeJev({ apiKey: typesafeKey })(window, [], withParts)
+// As at the start of a session: the bot has answered nothing yet, and the GM is identified.
+const verdict = await typesafeJev({ apiKey: typesafeKey })(window, [], withParts, { gmKnown: true })
 console.log(`Jev: ${verdict.rulesQuestion.toFixed(2)} that a rules question is waiting for an answer (the bot answers at 0.80 or more).`)
 for (const [name, probability] of Object.entries(verdict.needs)) {
   console.log(`Jev: ${probability.toFixed(2)} that it needs the ${name} part (sent at ${SUPPLEMENT_THRESHOLD.toFixed(2)} or more).`)

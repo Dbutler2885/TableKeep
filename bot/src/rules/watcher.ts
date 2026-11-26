@@ -57,6 +57,8 @@ const DEFAULTS = {
   /** How far back each look reaches. */
   windowSeconds: 90,
   maxWindowChars: 4_000,
+  /** When true, only utterances from the GM trigger a Jev check while all speakers stay in the window. */
+  gmOnly: false,
   /** The clock that answers are timed by, for the log. */
   now: Date.now as () => number,
 }
@@ -104,11 +106,11 @@ export class RulesWatcher {
     this.#window = new TranscriptWindow({ windowSeconds: this.#options.windowSeconds, maxChars: this.#options.maxWindowChars })
   }
 
-  /** Newly transcribed lines. */
+  /** Newly transcribed lines. All speakers stay in the window; under `gmOnly`, only GM lines wake Jev. */
   heard(lines: readonly TranscriptLine[]): void {
     if (this.#stopped || lines.length === 0) return
     this.#window.add(lines)
-    this.#fresh = true
+    if (!this.#options.gmOnly || lines.some((line) => line.isGm)) this.#fresh = true
   }
 
   /** Call several times a second. Starts a look at the transcript when one is due. */
@@ -169,7 +171,7 @@ export class RulesWatcher {
     const { askJev, log, now, supplements } = this.#options
     const startedAtMs = now()
     try {
-      const verdict = await askJev(window, posted, supplements)
+      const verdict = await askJev(window, posted, supplements, { gmKnown: this.#options.gmOnly })
       if (this.#failures > 0) log('rules checks working again', { failedInARow: this.#failures })
       this.#failures = 0
       if (verdict.rulesQuestion < this.#options.threshold) return null

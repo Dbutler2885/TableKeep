@@ -121,19 +121,31 @@ function clip(text: string, max: number): string {
   return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`
 }
 
-/** Who asked what, after the heading, or nothing when the model did not say what was asked. */
-function askedPart(reply: RulesAnswer): string {
-  if (!reply.question) return ''
-  const who = reply.askedBy ? `${clip(reply.askedBy, 60)} asked` : 'asked'
-  return ` - ${who}: "${clip(reply.question, 300)}"`
+/** Short label for the card header: the rule title, section, or generic fallback. */
+function cardTitle(reply: RulesAnswer): string {
+  const label = reply.title || reply.section
+  return label ? clip(label, 80) : 'Rules answer'
 }
 
-/** Which rules the answer comes from, and where in them. */
-function sourceLine(reply: RulesAnswer, citedAs: string): string {
-  const section = reply.section ? clip(reply.section, 120) : ''
+/** Compact who/what attribution for the muted footer, or empty when no question was named. */
+function askedFooter(reply: RulesAnswer): string {
+  if (!reply.question) return ''
+  const question = `"${clip(reply.question, 100)}"`
+  return reply.askedBy ? `${clip(reply.askedBy, 40)}: ${question}` : question
+}
+
+/** Source label for the muted footer when the rule set cites its document. */
+function sourcePart(reply: RulesAnswer, citedAs: string): string {
+  const section = reply.section ? clip(reply.section, 80) : ''
   if (reply.kind === 'not_covered') return `Not covered by ${citedAs}`
-  if (reply.kind === 'not_decided') return `Not decided yet in ${citedAs}${section ? ` (${section})` : ''}`
-  return `From ${citedAs}${section ? `: ${section}` : ''}`
+  if (reply.kind === 'not_decided') return `Not decided yet${section ? ` (${section})` : ` in ${citedAs}`}`
+  return section || citedAs
+}
+
+/** Compact muted footer line, or empty when nothing should be appended. */
+function cardFooter(reply: RulesAnswer, citedAs: string | null): string {
+  const parts = [citedAs ? sourcePart(reply, citedAs) : '', askedFooter(reply)].filter(Boolean)
+  return parts.length > 0 ? `-# ${parts.join(' · ')}` : ''
 }
 
 /** A line too long for one message, cut between words where it can be. */
@@ -168,15 +180,20 @@ export function splitMessages(text: string, max = MAX_MESSAGE_CHARS): string[] {
 }
 
 /**
- * The bot's answer to a rules question it heard, as the messages to post, or
- * none when the model found no question to answer. It says it is the bot's
- * answer and which question it answers. With `citedAs`, such as "the rules
- * document", a last line says which rules it comes from and where in them it
- * looked; without it there is no such line. A long answer is posted in parts,
- * in order.
+ * The bot's answer to a rules question it heard, as compact card message(s) to
+ * post, or none when the model found no question to answer.
+ *
+ * `not_covered` and `not_decided` render as a single compact line (`**Title** — ...`),
+ * while `answered` renders as `**Title**` followed by short bullet points.
+ * A muted `-#` footer carries the source section (when `citedAs` is set) and
+ * the echoed question.
  */
 export function rulesAnswerMessages(reply: RulesAnswer, citedAs: string | null): string[] {
   if (reply.kind === 'no_question' || !reply.answer) return []
-  const source = citedAs ? [`-# ${sourceLine(reply, citedAs)}`] : []
-  return splitMessages([`**Rules answer**${askedPart(reply)}`, reply.answer.trim(), ...source].join('\n'))
+  const heading = `**${cardTitle(reply)}**`
+  const body = reply.answer.trim()
+  const lines = reply.kind === 'answered' ? [heading, body] : [`${heading} — ${body}`]
+  const footer = cardFooter(reply, citedAs)
+  if (footer) lines.push(footer)
+  return splitMessages(lines.join('\n'))
 }
