@@ -18,6 +18,8 @@ export const SESSION_SAMPLE_RATE = 48_000
 /** One person's stretch of speech, with the name the table knows them by. */
 export type TranscriptLine = {
   speaker: string
+  /** Whether this speaker is the campaign's GM. */
+  isGm?: boolean
   startSamples: number
   endSamples: number
   text: string
@@ -56,7 +58,7 @@ export class TranscriptWindow {
     let first = lines.length
     while (first > 0) {
       const line = lines[first - 1]!
-      chars += line.speaker.length + line.text.length + 3
+      chars += line.speaker.length + (line.isGm ? 5 : 0) + line.text.length + 3
       // The latest line is always kept, however long it is: it is the likeliest to hold the question.
       if (chars > this.#options.maxChars && first < lines.length) break
       first -= 1
@@ -65,9 +67,9 @@ export class TranscriptWindow {
   }
 }
 
-/** A window as text, one line per stretch of speech: `Name: what they said`. */
+/** A window as text, one line per stretch of speech: `Name: what they said` (or `Name (GM): ...` for the GM). */
 export function transcriptText(window: readonly TranscriptLine[]): string {
-  return window.map((line) => `${line.speaker}: ${line.text.trim()}`).join('\n')
+  return window.map((line) => `${line.speaker}${line.isGm ? ' (GM)' : ''}: ${line.text.trim()}`).join('\n')
 }
 
 /** A rules answer the bot has posted in this session: what was asked, by whom, and what it said. */

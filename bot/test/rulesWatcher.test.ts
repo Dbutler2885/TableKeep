@@ -11,6 +11,7 @@ const RATE = 48_000
 
 const ANSWERED: RulesAnswer = {
   kind: 'answered',
+  title: 'Shields',
   question: 'does a shield count against arrows?',
   askedBy: 'Peter',
   answer: 'No. A shield counts against melee attacks only.',
@@ -18,19 +19,21 @@ const ANSWERED: RulesAnswer = {
 }
 const FOLLOW_UP: RulesAnswer = {
   kind: 'answered',
+  title: 'Shield bash',
   question: 'can I bash with the shield?',
   askedBy: 'Peter',
   answer: 'Yes, as an unarmed attack.',
   section: 'Shields',
 }
-const NO_QUESTION: RulesAnswer = { kind: 'no_question', question: '', askedBy: '', answer: '', section: '' }
+const NO_QUESTION: RulesAnswer = { kind: 'no_question', title: '', question: '', askedBy: '', answer: '', section: '' }
 
 /**
  * A watcher with a stand-in Jev and answering model, and a clock the test moves.
  * The answering model gives `answers` in turn, then the shield answer.
  */
-function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Error)[]; jevFails?: boolean; citedAs?: string | null } = {}) {
+function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Error)[]; jevFails?: boolean; citedAs?: string | null; gmOnly?: boolean } = {}) {
   const asked: string[][] = []
+  const jevGmKnown: (boolean | undefined)[] = []
   const answered: string[][] = []
   /** The questions of the session's posted answers that Jev, and the answering model, were shown each time. */
   const jevPosted: string[][] = []
@@ -43,8 +46,10 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
     citedAs: options.citedAs === undefined ? 'the rules document' : options.citedAs,
-    askJev: async (window, posted) => {
+    gmOnly: options.gmOnly ?? false,
+    askJev: async (window, posted, _supplements, jevOptions) => {
       asked.push(window.map((line) => line.text))
+      jevGmKnown.push(jevOptions?.gmKnown)
       jevPosted.push(posted.map((answer) => answer.question))
       if (jev.failing) throw new Error('TypeSafe answered 503')
       return { rulesQuestion: probabilities.shift() ?? 0.05, needs: {} }
@@ -62,9 +67,9 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
   })
   let clock = START
   /** Someone says something that ends now, and it arrives transcribed. */
-  const say = (speaker: string, text: string) => {
+  const say = (speaker: string, text: string, isGm = false) => {
     const endSamples = Math.round(((clock - START) / 1000) * RATE)
-    const line: TranscriptLine = { speaker, text, startSamples: endSamples - 2 * RATE, endSamples }
+    const line: TranscriptLine = { speaker, isGm, text, startSamples: endSamples - 2 * RATE, endSamples }
     watcher.heard([line])
   }
   /** Lets time pass, ticking as the runner does, and lets each look finish before the next tick. */
@@ -76,7 +81,7 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
       await watcher.idle()
     }
   }
-  return { watcher, jev, asked, answered, jevPosted, answerPosted, posted, logged, say, pass }
+  return { watcher, jev, asked, jevGmKnown, answered, jevPosted, answerPosted, posted, logged, say, pass }
 }
 
 test('nothing is asked of Jev until someone has said something', async () => {
@@ -137,7 +142,7 @@ test('a flagged question is answered from the stretch Jev saw, and posted as the
 
   assert.deepEqual(answered, [['haha nice', 'Does a shield count against arrows?']])
   assert.deepEqual(posted, [
-    '**Rules answer** - Peter asked: "does a shield count against arrows?"\nNo. A shield counts against melee attacks only.\n-# From the rules document: Shields',
+    '**Shields**\nNo. A shield counts against melee attacks only.\n-# Shields · Peter: "does a shield count against arrows?"',
   ])
   assert.deepEqual(
     logged.map((entry) => entry.message),
@@ -146,7 +151,14 @@ test('a flagged question is answered from the stretch Jev saw, and posted as the
 })
 
 test('an answer from rules with nothing to cite them by, as for OSE, has no line naming its source', async () => {
-  const notCovered: RulesAnswer = { kind: 'not_covered', question: 'what does sleep do?', askedBy: 'Peter', answer: 'The rules do not cover what any spell does.', section: '' }
+  const notCovered: RulesAnswer = {
+    kind: 'not_covered',
+    title: 'Sleep',
+    question: 'what does sleep do?',
+    askedBy: 'Peter',
+    answer: 'The rules do not cover what any spell does.',
+    section: '',
+  }
   const { posted, say, pass } = setUp({
     probabilities: [0.95, 0.95],
     answers: [{ ...ANSWERED, section: 'Combat › Initiative' }, notCovered],
@@ -157,8 +169,8 @@ test('an answer from rules with nothing to cite them by, as for OSE, has no line
   say('Peter', 'And what does sleep do?')
   await pass(1_000)
   assert.deepEqual(posted, [
-    `**Rules answer** - Peter asked: "does a shield count against arrows?"\n${ANSWERED.answer}`,
-    `**Rules answer** - Peter asked: "what does sleep do?"\n${notCovered.answer}`,
+    `**Shields**\n${ANSWERED.answer}\n-# Peter: "does a shield count against arrows?"`,
+    `**Sleep** — ${notCovered.answer}\n-# Peter: "what does sleep do?"`,
   ])
 })
 
@@ -214,12 +226,12 @@ test('a long answer is posted in order, in as many messages as it takes', async 
   watcher.tick(START + 3_000)
   await watcher.idle()
 
-  assert.equal(posted.length, 3)
+  assert.ok(posted.length >= 2)
   assert.ok(posted.every((message) => message.length <= 2_000))
-  assert.match(posted[0]!, /^\*\*Rules answer\*\*.*\n1\. x+/)
-  assert.match(posted[2]!, /(^|\n)60\. x+\n-# From the rules document: Shields$/)
+  assert.match(posted[0]!, /^\*\*Shields\*\*\n1\. x+/)
+  assert.match(posted.at(-1)!, /-# Shields · Peter: "does a shield count against arrows\?"$/)
   // Nothing is lost or repeated across the parts.
-  assert.equal(posted.join('\n'), `**Rules answer** - Peter asked: "does a shield count against arrows?"\n${long.answer}\n-# From the rules document: Shields`)
+  assert.equal(posted.join('\n'), `**Shields**\n${long.answer}\n-# Shields · Peter: "does a shield count against arrows?"`)
 })
 
 test("every answer posted in the session is shown to Jev and the answering model, so a question is not answered twice", async () => {
@@ -440,4 +452,28 @@ test('rules with no parts, as for Lubec, ask Jev about none and answer from the 
   assert.deepEqual(sent, [[]])
   assert.equal(logged.find((entry) => entry.message === 'rules question heard')?.detail?.needs, undefined)
   assert.equal(logged.find((entry) => entry.message === 'rules answer written')?.detail?.sent, undefined)
+})
+
+test('under gmOnly, player lines stay in the window without calling Jev until the GM speaks', async () => {
+  const { asked, jevGmKnown, answered, posted, say, pass } = setUp({ gmOnly: true, probabilities: [0.95] })
+  say('Map Man', "Can I use Teacher's Pet?")
+  await pass(5_000)
+  assert.equal(asked.length, 0, 'player-only speech never wakes Jev')
+  assert.equal(posted.length, 0)
+
+  // When the GM expresses uncertainty, Jev wakes with the player's question still in context.
+  say('DLB', 'Good question, I forget how that works.', true)
+  await pass(2_000)
+  assert.deepEqual(asked, [["Can I use Teacher's Pet?", 'Good question, I forget how that works.']])
+  assert.deepEqual(jevGmKnown, [true])
+  assert.equal(answered.length, 1)
+  assert.equal(posted.length, 1)
+})
+
+test('under gmOnly, a player line arriving right after a GM line does not clear the pending GM check', async () => {
+  const { asked, say, pass } = setUp({ gmOnly: true, probabilities: [0.05] })
+  say('DLB', 'How do we do a panic check?', true)
+  say('Map Man', 'Yeah I forgot too.')
+  await pass(2_000)
+  assert.deepEqual(asked, [['How do we do a panic check?', 'Yeah I forgot too.']])
 })

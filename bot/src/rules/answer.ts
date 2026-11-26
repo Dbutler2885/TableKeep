@@ -17,30 +17,33 @@ export const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
 export const RULES_ANSWER_MODEL = 'gpt-6-luna'
 const ANSWER_TIMEOUT_MS = 60_000
 /**
- * How hard the model thinks before answering. On the captain's racing question
- * and on initiative, answers without reasoning kept every step, number and the
- * worked example as well as those with low or default reasoning did, and came
- * back in about 2.6 seconds instead of 3.5 or 5.
+ * How hard the model thinks before answering. Kept at `none` for low latency;
+ * lean schema and prompt rules keep answers tight and scannable.
  */
 const ANSWER_REASONING = 'none'
-/** Room for the model's own reasoning as well as a whole procedure with its worked example. */
-const MAX_OUTPUT_TOKENS = 12_000
+/** Room for a tight JSON card (~120 words max) without runaway multi-paragraph essays. */
+export const MAX_OUTPUT_TOKENS = 1_200
 
-const GUIDANCE = `You answer rules questions for a group playing a tabletop role-playing game, while they play.
+const GUIDANCE = `You post ultra-lean rules lookups in Discord for a live tabletop role-playing game session.
 
-You are given the group's rules document, below, a stretch of the live transcript of the table, and every rules answer you have already posted in this session. The transcript is speech-to-text and imperfect: words may be misheard. Each line starts with the speaker's name. Your earlier answers were posted in the text chat, so they are not in the transcript.
+You are given the group's rules document below, a stretch of live speech-to-text transcript (imperfect: words may be misheard), and every rules answer you have already posted in this session. Each transcript line starts with the speaker's name; when the GM is identified, their lines are marked "(GM)". Your earlier answers were posted in text chat, so they are not in the transcript.
 
-Find the latest rules question in the transcript that nobody has answered yet and that your earlier answers do not already cover, and answer it from the rules document alone. A follow-up that asks something your earlier answers did not cover is a new question. A player asking the GM whether their character may do something in the story ("can I climb it?", "can I open the door?") is a request to the GM, not a rules question.
+Decide whether there is an unanswered rules question at the end of the transcript that your earlier answers do not already cover. When lines are marked "(GM)", answer only an unanswered rules question the GM is asking, wondering aloud about, or uncertain of (including a player's concrete rules question that the GM echoes or says they do not know or need to check). A follow-up that asks something your earlier answers did not cover is a new question.
 
-- Give the whole procedure the rules document sets out for the question: every step, in order, with every number it uses (dice, targets, modifiers, distances, limits) and every condition or exception that applies, and the document's worked example when it has one.
-- Word it concisely, but never summarise in a way that drops a step, a number or a condition. A short answer that leaves the table unable to play it out is wrong.
-- Give the document's worked example after the steps, in full, with its numbers.
-- Write it for Discord: numbered steps or short bullet points, with **bold** for the key numbers. No headings and no tables.
-- In "section", name the section of the rules document your answer comes from, as the document titles it.
-- If the document does not cover the question, set "kind" to "not_covered" and say plainly that the rules document does not cover it.
-- If the document says the rule is not decided yet (for example it is marked as undecided, to be decided, TBD or an open question), set "kind" to "not_decided" and say that the rule is not decided yet, with whatever the document does say about it.
-- Never guess beyond the document. Do not fill a gap from other games, editions or general knowledge.
-- If nobody in the transcript is asking a rules question that is still unanswered, or your earlier answers in this session already answer it, even asked again in other words or much later, set "kind" to "no_question" and leave the other fields empty.
+Set "kind" to "no_question" (and leave all other fields empty) if:
+- Nobody is asking an unanswered rules question, or your earlier answers in this session already cover it (even asked again in other words or much later).
+- A player is asking the GM for a situational ruling, permission, or judgment call ("can I climb it?", "can I open the door?", "can I use Teacher's Pet?", "can I use Politician?", "do I have advantage or disadvantage?", "what do I roll?") and the GM has not asked to look up a rule.
+- The GM is simply narrating, calling for a roll, making a ruling, or answering a player's question.
+
+When answering from the rules document alone:
+- Answer ONLY what was asked. Never re-explain baseline mechanics the table already knows (such as how Stat Checks or Saves roll d100, failed-Check Stress, Overachiever +2 Stress, or "When to roll") unless the question is specifically about them.
+- Keep every required step, die, threshold, modifier, tiebreaker, and exception for the asked rule. Never drop a mechanical fact needed to run it, and never guess beyond the document. Do not fill a gap from other games, editions, or general knowledge.
+- Format as 2 to 5 short bullet points (or numbered steps when order matters) with **bold** for key dice, numbers, and outcomes. Target 25-80 words (hard cap ~120 words even for multi-step combat procedures). No prose paragraphs, no headings, no tables.
+- Never include worked examples unless the GM explicitly asks for an example. Never write meta-commentary such as "The document gives no worked example", "The GM must judge...", or "The GM decides whether a roll is needed...".
+- Set "title" to a short 1-5 word rule label (for example "Panic Check", "Politician", "Initiative").
+- Set "section" to the section heading of the rules document your answer comes from, as the document titles it.
+- If the document does not cover the question, set "kind" to "not_covered" and say so plainly in 1 short sentence (<= 25 words), with no filler from other sections.
+- If the document marks the rule as not decided yet (undecided, TBD, or an open question), set "kind" to "not_decided" and state that plus any brief recommendation in 1 short sentence (<= 25 words), with no filler from other sections.
 
 # The rules document
 
@@ -48,6 +51,8 @@ Find the latest rules question in the transcript that nobody has answered yet an
 
 export type RulesAnswer = {
   kind: 'answered' | 'not_covered' | 'not_decided' | 'no_question'
+  /** Short 1-5 word rule label for the Discord card header (e.g. "Panic Check"), or empty. */
+  title: string
   /** The question as it was asked, shortened, in the asker's words. */
   question: string
   askedBy: string
@@ -59,14 +64,19 @@ export type RulesAnswer = {
 const ANSWER_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['kind', 'question', 'asked_by', 'answer', 'section'],
+  required: ['kind', 'title', 'question', 'asked_by', 'answer', 'section'],
   properties: {
     kind: { type: 'string', enum: ['answered', 'not_covered', 'not_decided', 'no_question'] },
+    title: {
+      type: 'string',
+      description: 'Short 1-5 word rule label (e.g. "Panic Check", "Teacher\'s Pet", "Initiative"); empty if no_question.',
+    },
     question: { type: 'string', description: "The rules question as it was asked, shortened, in the asker's own words." },
-    asked_by: { type: 'string', description: 'The name of the person who asked it, as the transcript gives it.' },
+    asked_by: { type: 'string', description: 'The name of the person who asked it, as the transcript gives it without "(GM)".' },
     answer: {
       type: 'string',
-      description: "The whole procedure from the rules document: every step, every number, and the document's worked example when it has one, as Discord markdown.",
+      description:
+        'Concise, scannable Discord markdown bullets (2-5 short bullets, target 25-80 words, max ~120 words) for "answered", or 1 short sentence (<= 25 words) for "not_covered" or "not_decided". Answer ONLY the asked rule with **bold** key dice, numbers, and outcomes. No prose paragraphs, no worked examples unless asked, no meta-commentary.',
     },
     section: { type: 'string', description: 'The section of the rules document the answer comes from, as the document titles it; empty if none.' },
   },
@@ -130,6 +140,7 @@ export function readAnswer(body: unknown): RulesAnswer {
   const field = (name: string) => (typeof parsed[name] === 'string' ? parsed[name].trim() : '')
   return {
     kind: parsed.kind as RulesAnswer['kind'],
+    title: field('title'),
     question: field('question'),
     askedBy: field('asked_by'),
     answer: field('answer'),

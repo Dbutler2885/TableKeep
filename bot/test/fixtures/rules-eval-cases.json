@@ -1,0 +1,217 @@
+[
+  {
+    "id": "lubec-player-teachers-pet",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "The principal narrows her eyes and asks why you were in the hallway." },
+      { "speaker": "Map Man", "text": "Can I use Teacher's Pet?" }
+    ],
+    "expectWatcherTriggers": false,
+    "expectJevTrigger": false,
+    "expectKinds": ["no_question"]
+  },
+  {
+    "id": "lubec-player-politician",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "The whole table of kids is arguing about whether to go to the wharf." },
+      { "speaker": "Map Man", "text": "Can I use politician?" }
+    ],
+    "expectWatcherTriggers": false,
+    "expectJevTrigger": false,
+    "expectKinds": ["no_question"]
+  },
+  {
+    "id": "lubec-player-advantage",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "Give me a Handle check to catch the line before the skiff drifts." },
+      { "speaker": "Map Man", "text": "Do I have advantage or disadvantage or just normal?" }
+    ],
+    "expectWatcherTriggers": false,
+    "expectJevTrigger": false,
+    "expectKinds": ["no_question"]
+  },
+  {
+    "id": "lubec-player-climb",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "There's a wet wooden fence behind the cannery." },
+      { "speaker": "Map Man", "text": "Can I climb the wall?" }
+    ],
+    "expectWatcherTriggers": false,
+    "expectJevTrigger": false,
+    "expectKinds": ["no_question"]
+  },
+  {
+    "id": "lubec-player-asked-gm-answered",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "Map Man", "text": "Can I use Teacher's Pet?" },
+      { "speaker": "DLB", "isGm": true, "text": "Yeah, go ahead and add plus ten." }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": false,
+    "expectKinds": ["no_question"]
+  },
+  {
+    "id": "lubec-gm-panic-check",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "Map Man", "text": "Oh no, my Stress is at seven." },
+      { "speaker": "DLB", "isGm": true, "text": "How do we do a panic check?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 80,
+    "requiredTerms": ["d20", "Stress", "higher", "Panic", "no Stress"],
+    "forbiddenTerms": ["Overachiever", "Mothership"]
+  },
+  {
+    "id": "lubec-gm-teachers-pet",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "Map Man", "text": "Can I use Teacher's Pet here?" },
+      { "speaker": "DLB", "isGm": true, "text": "Wait, what does Teacher's Pet actually cover?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 80,
+    "requiredTerms": ["+10", "adults"],
+    "forbiddenTerms": ["Overachiever", "d100"]
+  },
+  {
+    "id": "lubec-gm-politician",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "Map Man", "text": "Can I use Politician on the clerk?" },
+      { "speaker": "DLB", "isGm": true, "text": "Hold on, what does Politician actually cover?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 80,
+    "requiredTerms": ["+15", "group"],
+    "forbiddenTerms": ["Overachiever", "d100", "don't specify"]
+  },
+  {
+    "id": "lubec-gm-advantage",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "Wait, how do Advantage and Disadvantage work on a check, and do they stack?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 80,
+    "requiredTerms": ["lower", "stack"],
+    "forbiddenTerms": ["Overachiever", "-20"]
+  },
+  {
+    "id": "lubec-player-asks-gm-forgets",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "Map Man", "text": "Wait, how do we do a panic check?" },
+      { "speaker": "DLB", "isGm": true, "text": "Good question, I forget how that works." }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 80,
+    "requiredTerms": ["d20", "Stress", "Panic"],
+    "forbiddenTerms": ["Overachiever"]
+  },
+  {
+    "id": "lubec-gm-racing-statement",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "Map Man", "text": "I dive for the bat at the same time as Rex." },
+      { "speaker": "DLB", "isGm": true, "text": "I forget how two people racing to an object is handled in the rules." }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 80,
+    "requiredTerms": ["Speed", "higher"],
+    "forbiddenTerms": ["Mirelda"]
+  },
+  {
+    "id": "lubec-gm-initiative",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "Let's start the fight. Wait, how does initiative ranking work again?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 80,
+    "requiredTerms": ["Speed", "once"],
+    "forbiddenTerms": ["Mirelda"]
+  },
+  {
+    "id": "lubec-gm-knocked-down",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "Wait, what happens when you're knocked down and want to stand up?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["answered"],
+    "maxWords": 120,
+    "requiredTerms": ["Speed", "Movement", "Action"]
+  },
+  {
+    "id": "lubec-gm-two-weapons",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "Wait, if someone attacks with a weapon in each hand, is there a two-weapon rule?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["not_covered", "answered"],
+    "maxWords": 40
+  },
+  {
+    "id": "lubec-gm-charm-tbd",
+    "ruleSet": "lubec",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "Wait, what actions does Charm cover in the rules?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectKinds": ["not_decided"],
+    "maxWords": 40,
+    "requiredTerms": ["Charm"]
+  },
+  {
+    "id": "ose-gm-ghoul-paralysis",
+    "ruleSet": "ose",
+    "gmKnown": true,
+    "lines": [
+      { "speaker": "DLB", "isGm": true, "text": "The ghoul hits you with a claw. Wait, what does a ghoul do when it hits?" }
+    ],
+    "expectWatcherTriggers": true,
+    "expectJevTrigger": true,
+    "expectSupplements": ["monsters"],
+    "expectKinds": ["answered"],
+    "maxWords": 90,
+    "requiredTerms": ["paralys", "save"]
+  }
+]

@@ -334,14 +334,19 @@ test('an ordinary session leaves two messages in the channel: how it went, and t
   )
 })
 
-test('a rules question heard at the table is answered in the channel while the session records, and never after it ends', async () => {
-  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
+test('a rules question heard from the GM is answered silently in the channel while the session records, and player-only speech does not wake Jev', async () => {
+  // JEM is group admin AND campaign GM; PETER is a player. Link JEM in discordLinks with a different display name
+  // to prove GM matching uses permanent Discord ID rather than display name.
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec', gmUserId: 'jem-uid' })
+  await db.collection('discordLinks').doc('jem-uid').set({ discordId: JEM.id, username: 'jem_user', displayName: 'Jem Global' })
   const windows: (readonly TranscriptLine[])[] = []
+  const gmKnownFlags: (boolean | undefined)[] = []
   const postedQuestions: string[][] = []
   const failures: string[] = []
   runner = newRunner({
-    askJev: async (window, posted) => {
+    askJev: async (window, posted, _supplements, options) => {
       windows.push(window)
+      gmKnownFlags.push(options?.gmKnown)
       postedQuestions.push(posted.map((answer) => answer.question))
       if (windows.length === 1) throw new Error('TypeSafe answered 503')
       return { rulesQuestion: windows.length === 2 ? 0.95 : 0.05, needs: {} }
@@ -349,7 +354,14 @@ test('a rules question heard at the table is answered in the channel while the s
     byRuleSet: {
       lubec: {
         citedAs: 'the rules document',
-        answer: async () => ({ kind: 'answered', question: 'do I add strength?', askedBy: 'mapman', answer: 'Yes, to hit and to damage.', section: 'Attacks' }),
+        answer: async () => ({
+          kind: 'answered',
+          title: 'Attacks',
+          question: 'do I add strength?',
+          askedBy: 'mapman',
+          answer: '- Yes, to hit and to damage.',
+          section: 'Attacks',
+        }),
       },
     },
     log: (message) => failures.push(message),
@@ -358,30 +370,41 @@ test('a rules question heard at the table is answered in the channel while the s
 
   // Each look runs in the background, so it is let finish before time moves on.
   const looked = () => new Promise((resolve) => setImmediate(resolve))
-  // The first look fails, which changes nothing for the recording; the second, after Peter speaks, is flagged.
+  // First GM look fails (recording unaffected); player speech enters the window without waking Jev;
+  // second GM line wakes Jev with the player's line in context and is flagged.
   speak(JEM.id, 1)
   await looked()
   speak(PETER.id, 1)
   await looked()
+  assert.equal(windows.length, 1, 'player speech alone does not call Jev when GM is known')
+  speak(JEM.id, 1)
+  await looked()
   pass(5_000)
-  await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
-  // With no pause after a flag, the next line is looked at as soon as it arrives, beside the answer given.
+  await until(async () => board.messages.some((message) => message.text.startsWith('**Attacks**')))
+  // With no pause after a flag, the next GM line is looked at as soon as it arrives, beside the answer given.
   speak(JEM.id, 1)
   await looked()
 
   assert.equal((await runner.stop(asJem)).status, 'saved')
   assert.equal((await session(location)).state, 'ended')
   assert.deepEqual(
-    windows.map((window) => window.map((line) => line.speaker)),
-    [['mapman'], ['mapman', 'Peter'], ['mapman', 'Peter', 'mapman']],
-    'each look was at the last stretch of the session, with speakers named',
+    windows.map((window) => window.map((line) => `${line.speaker}${line.isGm ? ' (GM)' : ''}`)),
+    [
+      ['mapman (GM)'],
+      ['mapman (GM)', 'Peter', 'mapman (GM)'],
+      ['mapman (GM)', 'Peter', 'mapman (GM)', 'mapman (GM)'],
+    ],
+    'each look carries all speakers in the window with the GM tagged by permanent Discord ID',
   )
+  assert.deepEqual(gmKnownFlags, [true, true, true])
   assert.deepEqual(postedQuestions, [[], [], ['do I add strength?']])
+  const rulesCard = board.messages.find((message) => message.text.startsWith('**Attacks**'))!
+  assert.equal(rulesCard.quiet, true, 'rules cards are posted quietly with SUPPRESS_NOTIFICATIONS')
   assert.deepEqual(
     board.messages.map((message) => message.text),
     [
-      'Session 1 ended after 0:14.\nmapman: 2 lines\nPeter: 1 line',
-      '**Rules answer** - mapman asked: "do I add strength?"\nYes, to hit and to damage.\n-# From the rules document: Attacks',
+      'Session 1 ended after 0:17.\nmapman: 3 lines\nPeter: 1 line',
+      '**Attacks**\n- Yes, to hit and to damage.\n-# Attacks · mapman: "do I add strength?"',
       'Session 1 is saved.',
     ],
   )
@@ -396,9 +419,51 @@ test('a rules question heard at the table is answered in the channel while the s
 
   // The next session starts with none of the last one's answers, so the same question can be answered again.
   await started(await runner.join(asJem))
-  speak(PETER.id, 1)
+  speak(JEM.id, 1)
   await looked()
   assert.deepEqual(postedQuestions.at(-1), [])
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+})
+
+test('a group admin who is not campaign.gmUserId is treated as a player, and an unlinked GM falls back with a warning', async () => {
+  // PETER is the campaign's GM; JEM is a group admin playing as a player.
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec', gmUserId: 'peter-uid' })
+  await db.collection('discordLinks').doc('peter-uid').set({ discordId: PETER.id, username: 'peter', displayName: 'Peter' })
+  const seen: { speakers: string[]; gmKnown: boolean | undefined }[] = []
+  const logged: { message: string; detail?: Record<string, unknown> }[] = []
+  runner = newRunner({
+    askJev: async (window, _posted, _supplements, options) => {
+      seen.push({ speakers: window.map((line) => `${line.speaker}${line.isGm ? ' (GM)' : ''}`), gmKnown: options?.gmKnown })
+      return { rulesQuestion: 0.05, needs: {} }
+    },
+    byRuleSet: {
+      lubec: {
+        citedAs: 'the rules document',
+        answer: async () => ({ kind: 'no_question', title: '', question: '', askedBy: '', answer: '', section: '' }),
+      },
+    },
+    log: (message, detail) => logged.push({ message, detail }),
+  })
+  const looked = () => new Promise((resolve) => setImmediate(resolve))
+
+  await started(await runner.join(asJem))
+  speak(JEM.id, 1)
+  await looked()
+  assert.equal(seen.length, 0, 'a group admin who is not campaign.gmUserId does not trigger Jev')
+  speak(PETER.id, 1)
+  await looked()
+  assert.deepEqual(seen, [{ speakers: ['mapman', 'Peter (GM)'], gmKnown: true }])
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+
+  // Unlink the GM's Discord account: falls back to all-speaker mode and logs a warning.
+  await db.collection('discordLinks').doc('peter-uid').delete()
+  await started(await runner.join(asJem))
+  speak(JEM.id, 1)
+  await looked()
+  assert.deepEqual(seen.at(-1), { speakers: ['mapman'], gmKnown: false })
+  assert.ok(
+    logged.some((entry) => entry.message === 'gm discord identity unavailable' && entry.detail?.reason === 'gm-discord-not-connected'),
+  )
   assert.equal((await runner.stop(asJem)).status, 'saved')
 })
 
@@ -429,8 +494,8 @@ test("each session is answered from its campaign's rules: the Classic Fantasy co
     answeredThisSession = true
     const fromClassicFantasy = body.instructions.includes('# Classic Fantasy rules (pre-2026 text)')
     const answer = fromClassicFantasy
-      ? { kind: 'answered', question: 'who goes first?', asked_by: 'Peter', answer: 'Each side rolls **1d6**.', section: 'Combat › Initiative' }
-      : { kind: 'answered', question: 'who goes first?', asked_by: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }
+      ? { kind: 'answered', title: 'Initiative', question: 'who goes first?', asked_by: 'Peter', answer: 'Each side rolls **1d6**.', section: 'Combat › Initiative' }
+      : { kind: 'answered', title: 'Initiative', question: 'who goes first?', asked_by: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }
     return Response.json({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(answer) }] }] })
   }) as unknown as typeof fetch
   const logged: { message: string; detail?: Record<string, unknown> }[] = []
@@ -443,7 +508,7 @@ test("each session is answered from its campaign's rules: the Classic Fantasy co
     fetch: request,
   })
   runner = newRunner(rules)
-  const rulesAnswers = () => board.messages.map((message) => message.text).filter((text) => text.startsWith('**Rules answer**'))
+  const rulesAnswers = () => board.messages.map((message) => message.text).filter((text) => text.startsWith('**Initiative**'))
 
   /** One session of the campaign as it is now, in which Peter asks a question. */
   async function playSession(expectAnswer: boolean) {
@@ -476,8 +541,8 @@ test("each session is answered from its campaign's rules: the Classic Fantasy co
   assert.deepEqual(Object.keys(jevAsked.at(-1)!.questions), ['rules_question'], 'Jev is asked only the rules question of a Lubec session')
 
   assert.deepEqual(rulesAnswers(), [
-    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**.',
-    '**Rules answer** - Peter asked: "who goes first?"\nEveryone rolls Speed.\n-# From the rules document: Initiative',
+    '**Initiative**\nEach side rolls **1d6**.\n-# Peter: "who goes first?"',
+    '**Initiative**\nEveryone rolls Speed.\n-# Initiative · Peter: "who goes first?"',
   ])
 
   // A rule set with no rules is not listened to at all, and the session records just the same.
@@ -600,15 +665,27 @@ test('a bot that restarts mid-session rejoins the channel, says so, and carries 
   assert.equal((await db.collection(sessionPath(location, 'gaps')).get()).size, 1)
 })
 
-test("a session picked up after a restart is answered from its campaign's rules again", async () => {
-  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
+test("a session picked up after a restart is answered from its campaign's rules again, keeping GM identity", async () => {
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec', gmUserId: 'jem-uid' })
+  await db.collection('discordLinks').doc('jem-uid').set({ discordId: JEM.id, username: 'jem', displayName: 'Jem' })
   const logged: string[] = []
+  let jevCalls = 0
   const rulesFor = (citedAs: string | null) => ({
     citedAs,
-    answer: async () => ({ kind: 'answered' as const, question: 'who goes first?', askedBy: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }),
+    answer: async () => ({
+      kind: 'answered' as const,
+      title: 'Initiative',
+      question: 'who goes first?',
+      askedBy: 'mapman',
+      answer: 'Everyone rolls Speed.',
+      section: 'Initiative',
+    }),
   })
   const rules: RulesAnswering = {
-    askJev: async () => ({ rulesQuestion: 0.95, needs: {} }),
+    askJev: async () => {
+      jevCalls += 1
+      return { rulesQuestion: 0.95, needs: {} }
+    },
     byRuleSet: { lubec: rulesFor('the rules document'), ose: rulesFor(null) },
     log: (message) => logged.push(message),
   }
@@ -619,22 +696,28 @@ test("a session picked up after a restart is answered from its campaign's rules 
   const [recovered] = await recoverSessions(recorderOptions, clock)
   assert.equal(await runner.adopt((recovered as Extract<typeof recovered, { outcome: 'resumed' }>).recorder), 'resumed')
 
+  // Player speech after restart does not wake Jev; GM speech does.
   speak(PETER.id, 1)
   await new Promise((resolve) => setImmediate(resolve))
+  pass(2_000)
+  assert.equal(jevCalls, 0)
+
+  speak(JEM.id, 1)
+  await new Promise((resolve) => setImmediate(resolve))
   pass(5_000)
-  await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
+  await until(async () => board.messages.some((message) => message.text.startsWith('**Initiative**')))
   assert.equal((await runner.stop(asJem)).status, 'saved')
 
   assert.deepEqual(
-    board.messages.map((message) => message.text).filter((text) => text.startsWith('**Rules answer**')),
-    ['**Rules answer** - Peter asked: "who goes first?"\nEveryone rolls Speed.\n-# From the rules document: Initiative'],
+    board.messages.map((message) => message.text).filter((text) => text.startsWith('**Initiative**')),
+    ['**Initiative**\nEveryone rolls Speed.\n-# Initiative · mapman: "who goes first?"'],
   )
   assert.equal(logged[0], 'rules answers on for this session')
 })
 
 test("a session whose campaign's rule set cannot be read is recorded without rules answers, and says why in the log", async () => {
   const unreadable = new (class extends FirestoreSessionStore {
-    override async ruleSet(): Promise<never> {
+    override async sessionRulesContext(): Promise<never> {
       throw new Error('The database cannot be reached.')
     }
   })(db, bucket)
