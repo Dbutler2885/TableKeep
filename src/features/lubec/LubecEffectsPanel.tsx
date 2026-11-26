@@ -10,7 +10,8 @@ import {
 import type { LubecCounters } from '../ruleSets/lubec/characterRecord'
 import { stepDownLubecSheet } from '../ruleSets/lubec/stepDown'
 import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
-import { lubecEffectGroups, lubecEffectTrigger, lubecEffectWound, lubecStepByHand, lubecStepTrigger, lubecWoundRoundTrigger, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
+import { lubecEffectGroups, lubecEffectWound, lubecStepTrigger, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
+import { readWoundLifetime } from '../ruleSets/lubec/woundLifetime'
 import { LubecTableWords } from './LubecTableWords'
 import { LubecEffectEditor } from './LubecEffectEditor'
 import { LubecGearLosses } from './LubecGearLosses'
@@ -60,7 +61,7 @@ function HandMadeSummary({ effect }: { effect: LubecEffect }) {
     <>
       <span className="lubec-effect-name">{effect.name}</span>
       <EffectWords kind="now" words={now ? describeLubecEffectStep(now) : null} />
-      <EffectWords kind="until" words={lubecEffectTrigger(effect)} />
+      <EffectWords kind="until" words={readWoundLifetime({ effect, at: null }).trigger} />
       <EffectWords kind="next" words={nextWords(effect)} />
     </>
   )
@@ -70,11 +71,12 @@ function HandMadeSummary({ effect }: { effect: LubecEffect }) {
 function WoundCardSummary({ effect }: { effect: LubecEffect }) {
   const now = effect.steps[0]
   const words = now ? describeLubecEffectStep(now) : ''
+  const lifetime = readWoundLifetime({ effect, at: null })
   return (
     <>
       <EffectWords kind="now" words={words || effect.name} />
-      <EffectWords kind="until" words={lubecWoundRoundTrigger(effect)} />
-      <EffectWords kind="manual" words={lubecStepByHand(effect) ? 'Resolved by hand' : null} />
+      <EffectWords kind="until" words={lifetime.roundTrigger} />
+      <EffectWords kind="manual" words={lifetime.byHand ? 'Resolved by hand' : null} />
     </>
   )
 }

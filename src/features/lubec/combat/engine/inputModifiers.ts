@@ -3,34 +3,28 @@ import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
 import { lubecHandLimits, type LubecHandLimits } from '../../../ruleSets/lubec/handLimits'
 import { lubecMovementLimits, type LubecMovementLimits } from '../../../ruleSets/lubec/movementLimits'
-import { lubecBriefWindowEnd } from '../roundTick'
-import type { CombatWoundOrigin } from '../woundTypes'
+import { readWoundLifetime } from '../../../ruleSets/lubec/woundLifetime'
 
 export type CombatInputRound = { fightId: string; round: number }
 
-/** A card from this fight whose round window has passed: inactive to every reader at once, before the tick's write removes it. */
-function expiredWindow(effect: LubecEffect, context: CombatInputRound, origin: CombatWoundOrigin | undefined): boolean {
-  return origin?.fightId === context.fightId && effect.steps[0]?.until === 'next-round-end' && context.round > lubecBriefWindowEnd(origin.originatingRound)
-}
-
-function deferredEffect(effect: LubecEffect, context: CombatInputRound): boolean {
-  const origin = effect.combatOrigin as CombatWoundOrigin | undefined
-  // An after-combat card is the table's to resolve: Core Checks still read it until it is cleared, no fight does.
-  if (effect.afterCombat !== undefined) return true
-  return (origin?.fightId === context.fightId && context.round < origin.effectiveRound) || expiredWindow(effect, context, origin)
-}
+/**
+ * Whether this fight's round reads the card yet: a wound from this fight waits for its effective round, a passed
+ * round window stops counting before the tick's write removes it, and an after-combat card counts in Core Checks
+ * until it is cleared, never in a fight.
+ */
+const activeInFight = (effect: LubecEffect, context: CombatInputRound) => readWoundLifetime({ effect, at: context }).activeInFight
 
 /** Labels and counters remain immediate; only this fight's premature numeric modifiers are filtered. */
 export function combatInputModifiers(sheet: LubecCharacterSheet, context: CombatInputRound | null) {
   if (!context) return lubecSheetModifiers(sheet)
   // A deferred card counts for nothing yet: its flat amounts, fractions and "drops to" all wait together.
-  const effects = sheet.effects.filter((effect) => !deferredEffect(effect, context))
+  const effects = sheet.effects.filter((effect) => activeInFight(effect, context))
   return lubecSheetModifiers({ ...sheet, effects })
 }
 
 /** The cards a combat roll reads this round: every card but this fight's wounds that are not effective yet. */
 export function combatActiveEffects(sheet: LubecCharacterSheet, context: CombatInputRound | null): LubecEffect[] {
-  return context ? sheet.effects.filter((effect) => !deferredEffect(effect, context)) : [...sheet.effects]
+  return context ? sheet.effects.filter((effect) => activeInFight(effect, context)) : [...sheet.effects]
 }
 
 /** The hands the sheet can use in this round of this fight, by the one hand reader Gear also asks. */

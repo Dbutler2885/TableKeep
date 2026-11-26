@@ -2,7 +2,8 @@ import type { Role } from '../../../../types/app'
 import type { CampaignScope } from '../../../campaign/firestorePaths'
 import type { LubecCharacterRecord } from '../../../ruleSets/lubec/characterRecord'
 import { describeLubecEffectStep, type LubecEffect } from '../../../ruleSets/lubec/effects'
-import { lubecEffectGroups, lubecEffectTrigger, lubecPlainProse, lubecWoundRoundTrigger } from '../../../ruleSets/lubec/woundCards'
+import { lubecEffectGroups, lubecPlainProse } from '../../../ruleSets/lubec/woundCards'
+import { readWoundLifetime } from '../../../ruleSets/lubec/woundLifetime'
 import type { LubecEffectRecovery } from '../../effectRecovery'
 import type { LubecStore } from '../../useLubecSheetSession'
 import type { Combatant } from '../engine/types'
@@ -56,10 +57,12 @@ const nowOf = (effect: LubecEffect): string | null => {
 }
 
 /** One wound as a chip, named as the table names it, however many cards it made; a hand-made effect by its own name. */
+const lifetimeOf = (effect: LubecEffect) => readWoundLifetime({ effect, at: null })
+
 function lineOf(group: ReturnType<typeof lubecEffectGroups>[number]): FighterEffectLine {
   const first = group.effects[0]
   const now = group.effects.map(nowOf).filter(Boolean).join('; ') || null
-  const until = group.wound ? group.effects.map(lubecWoundRoundTrigger).filter(Boolean).join('; ') || null : lubecEffectTrigger(first)
+  const until = group.wound ? group.effects.map((effect) => lifetimeOf(effect).roundTrigger).filter(Boolean).join('; ') || null : lifetimeOf(first).trigger
   const line = { id: first.id, label: first.name, now, until }
   const what = group.wound?.prose ? lubecPlainProse(group.wound.prose).replace(/\.$/, '') : line.now
   return { ...line, words: [line.label, what, line.until].filter(Boolean).join(' · ') }

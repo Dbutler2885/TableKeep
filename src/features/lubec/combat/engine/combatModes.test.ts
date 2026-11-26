@@ -95,6 +95,18 @@ describe('what a combat roll reads', () => {
     expect(combatRollMode(record([late]), { kind: 'attack', stat: 'Handle' }, { fightId: 'f', round: 3 }).mode).toBe('disadvantage')
   })
 
+  it('stops reading this fight\'s brief window the round after it ends, before its tick is delivered', () => {
+    const brief = { ...card('Clipped', [{ scope: 'attacks', mode: 'disadvantage' }], { until: 'next-round-end' }), combatOrigin: { fightId: 'f', woundId: 'w', originatingRound: 2, effectiveRound: 2 } }
+    const attack = { kind: 'attack', stat: 'Handle' } as const
+    expect([2, 3, 4].map((round) => combatRollMode(record([brief]), attack, { fightId: 'f', round }).mode)).toEqual(['disadvantage', 'disadvantage', 'normal'])
+  })
+
+  it('reads an after-combat card in Core until it is cleared, and in no later fight', () => {
+    const converted = { ...card('Clipped', [{ scope: 'attacks', mode: 'disadvantage' }]), afterCombat: { suggestedMinutes: 2, instruction: '' } }
+    expect(combatRollMode(record([converted]), { kind: 'attack', stat: 'Handle' }, { fightId: 'next', round: 1 }).mode).toBe('normal')
+    expect(combatRollMode(record([converted]), { kind: 'attack', stat: 'Handle' }, null).mode).toBe('disadvantage')
+  })
+
   it('joins a row\'s own fixed mode to the cards, so they cancel rather than stack', () => {
     const check = { kind: 'save', against: 'Body', advantage: 'disadvantage' } as const
     expect(landingCheckMode(record([]), check, 'Head 9', context)).toEqual({ mode: 'disadvantage', because: 'Disadvantage from Head 9' })

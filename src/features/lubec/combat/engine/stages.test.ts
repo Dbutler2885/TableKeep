@@ -4,7 +4,7 @@ import { publicCombatant } from './inputs'
 import { combatEntropy } from './commandEntropy'
 import { withDeclareRequests, combatAttackers, RAN } from './declare'
 import { withMovementRequests } from './movement'
-import { lostStageWords, actionResolved, lostRoundsOf, withLostStages } from './stages'
+import { lostStageWords, withLostStages } from './stages'
 import type { CombatCommand, CombatState } from './types'
 
 const key = 'character:hero'
@@ -14,25 +14,7 @@ const state = (attacked: string[] = []): CombatState => ({
   woundOutbox: [], woundAcknowledgements: [], combatants: [publicCombatant({ kind: 'character', sheetId: 'hero', name: 'Hero', ownerUserId: 'p', portraitPath: '', sheet: lubecCharacterSheet() })],
 })
 
-describe('stage loss at landing', () => {
-  it.each([
-    [false, 1, { movement: [4], action: [3] }],
-    [false, 2, { movement: [4, 5], action: [3, 4] }],
-    [true, 2, { movement: [4, 5], action: [4, 5] }],
-  ] as const)('Dazed after acting=%s for %s stages has fixed rounds', (acted, count, expected) => {
-    expect(lostRoundsOf({ kind: 'dazed', turns: '1d4' }, state(acted ? [key] : []), key, count)).toEqual(expected)
-  })
-
-  it('takes next Movement in round 4 and next unresolved Action in round 3, including Full Defense and Ran', () => {
-    const current = state()
-    for (const declaration of [RAN, { ...RAN, ran: false, full: true }, null]) {
-      current.combatants[0].declaration = declaration
-      expect(actionResolved(current, key)).toBe(false)
-      expect(lostRoundsOf({ kind: 'lose-action' }, current, key, 1)).toEqual({ movement: [], action: [3] })
-    }
-    expect(lostRoundsOf({ kind: 'lose-movement' }, current, key, 1)).toEqual({ movement: [4], action: [] })
-  })
-
+describe('stage loss in the fight', () => {
   it('unions overlapping losses and stops remaining Defense without changing the recorded roll', () => {
     const current = state()
     current.combatants[0].declaration = { ...RAN, ran: false, full: true, lines: [{ against: 'npc:foe', amount: 40 }], defenseRolled: true }

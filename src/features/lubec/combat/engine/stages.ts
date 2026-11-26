@@ -1,40 +1,13 @@
 import { combatSkipsStages, combatIncapacity } from './inputs'
-import type { LubecWoundNow } from '../../../ruleSets/lubec/woundTables/outcome'
 import { combatantsIn } from './attackParty'
 import type { Combatant, CombatDeclaration, CombatMovement, CombatState } from './types'
 
-// Lost stages, resolved into round numbers the moment the wound lands, from
-// the target's state at that moment. A combatant's Action Stage is resolved
-// once their own attack turn has opened (or was passed); Full Defense, a Run
-// and a declaration with no attack leave it unresolved all round, so losing the
-// Action then takes the Defense too. Movement always resolves before anyone is
-// wounded, so losing the next Movement Stage always means next round. Losses
-// from several wounds combine as a union of rounds, never extending.
+// Lost stages in the fight. The rounds a wound takes are worked out when it
+// lands, by the wound lifetime (`ruleSets/lubec/woundLifetime`); here they are
+// applied. Losses from several wounds combine as a union of rounds, never
+// extending, and a lost Action still to come this round stops the declaration.
 
 export type CombatLostStages = { movement: number[]; action: number[]; reason: string; wound?: string }
-
-/** Whether this combatant's Action Stage this round has been taken: their own attack turn opened or passed. */
-export const actionResolved = (state: CombatState, key: string): boolean => state.round >= 1 && (state.attacked ?? []).includes(key)
-
-/** The next Action Stage not yet resolved: this round's if it is still open, otherwise the next round's. */
-export const nextActionRound = (state: CombatState, key: string): number =>
-  (state.round >= 1 && !actionResolved(state, key) ? state.round : state.round + 1)
-
-const range = (from: number, count: number) => Array.from({ length: count }, (_, index) => from + index)
-
-/** The rounds a stage-losing consequence takes, worked out now; null for one that takes none. */
-export function lostRoundsOf(now: LubecWoundNow, state: CombatState, key: string, dazed: number): { movement: number[]; action: number[] } | null {
-  const action = nextActionRound(state, key)
-  switch (now.kind) {
-    case 'lose-movement': return { movement: [state.round + 1], action: [] }
-    case 'lose-action': return { movement: [], action: [action] }
-    case 'dazed': {
-      const turns = now.turns === 1 ? 1 : dazed
-      return { movement: range(state.round + 1, turns), action: range(action, turns) }
-    }
-    default: return null
-  }
-}
 
 const union = (a: readonly number[], b: readonly number[]) => [...new Set([...a, ...b])].sort((x, y) => x - y)
 
