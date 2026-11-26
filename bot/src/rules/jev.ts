@@ -127,6 +127,9 @@ const NEEDS: Record<Supplement, { name: string; question: JevQuestion }> = {
   },
 }
 
+const GM_PROMPT = { setting: GM_SETTING, instructions: GM_QUESTION, criteria: GM_CRITERIA }
+const FALLBACK_PROMPT = { setting: FALLBACK_SETTING, instructions: FALLBACK_QUESTION, criteria: FALLBACK_CRITERIA }
+
 export type JevOptions = {
   /** Whether the GM's lines are identified with "(GM)" in the transcript. */
   gmKnown?: boolean
@@ -149,10 +152,7 @@ export function jevRequest(
   supplements: readonly Supplement[] = [],
   options: JevOptions = {},
 ): JevRequest {
-  const gmKnown = options.gmKnown ?? false
-  const setting = gmKnown ? GM_SETTING : FALLBACK_SETTING
-  const instructions = gmKnown ? GM_QUESTION : FALLBACK_QUESTION
-  const criteria = gmKnown ? GM_CRITERIA : FALLBACK_CRITERIA
+  const { setting, instructions, criteria } = options.gmKnown ? GM_PROMPT : FALLBACK_PROMPT
   const questions: Record<string, JevQuestion> = { rules_question: { type: 'noul', instructions, criteria } }
   for (const supplement of supplements) questions[NEEDS[supplement].name] = NEEDS[supplement].question
   return {

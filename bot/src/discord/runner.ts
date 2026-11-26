@@ -244,6 +244,15 @@ export class SessionRunner {
     }
   }
 
+  /** Logs once per session when the campaign GM cannot be matched to a Discord account. */
+  #warnIfNoGm(answering: RulesAnswering, sessionId: string, gmUserId: string | null, gmDiscordId: string | null): void {
+    if (gmDiscordId) return
+    answering.log('gm discord identity unavailable', {
+      sessionId,
+      reason: gmUserId ? 'gm-discord-not-connected' : 'no-gm-on-campaign',
+    })
+  }
+
   /**
    * The rules a session is answered from (its campaign's rule set) and the
    * GM's Discord ID if linked. None when the bot answers no rules questions,
@@ -261,12 +270,7 @@ export class SessionRunner {
         answering.log('rules answers off for this session', { sessionId, ruleSet, reason: `there are no rules for ${ruleSet}` })
         return null
       }
-      if (!gmDiscordId) {
-        answering.log('gm discord identity unavailable', {
-          sessionId,
-          reason: gmUserId ? 'gm-discord-not-connected' : 'no-gm-on-campaign',
-        })
-      }
+      this.#warnIfNoGm(answering, sessionId, gmUserId, gmDiscordId)
       answering.log('rules answers on for this session', { sessionId, ruleSet, gmKnown: gmDiscordId !== null })
       return { rules, gmDiscordId }
     } catch (error) {

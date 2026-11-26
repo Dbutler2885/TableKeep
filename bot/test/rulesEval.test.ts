@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { RULES_BOOKS } from '../src/rules/books.ts'
-import { evalWindow, lintRulesAnswer, wordCount, type RulesEvalCase } from '../src/rules/evalLint.ts'
+import { RULES_BOOKS, type Supplement } from '../src/rules/books.ts'
+import { evaluateRulesCase, evalWindow, filterEvalCases, formatEvalOutcome, lintRulesAnswer, loadEvalBook, wordCount, type RulesEvalCase } from '../src/rules/evalLint.ts'
 import { RulesWatcher } from '../src/rules/watcher.ts'
 
 const FIXTURES = JSON.parse(
@@ -93,4 +93,54 @@ test('lintRulesAnswer accepts lean, accurate answers and flags bloat, prose wall
     [],
   )
   assert.ok(lintRulesAnswer(playerCase, goodAnswer).some((issue) => issue.includes('kind "answered" not in expected')))
+})
+
+test('loadEvalBook, filterEvalCases, evaluateRulesCase, and formatEvalOutcome run and format both passing and failing cases', async () => {
+  assert.equal(filterEvalCases(FIXTURES, '').length, FIXTURES.length)
+  assert.deepEqual(
+    filterEvalCases(FIXTURES, 'ghoul').map((item) => item.id),
+    ['ose-gm-ghoul-paralysis'],
+  )
+  const root = new URL('../..', import.meta.url).pathname
+  const lubec = loadEvalBook(root, 'lubec')
+  assert.ok(lubec.document.includes('# Lubec rules'))
+  assert.deepEqual(lubec.supplementNames, [])
+
+  const ose = loadEvalBook(root, 'ose')
+  assert.deepEqual(ose.supplementNames.sort(), ['monsters', 'spellsAndItems'])
+
+  const ghoulCase = FIXTURES.find((item) => item.id === 'ose-gm-ghoul-paralysis')!
+  const sentSupplements: (readonly Supplement[] | undefined)[] = []
+  const passOutcome = await evaluateRulesCase({
+    evalCase: ghoulCase,
+    supplementNames: ose.supplementNames,
+    askJev: async () => ({ rulesQuestion: 0.92, needs: { monsters: 0.9, spellsAndItems: 0.1 } }),
+    answer: async (_window, _posted, needs) => {
+      sentSupplements.push(needs)
+      return {
+        kind: 'answered',
+        title: 'Ghoul',
+        question: 'What does a ghoul do when it hits?',
+        askedBy: 'DLB',
+        answer: '- **2 claws (1d3)** + **1 bite (1d3)** + **paralysis** (**Save vs Paralysis** or paralysed 2d4 turns).',
+        section: 'Monsters › Ghoul',
+      }
+    },
+  })
+  assert.deepEqual(sentSupplements, [['monsters']])
+  assert.deepEqual(passOutcome.failures, [])
+  const passText = formatEvalOutcome(ghoulCase, passOutcome, null)
+  assert.match(passText, /^\[PASS\] ose-gm-ghoul-paralysis — Jev=0\.92 kind=answered/)
+  assert.match(passText, /\| \*\*Ghoul\*\*/)
+
+  const failOutcome = await evaluateRulesCase({
+    evalCase: ghoulCase,
+    supplementNames: ose.supplementNames,
+    askJev: async () => ({ rulesQuestion: 0.12, needs: {} }),
+    answer: async () => ({ kind: 'no_question', title: '', question: '', askedBy: '', answer: '', section: '' }),
+  })
+  assert.ok(failOutcome.failures.some((issue) => issue.includes('triggered=false, expected=true')))
+  const failText = formatEvalOutcome(ghoulCase, failOutcome, null)
+  assert.match(failText, /^\[FAIL\] ose-gm-ghoul-paralysis — Jev=0\.12 kind=no_question words=0/)
+  assert.match(failText, /! Jev 0\.12/)
 })
