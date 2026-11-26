@@ -3,6 +3,7 @@ import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
 import { lubecEffectWound } from '../../../ruleSets/lubec/woundCards'
 import { readTableRow, tableChecked } from './attackTableRow'
 import { combatEntropy, type CombatEntropy } from './commandEntropy'
+import { RAN } from './declare'
 import { publicCombatant } from './inputs'
 import type { CombatAttack, CombatCommand, CombatFight, CombatSheet, CombatWoundRow } from './types'
 
@@ -314,6 +315,16 @@ it('knockdown only stops an Action that has not opened, preserving earlier rolls
     expect(landed.state.lost?.[ROY]?.action ?? []).toEqual(acted ? [] : [3])
     expect(landed.state.combatants[1].outReason).toBeNull()
     expect(landed.state.woundOutbox[0].effects!.find((card) => card.cardKey === 'down')).toMatchObject({ steps: [{ until: 'combat-end', restrictions: [{ kind: 'down' }] }] })
+  }
+})
+
+it('takes this round\'s Action from a target whose own attack turn has not opened, even under Full Defense or after a Run', () => {
+  for (const declaration of [RAN, { ...RAN, ran: false, full: true }, null]) {
+    const current = fight()
+    current.state.round = 3
+    current.state.combatants[1].declaration = declaration
+    const landed = readTableRow(current, hit('fisticuffs', 'shin-L', 8), dice({}))
+    expect(landed.state.lost?.[ROY]?.action).toEqual([3])
   }
 })
 

@@ -3,11 +3,11 @@ import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import type { LubecGear } from '../../../ruleSets/lubec/gear/gearRecord'
 import { lubecHeldIn } from '../../../ruleSets/lubec/gear/held'
-import { lubecDropPending, lubecStruckHand, lubecWoundCards, type LubecWoundDrop, type LubecWoundRolled, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
+import { lubecDropPending, lubecStruckHand, type LubecWoundDrop, type LubecWoundRolled, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
+import { landWoundLifetime, type PublicLanding } from '../../../ruleSets/lubec/woundLifetime'
 import type { LubecWoundNow, LubecWoundOutcome } from '../../../ruleSets/lubec/woundTables/outcome'
-import { actionResolved, lostRoundsOf, withLostStages } from './stages'
+import { withLostStages } from './stages'
 import { lubecWoundTableRow, type LubecLocatedWoundRow, type LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables'
-import { lubecBriefWindowEnd, lubecCountdownDue } from '../roundTick'
 import type { CombatWound } from '../woundTypes'
 import { closeAttack, stepRequest } from './attackFlow'
 import { combatantOf, defenderOf } from './attackParty'
@@ -135,11 +135,9 @@ function landingMinimumStress(outcome: LubecWoundOutcome, rolled: LubecWoundRoll
   return (rolled.minimumStress ?? 0) + fromStart
 }
 
-function landingDetails(state: CombatState, attack: CombatAttack, landed: LandedFinal, checks: CombatCheckRoll[], entropy: CombatEntropy, gear: LubecGear | null): LandingDetails {
+function landingDetails(attack: CombatAttack, landed: LandedFinal, checks: CombatCheckRoll[], entropy: CombatEntropy, gear: LubecGear | null): LandingDetails {
   const drop = dropOf(landed.outcome, attack.landing!.part!, gear, checks)
-  const { rolled: amounts, dice } = lubecRollAmounts(landed.outcome, entropy)
-  const lost = stageRounds(landed.outcome, state, defenderOf(attack), amounts.dazed ?? 1)
-  const rolled = { ...amounts, lost }
+  const { rolled, dice } = lubecRollAmounts(landed.outcome, entropy)
   return { drop, dice, rolled, minimumStress: landingMinimumStress(landed.outcome, rolled) }
 }
 
@@ -165,21 +163,23 @@ function finalWound(state: CombatState, attack: CombatAttack, landed: LandedFina
   }
 }
 
-const LOSS_REASONS: Record<string, string> = { dazed: 'Dazed', movement: 'Movement lost' }
-const lossReason = (kind: string) => LOSS_REASONS[kind] ?? 'Action lost'
 const withUnconscious = (state: CombatState, key: string): CombatState =>
   ({ ...state, combatants: state.combatants.map((entry) => entry.key === key ? { ...entry, unconscious: true } : entry) })
 
 /** Stage losses, incapacity and reach are the public combat consequences; the sheet receives the cards separately. */
-function withWoundStages(state: CombatState, attack: CombatAttack, outcome: LubecWoundOutcome, lost: NonNullable<LubecWoundRolled['lost']>): CombatState {
+function withWoundStages(state: CombatState, attack: CombatAttack, landing: PublicLanding): CombatState {
   const key = defenderOf(attack)
-  let staged = Object.entries(lost).reduce<CombatState>((current, [kind, rounds]) => withLostStages(current, key, rounds, lossReason(kind), attack.row!.name), state)
-  if (hasNow(outcome, 'knocked-down') && state.round >= 1 && !actionResolved(state, key)) {
-    staged = withLostStages(staged, key, { movement: [], action: [state.round] }, 'Knocked down', attack.row!.name)
-  }
-  if (hasNow(outcome, 'unconscious')) staged = withUnconscious(staged, key)
-  if (hasNow(outcome, 'out-of-reach')) staged = withOutOfReach(staged, attack.attackerKey, key)
+  let staged = landing.losses.reduce<CombatState>((current, loss) => withLostStages(current, key, loss.rounds, loss.reason, attack.row!.name), state)
+  if (landing.unconscious) staged = withUnconscious(staged, key)
+  if (landing.outOfReach) staged = withOutOfReach(staged, attack.attackerKey, key)
   return staged
+}
+
+/** The wound's countdowns, for the combat log at the end of the round each falls due, and its watch merged with any earlier one. */
+function withWoundSchedule(state: CombatState, wound: CombatWound, landing: PublicLanding): Pick<CombatState, 'roundWatch' | 'countdowns'> {
+  const key = `${wound.target.kind}:${wound.target.sheetId}`
+  const roundWatch = landing.watchThrough === null ? state.roundWatch : { ...state.roundWatch, [key]: Math.max(state.roundWatch?.[key] ?? 0, landing.watchThrough) }
+  return { roundWatch, countdowns: [...(state.countdowns ?? []), ...landing.countdowns.map((countdown) => ({ key, ...countdown }))] }
 }
 
 function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatCheckRoll[], entropy: CombatEntropy, gear: LubecGear | null = null): CombatState {
@@ -190,65 +190,26 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   if (!landed.wound) {
     return closeAttack(state, { ...withChecks, rowOutcome: located.row.text, rowTrauma: 0, rowStress: 0, rowSections: [] }, 'no-wound')
   }
-  const details = landingDetails(state, attack, landed, checks, entropy, gear)
+  const details = landingDetails(attack, landed, checks, entropy, gear)
   const source = landingSource(attack, located, landed, checks, details)
-  const cards = lubecWoundCards(landed.outcome, { source, cause: causeOf(attack, row, located.table.name), rolled: details.rolled })
-  const wound = finalWound(state, attack, landed, details, cards, entropy)
+  const lifetime = landWoundLifetime({
+    outcome: landed.outcome,
+    context: { source, cause: causeOf(attack, row, located.table.name), rolled: details.rolled },
+    at: { round: state.round, actionTaken: (state.attacked ?? []).includes(defenderOf(attack)) },
+  })
+  const wound = finalWound(state, attack, landed, details, lifetime.cards, entropy)
   const closed = {
     ...withChecks, rowOutcome: located.row.text, rowTrauma: landed.trauma, rowStress: landed.stress, rowMinimumStress: details.minimumStress,
     rowSections: lubecWoundSections(details.dice, details.drop), woundId: wound.id,
   }
-  const roundWatch = watchedThrough(state, wound.target, cards)
-  const countdowns = [...(state.countdowns ?? []), ...countdownsOf(state, wound, cards)]
-  const staged = withWoundStages(state, attack, landed.outcome, details.rolled.lost!)
-  return closeAttack({ ...staged, woundOutbox: [...state.woundOutbox, wound], roundWatch, countdowns }, closed, 'wounded')
+  const staged = withWoundStages(state, attack, lifetime.public!)
+  return closeAttack({ ...staged, woundOutbox: [...state.woundOutbox, wound], ...withWoundSchedule(state, wound, lifetime.public!) }, closed, 'wounded')
 }
 
 /** Knocked out of striking reach: remembered for the attacker's next melee aim at the target, as a reminder only. */
 function withOutOfReach(state: CombatState, attackerKey: string, targetKey: string): CombatState {
   const others = (state.outOfReach ?? []).filter((entry) => entry.attackerKey !== attackerKey || entry.targetKey !== targetKey)
   return { ...state, outOfReach: [...others, { attackerKey, targetKey, round: state.round }] }
-}
-
-/** The rounds each stage-losing consequence of the outcome takes from the target, worked out now. */
-function stageRounds(outcome: { now?: LubecWoundNow[] }, state: CombatState, key: string, dazed: number): NonNullable<LubecWoundRolled['lost']> {
-  const lost: NonNullable<LubecWoundRolled['lost']> = {}
-  for (const now of outcome.now ?? []) {
-    const rounds = lostRoundsOf(now, state, key, dazed)
-    const slot = LOSS_SLOTS[now.kind]
-    if (rounds && slot) lost[slot] = rounds
-  }
-  return lost
-}
-
-const LOSS_SLOTS: Partial<Record<LubecWoundNow['kind'], 'movement' | 'action' | 'dazed'>> = { 'lose-movement': 'movement', 'lose-action': 'action', dazed: 'dazed' }
-
-type Countdown = { kind: 'bleed' | 'critical'; rounds: number }
-const countdownOfCard = (card: LubecEffect): Countdown | null => (card.countdown as Countdown | undefined) ?? null
-
-/** Each countdown the wound started, with the round it falls due, for the combat log at that round's end. */
-function countdownsOf(state: CombatState, wound: CombatWound, cards: readonly LubecEffect[]): NonNullable<CombatState['countdowns']> {
-  return cards.flatMap((card) => {
-    const countdown = countdownOfCard(card)
-    if (!countdown) return []
-    return [{ key: `${wound.target.kind}:${wound.target.sheetId}`, wound: card.name, kind: countdown.kind, dueRound: lubecCountdownDue(state.round, countdown.rounds) }]
-  })
-}
-
-/** The last round whose end must be processed for these cards: a brief window ends with the next round, a countdown with its due round. */
-function watchedThrough(state: CombatState, target: CombatWound['target'], cards: readonly LubecEffect[]): CombatState['roundWatch'] {
-  const ends = cards.flatMap((card) => cardWatchEnds(card, state.round))
-  if (!ends.length) return state.roundWatch
-  const key = `${target.kind}:${target.sheetId}`
-  return { ...state.roundWatch, [key]: Math.max(state.roundWatch?.[key] ?? 0, ...ends) }
-}
-
-function cardWatchEnds(card: LubecEffect, round: number): number[] {
-  const countdown = countdownOfCard(card)
-  if (countdown) return [lubecCountdownDue(round, countdown.rounds)]
-  const lost = card.lost as { movement: number[]; action: number[] } | undefined
-  if (lost) return [Math.max(...lost.movement, ...lost.action)]
-  return card.steps[0]?.until === 'next-round-end' ? [lubecBriefWindowEnd(round)] : []
 }
 
 /** A positive Impact on a located table reads its row: a d2 picks between two wounds, any Save or Check waits on the target. */
